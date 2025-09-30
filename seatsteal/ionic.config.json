@@ -1,0 +1,7 @@
+{
+  "name": "seatsteal",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react"
+}
