@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .base import Base
 
@@ -20,6 +21,9 @@ class Course(Base):
         nullable=False,
     )
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # Relationships
+    college = relationship("College", backref="courses")
 
     __table_args__ = (
         # Unique constraint for college + course_code combination
