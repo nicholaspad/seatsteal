@@ -12,7 +12,6 @@ psycopg2-binary==2.9.9
 # Background Tasks
 celery==5.3.6
 redis==5.0.1
-celery-beat==2.5.0
 
 # Scraping
 beautifulsoup4==4.12.3
