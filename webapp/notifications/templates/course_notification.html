@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seat Available - {{ course_code }}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f5f5; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header with Icon -->
+                    <tr>
+                        <td style="padding: 40px 40px 30px 40px; text-align: center;">
+                            <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+                            <h1 style="margin: 0; font-size: 28px; color: #333333; font-weight: 600;">
+                                A Seat is Available!
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <!-- Course Info Box -->
+                    <tr>
+                        <td style="padding: 0 40px 30px 40px;">
+                            <div style="background-color: #f8f9fa; border-left: 4px solid #28a745; padding: 20px; border-radius: 6px;">
+                                <h2 style="margin: 0 0 10px 0; font-size: 20px; color: #333333; font-weight: 600;">
+                                    {{ course_code }}
+                                </h2>
+                                <p style="margin: 0 0 15px 0; font-size: 16px; color: #666666; line-height: 1.5;">
+                                    {{ course_title }}
+                                </p>
+
+                                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 15px;">
+                                    <tr>
+                                        <td style="padding: 5px 0;">
+                                            <span style="font-size: 14px; color: #999999;">Section:</span>
+                                            <strong style="font-size: 14px; color: #333333; margin-left: 8px;">{{ class_section }}</strong>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 0;">
+                                            <span style="font-size: 14px; color: #999999;">College:</span>
+                                            <strong style="font-size: 14px; color: #333333; margin-left: 8px;">{{ college_name }}</strong>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 0;">
+                                            <span style="font-size: 14px; color: #999999;">Available Spots:</span>
+                                            <strong style="font-size: 14px; color: #28a745; margin-left: 8px;">{{ spots_available }}</strong>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Call to Action -->
+                    <tr>
+                        <td style="padding: 0 40px 30px 40px;">
+                            <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #666666; text-align: center;">
+                                <strong>Act fast!</strong> Seats fill up quickly during registration.
+                            </p>
+
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{ course_url }}"
+                                           style="display: inline-block; padding: 14px 40px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500;">
+                                            View Course Details
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Tips Section -->
+                    <tr>
+                        <td style="padding: 0 40px 30px 40px;">
+                            <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 6px;">
+                                <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
+                                    <strong>💡 Pro Tip:</strong> Have your registration system open and ready. Seats can fill up within minutes during peak registration times.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px 40px; text-align: center; border-top: 1px solid #e5e5e5;">
+                            <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
+                                You're receiving this because you subscribed to notifications for this course.
+                            </p>
+
+                            {% if unsubscribe_url %}
+                            <p style="margin: 10px 0 0 0; font-size: 12px;">
+                                <a href="{{ unsubscribe_url }}" style="color: #999999; text-decoration: underline;">
+                                    Unsubscribe from this course
+                                </a>
+                            </p>
+                            {% endif %}
+
+                            <p style="margin: 20px 0 0 0; font-size: 12px; color: #999999;">
+                                {{ app_name }} - Never miss a course opening
+                            </p>
+                            <p style="margin: 10px 0 0 0; font-size: 12px; color: #cccccc;">
+                                This is an automated notification. Please do not reply.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

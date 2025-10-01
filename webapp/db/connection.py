@@ -3,8 +3,8 @@ from ..config import settings
 
 # Create async database engine
 engine: AsyncEngine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.PYTHON_ENV == "development",
+    settings.async_database_url,
+    echo=settings.is_development,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
