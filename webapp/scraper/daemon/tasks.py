@@ -5,9 +5,9 @@ from sqlalchemy import select
 import asyncio
 from loguru import logger
 
-from ...config import settings
-from ...models.college import College
-from ..services.scraper_service import ScraperService
+from config import settings
+from models.college import College
+from scraper.services.scraper_service import ScraperService
 
 # Initialize Celery
 celery_app = Celery(

@@ -1,6 +1,6 @@
 from celery import Celery
 from celery.schedules import crontab
-from ...config import settings
+from config import settings
 
 # Initialize Celery (same configuration as tasks.py)
 celery_app = Celery(

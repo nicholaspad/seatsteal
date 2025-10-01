@@ -4,17 +4,17 @@ from sqlalchemy import select
 from datetime import datetime
 from loguru import logger
 
-from ...models.college import College
-from ...models.course import Course
-from ...models.class_model import Class
-from ...models.enrollment import Enrollment
-from ..scrapers.princeton import PrincetonScraper
-from ..scrapers.brown import BrownScraper
-from ..scrapers.bu import BUScraper
-from ..scrapers.cornell import CornellScraper
-from ..scrapers.neu import NEUScraper
-from ..scrapers.usc import USCScraper
-from .scraper_log import ScraperLogService
+from models.college import College
+from models.course import Course
+from models.class_model import Class
+from models.enrollment import Enrollment
+from scraper.scrapers.princeton import PrincetonScraper
+from scraper.scrapers.brown import BrownScraper
+from scraper.scrapers.bu import BUScraper
+from scraper.scrapers.cornell import CornellScraper
+from scraper.scrapers.neu import NEUScraper
+from scraper.scrapers.usc import USCScraper
+from scraper.services.scraper_log import ScraperLogService
 
 
 # Map college short names to scraper classes

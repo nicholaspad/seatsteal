@@ -4,7 +4,7 @@ from sqlalchemy import select
 from datetime import datetime
 from loguru import logger
 
-from ...models.scraper_log import ScraperLog
+from models.scraper_log import ScraperLog
 
 
 class ScraperLogService:

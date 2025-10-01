@@ -2,7 +2,7 @@ import redis
 from typing import Optional
 from contextlib import contextmanager
 from loguru import logger
-from ...config import settings
+from config import settings
 
 
 class RedisLock:

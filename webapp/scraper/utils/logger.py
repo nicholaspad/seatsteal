@@ -1,7 +1,7 @@
 from loguru import logger
 import sys
 from pathlib import Path
-from ...config import settings
+from config import settings
 
 
 def setup_scraper_logger():

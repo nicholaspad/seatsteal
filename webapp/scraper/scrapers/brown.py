@@ -1,9 +1,9 @@
 from typing import List, Dict, Any, Optional
 from bs4 import BeautifulSoup
 import re
-from ..base import BaseScraper
-from ..utils.logger import scraper_logger as logger
-from ..utils.term_config import TermConfig
+from scraper.base import BaseScraper
+from scraper.utils.logger import scraper_logger as logger
+from scraper.utils.term_config import TermConfig
 
 
 class BrownScraper(BaseScraper):
