@@ -20,7 +20,9 @@ async def get_colleges(db: AsyncSession = Depends(get_db)):
         colleges = result.scalars().all()
         return colleges
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch colleges: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch colleges: {str(e)}"
+        )
 
 
 @router.get("/{college_id}", response_model=CollegeResponse)

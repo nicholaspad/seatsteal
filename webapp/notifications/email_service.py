@@ -14,7 +14,7 @@ class EmailService:
     def __init__(self):
         """Initialize AWS SES client and load email templates"""
         self.ses_client = boto3.client(
-            'ses',
+            "ses",
             region_name=settings.AWS_REGION,
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
@@ -22,7 +22,7 @@ class EmailService:
         self.from_email = settings.AWS_SES_FROM_EMAIL
 
         # Set up Jinja2 template environment
-        template_dir = Path(__file__).parent / 'templates'
+        template_dir = Path(__file__).parent / "templates"
         self.jinja_env = Environment(loader=FileSystemLoader(str(template_dir)))
 
         logger.info(f"EmailService initialized with sender: {self.from_email}")
@@ -39,35 +39,27 @@ class EmailService:
             True if email sent successfully, False otherwise
         """
         try:
-            template = self.jinja_env.get_template('magic_link.html')
+            template = self.jinja_env.get_template("magic_link.html")
             html_body = template.render(
-                magic_link=magic_link,
-                email=to_email,
-                app_name="SeatSteal"
+                magic_link=magic_link, email=to_email, app_name="SeatSteal"
             )
 
             response = self.ses_client.send_email(
                 Source=self.from_email,
-                Destination={'ToAddresses': [to_email]},
+                Destination={"ToAddresses": [to_email]},
                 Message={
-                    'Subject': {
-                        'Data': 'Sign in to SeatSteal',
-                        'Charset': 'UTF-8'
-                    },
-                    'Body': {
-                        'Html': {
-                            'Data': html_body,
-                            'Charset': 'UTF-8'
+                    "Subject": {"Data": "Sign in to SeatSteal", "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {
+                            "Data": f"Click here to sign in: {magic_link}",
+                            "Charset": "UTF-8",
                         },
-                        'Text': {
-                            'Data': f'Click here to sign in: {magic_link}',
-                            'Charset': 'UTF-8'
-                        }
-                    }
-                }
+                    },
+                },
             )
 
-            message_id = response['MessageId']
+            message_id = response["MessageId"]
             logger.info(f"Sent magic link to {to_email}: {message_id}")
             return True
 
@@ -86,7 +78,7 @@ class EmailService:
         class_section: str,
         spots_available: int,
         college_name: str,
-        unsubscribe_url: Optional[str] = None
+        unsubscribe_url: Optional[str] = None,
     ) -> bool:
         """
         Send course availability notification email.
@@ -104,7 +96,7 @@ class EmailService:
             True if email sent successfully, False otherwise
         """
         try:
-            template = self.jinja_env.get_template('course_notification.html')
+            template = self.jinja_env.get_template("course_notification.html")
             html_body = template.render(
                 course_code=course_code,
                 course_title=course_title,
@@ -113,7 +105,7 @@ class EmailService:
                 college_name=college_name,
                 course_url=f"{settings.FRONTEND_URL}/courses/{course_code}",
                 unsubscribe_url=unsubscribe_url,
-                app_name="SeatSteal"
+                app_name="SeatSteal",
             )
 
             subject = f"🎉 Seat available in {course_code}!"
@@ -134,27 +126,20 @@ View course: {settings.FRONTEND_URL}/courses/{course_code}
 
             response = self.ses_client.send_email(
                 Source=self.from_email,
-                Destination={'ToAddresses': [to_email]},
+                Destination={"ToAddresses": [to_email]},
                 Message={
-                    'Subject': {
-                        'Data': subject,
-                        'Charset': 'UTF-8'
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"},
                     },
-                    'Body': {
-                        'Html': {
-                            'Data': html_body,
-                            'Charset': 'UTF-8'
-                        },
-                        'Text': {
-                            'Data': text_body,
-                            'Charset': 'UTF-8'
-                        }
-                    }
-                }
+                },
             )
 
-            message_id = response['MessageId']
-            logger.info(f"Sent notification to {to_email} for {course_code}: {message_id}")
+            message_id = response["MessageId"]
+            logger.info(
+                f"Sent notification to {to_email} for {course_code}: {message_id}"
+            )
             return True
 
         except ClientError as e:
@@ -164,10 +149,7 @@ View course: {settings.FRONTEND_URL}/courses/{course_code}
             logger.error(f"Unexpected error sending notification to {to_email}: {e}")
             return False
 
-    async def send_batch_notifications(
-        self,
-        notifications: List[dict]
-    ) -> dict:
+    async def send_batch_notifications(self, notifications: List[dict]) -> dict:
         """
         Send multiple notifications in batch (more efficient for large volumes).
 
@@ -188,13 +170,13 @@ View course: {settings.FRONTEND_URL}/courses/{course_code}
 
         for notification in notifications:
             success = await self.send_course_notification(
-                to_email=notification['to_email'],
-                course_code=notification['course_code'],
-                course_title=notification['course_title'],
-                class_section=notification['class_section'],
-                spots_available=notification['spots_available'],
-                college_name=notification['college_name'],
-                unsubscribe_url=notification.get('unsubscribe_url')
+                to_email=notification["to_email"],
+                course_code=notification["course_code"],
+                course_title=notification["course_title"],
+                class_section=notification["class_section"],
+                spots_available=notification["spots_available"],
+                college_name=notification["college_name"],
+                unsubscribe_url=notification.get("unsubscribe_url"),
             )
 
             if success:
@@ -204,18 +186,10 @@ View course: {settings.FRONTEND_URL}/courses/{course_code}
 
         logger.info(f"Batch notifications complete: {successful} sent, {failed} failed")
 
-        return {
-            'total': len(notifications),
-            'successful': successful,
-            'failed': failed
-        }
+        return {"total": len(notifications), "successful": successful, "failed": failed}
 
     async def send_subscription_confirmation(
-        self,
-        to_email: str,
-        course_code: str,
-        course_title: str,
-        college_name: str
+        self, to_email: str, course_code: str, course_title: str, college_name: str
     ) -> bool:
         """
         Send subscription confirmation email.
@@ -262,17 +236,19 @@ SeatSteal
 
             response = self.ses_client.send_email(
                 Source=self.from_email,
-                Destination={'ToAddresses': [to_email]},
+                Destination={"ToAddresses": [to_email]},
                 Message={
-                    'Subject': {'Data': subject, 'Charset': 'UTF-8'},
-                    'Body': {
-                        'Html': {'Data': html_body, 'Charset': 'UTF-8'},
-                        'Text': {'Data': text_body, 'Charset': 'UTF-8'}
-                    }
-                }
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"},
+                    },
+                },
             )
 
-            logger.info(f"Sent subscription confirmation to {to_email}: {response['MessageId']}")
+            logger.info(
+                f"Sent subscription confirmation to {to_email}: {response['MessageId']}"
+            )
             return True
 
         except Exception as e:

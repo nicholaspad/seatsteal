@@ -12,7 +12,9 @@ class Class(Base):
     section_code = Column(String)
 
     # Metadata
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     updated_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -23,5 +25,7 @@ class Class(Base):
 
     __table_args__ = (
         # Unique constraint for course + class_number combination
-        Index("classes_course_class_number_idx", "course_id", "class_number", unique=True),
+        Index(
+            "classes_course_class_number_idx", "course_id", "class_number", unique=True
+        ),
     )

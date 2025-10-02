@@ -41,7 +41,9 @@ async def clear_college_data(college_short_name: str, keep_subscriptions: bool =
         Dict with counts of deleted records
     """
     engine = create_async_engine(settings.async_database_url)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    AsyncSessionLocal = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     async with AsyncSessionLocal() as db:
         # Find college
@@ -66,12 +68,7 @@ async def clear_college_data(college_short_name: str, keep_subscriptions: bool =
 
         if not course_ids:
             print("   No data to clear.")
-            return {
-                'courses': 0,
-                'classes': 0,
-                'enrollments': 0,
-                'subscriptions': 0
-            }
+            return {"courses": 0, "classes": 0, "enrollments": 0, "subscriptions": 0}
 
         # Get class IDs
         class_result = await db.execute(
@@ -83,7 +80,9 @@ async def clear_college_data(college_short_name: str, keep_subscriptions: bool =
 
         # Delete enrollments
         if class_ids:
-            enrollment_delete = delete(Enrollment).where(Enrollment.class_id.in_(class_ids))
+            enrollment_delete = delete(Enrollment).where(
+                Enrollment.class_id.in_(class_ids)
+            )
             enrollment_result = await db.execute(enrollment_delete)
             enrollments_deleted = enrollment_result.rowcount
             print(f"   Deleted {enrollments_deleted} enrollment records")
@@ -105,7 +104,9 @@ async def clear_college_data(college_short_name: str, keep_subscriptions: bool =
                 print(f"   Deactivated {subscriptions_affected} subscriptions")
             else:
                 # Delete subscriptions
-                subscription_delete = delete(Subscription).where(Subscription.class_id.in_(class_ids))
+                subscription_delete = delete(Subscription).where(
+                    Subscription.class_id.in_(class_ids)
+                )
                 subscription_result = await db.execute(subscription_delete)
                 subscriptions_affected = subscription_result.rowcount
                 print(f"   Deleted {subscriptions_affected} subscriptions")
@@ -131,10 +132,10 @@ async def clear_college_data(college_short_name: str, keep_subscriptions: bool =
         print(f"\n✅ Data cleared successfully for {college.name}")
 
         return {
-            'courses': courses_deleted,
-            'classes': classes_deleted,
-            'enrollments': enrollments_deleted,
-            'subscriptions': subscriptions_affected
+            "courses": courses_deleted,
+            "classes": classes_deleted,
+            "enrollments": enrollments_deleted,
+            "subscriptions": subscriptions_affected,
         }
 
     await engine.dispose()
@@ -149,32 +150,33 @@ def main():
         "--college",
         type=str,
         required=True,
-        help="College short name (e.g., 'princeton')"
+        help="College short name (e.g., 'princeton')",
     )
 
     parser.add_argument(
         "--keep-subscriptions",
         action="store_true",
-        help="Keep subscription records (deactivate instead of delete)"
+        help="Keep subscription records (deactivate instead of delete)",
     )
 
     parser.add_argument(
-        "--confirm",
-        action="store_true",
-        help="Confirm deletion (required for safety)"
+        "--confirm", action="store_true", help="Confirm deletion (required for safety)"
     )
 
     args = parser.parse_args()
 
     if not args.confirm:
-        print("⚠️  WARNING: This will delete all course data for the specified college!")
+        print(
+            "⚠️  WARNING: This will delete all course data for the specified college!"
+        )
         print("   Use --confirm flag to proceed")
         return
 
-    result = asyncio.run(clear_college_data(
-        args.college.lower(),
-        keep_subscriptions=args.keep_subscriptions
-    ))
+    result = asyncio.run(
+        clear_college_data(
+            args.college.lower(), keep_subscriptions=args.keep_subscriptions
+        )
+    )
 
     if result:
         print("\nSummary:")

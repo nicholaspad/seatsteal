@@ -12,7 +12,9 @@ class Profile(Base):
     __tablename__ = "profiles"
 
     id = Column(UUID(as_uuid=True), primary_key=True)
-    college_id = Column(Integer, ForeignKey("colleges.id"))  # Nullable for new user flow
+    college_id = Column(
+        Integer, ForeignKey("colleges.id")
+    )  # Nullable for new user flow
     role = Column(String, default="user", nullable=False)  # 'user' or 'admin'
     email = Column(String, nullable=False, unique=True, index=True)
     phone = Column(String)

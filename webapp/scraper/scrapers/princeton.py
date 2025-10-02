@@ -19,7 +19,9 @@ class PrincetonScraper(BaseScraper):
         super().__init__("princeton")
         self.current_term = TermConfig.get_current_term("princeton")
 
-    async def scrape_courses(self, department: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def scrape_courses(
+        self, department: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """
         Scrape Princeton courses for a specific department.
 
@@ -30,7 +32,9 @@ class PrincetonScraper(BaseScraper):
         Returns:
             List of course dictionaries with class information
         """
-        logger.info(f"Scraping Princeton {department} courses (limit: {limit}, term: {self.current_term})")
+        logger.info(
+            f"Scraping Princeton {department} courses (limit: {limit}, term: {self.current_term})"
+        )
 
         try:
             # Build URL for department
@@ -85,11 +89,7 @@ class PrincetonScraper(BaseScraper):
                 if class_data:
                     classes.append(class_data)
 
-            return {
-                'course_code': course_code,
-                'title': title,
-                'classes': classes
-            }
+            return {"course_code": course_code, "title": title, "classes": classes}
 
         except Exception as e:
             logger.error(f"Error parsing course element: {e}")
@@ -99,53 +99,61 @@ class PrincetonScraper(BaseScraper):
         """Parse a single class/section element"""
         try:
             # Extract class number
-            class_number_elem = section_elem.select_one(".class-number, [data-class-number]")
+            class_number_elem = section_elem.select_one(
+                ".class-number, [data-class-number]"
+            )
             class_number = (
-                class_number_elem.get('data-class-number', '')
+                class_number_elem.get("data-class-number", "")
                 if class_number_elem
-                else section_elem.get('data-class-number', '')
+                else section_elem.get("data-class-number", "")
             )
 
             # Extract section code
             section_code_elem = section_elem.select_one(".section-code, .section")
-            section_code = section_code_elem.text.strip() if section_code_elem else ''
+            section_code = section_code_elem.text.strip() if section_code_elem else ""
 
             # Extract instructor
             instructor_elem = section_elem.select_one(".instructor, .instructors")
-            instructor = instructor_elem.text.strip() if instructor_elem else ''
+            instructor = instructor_elem.text.strip() if instructor_elem else ""
 
             # Extract schedule
             schedule_elem = section_elem.select_one(".schedule, .meeting-times")
-            schedule = schedule_elem.text.strip() if schedule_elem else ''
+            schedule = schedule_elem.text.strip() if schedule_elem else ""
 
             # Extract location
             location_elem = section_elem.select_one(".location, .room")
-            location = location_elem.text.strip() if location_elem else ''
+            location = location_elem.text.strip() if location_elem else ""
 
             # Extract enrollment data
             enrolled_elem = section_elem.select_one(".enrolled, [data-enrolled]")
             capacity_elem = section_elem.select_one(".capacity, [data-capacity]")
             waitlist_elem = section_elem.select_one(".waitlist, [data-waitlist]")
 
-            enrolled = int(enrolled_elem.get('data-enrolled', '0') if enrolled_elem else '0')
-            capacity = int(capacity_elem.get('data-capacity', '0') if capacity_elem else '0')
-            waitlist = int(waitlist_elem.get('data-waitlist', '0') if waitlist_elem else '0')
+            enrolled = int(
+                enrolled_elem.get("data-enrolled", "0") if enrolled_elem else "0"
+            )
+            capacity = int(
+                capacity_elem.get("data-capacity", "0") if capacity_elem else "0"
+            )
+            waitlist = int(
+                waitlist_elem.get("data-waitlist", "0") if waitlist_elem else "0"
+            )
 
             # Extract status
             status_elem = section_elem.select_one(".status, .enrollment-status")
-            status_text = status_elem.text.strip() if status_elem else 'Unknown'
+            status_text = status_elem.text.strip() if status_elem else "Unknown"
             status = self.normalize_status(status_text)
 
             return {
-                'class_number': class_number,
-                'section': section_code,
-                'instructor': instructor,
-                'schedule': schedule,
-                'location': location,
-                'enrolled': enrolled,
-                'capacity': capacity,
-                'waitlist': waitlist,
-                'status': status
+                "class_number": class_number,
+                "section": section_code,
+                "instructor": instructor,
+                "schedule": schedule,
+                "location": location,
+                "enrolled": enrolled,
+                "capacity": capacity,
+                "waitlist": waitlist,
+                "status": status,
             }
 
         except Exception as e:

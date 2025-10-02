@@ -29,7 +29,7 @@ async def add_college(
     term_code: str = None,
     term_name: str = None,
     email_enabled: bool = True,
-    sms_enabled: bool = False
+    sms_enabled: bool = False,
 ):
     """
     Add a new college to the database.
@@ -45,7 +45,9 @@ async def add_college(
     """
     # Create database engine
     engine = create_async_engine(settings.async_database_url)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    AsyncSessionLocal = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     async with AsyncSessionLocal() as db:
         # Check if college already exists
@@ -69,7 +71,7 @@ async def add_college(
             term_name=term_name,
             email_enabled=email_enabled,
             sms_enabled=sms_enabled,
-            is_active=True
+            is_active=True,
         )
 
         db.add(college)
@@ -82,7 +84,9 @@ async def add_college(
         print(f"   Short Name: {college.short_name}")
         print(f"   Domain: {college.domain or 'N/A'}")
         print(f"   Term: {college.term_name or 'N/A'} ({college.term_code or 'N/A'})")
-        print(f"   Notifications: Email={college.email_enabled}, SMS={college.sms_enabled}")
+        print(
+            f"   Notifications: Email={college.email_enabled}, SMS={college.sms_enabled}"
+        )
 
         return True
 
@@ -92,12 +96,12 @@ async def add_college(
 async def list_colleges():
     """List all colleges in the database"""
     engine = create_async_engine(settings.async_database_url)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    AsyncSessionLocal = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(College).order_by(College.name)
-        )
+        result = await db.execute(select(College).order_by(College.name))
         colleges = result.scalars().all()
 
         if not colleges:
@@ -105,7 +109,9 @@ async def list_colleges():
             return
 
         print(f"\nFound {len(colleges)} college(s):\n")
-        print(f"{'ID':<5} {'Short Name':<15} {'Name':<40} {'Active':<8} {'Notifications'}")
+        print(
+            f"{'ID':<5} {'Short Name':<15} {'Name':<40} {'Active':<8} {'Notifications'}"
+        )
         print("-" * 90)
 
         for college in colleges:
@@ -133,51 +139,33 @@ def main():
     )
 
     parser.add_argument(
-        "--list",
-        action="store_true",
-        help="List all existing colleges"
+        "--list", action="store_true", help="List all existing colleges"
     )
 
     parser.add_argument(
-        "--name",
-        type=str,
-        help="Full college name (e.g., 'Princeton University')"
+        "--name", type=str, help="Full college name (e.g., 'Princeton University')"
     )
 
     parser.add_argument(
-        "--short-name",
-        type=str,
-        help="Short identifier (e.g., 'princeton')"
+        "--short-name", type=str, help="Short identifier (e.g., 'princeton')"
     )
 
     parser.add_argument(
-        "--domain",
-        type=str,
-        help="College domain (e.g., 'princeton.edu')"
+        "--domain", type=str, help="College domain (e.g., 'princeton.edu')"
+    )
+
+    parser.add_argument("--term-code", type=str, help="Current term code")
+
+    parser.add_argument(
+        "--term-name", type=str, help="Current term name (e.g., 'Fall 2025')"
     )
 
     parser.add_argument(
-        "--term-code",
-        type=str,
-        help="Current term code"
+        "--no-email", action="store_true", help="Disable email notifications"
     )
 
     parser.add_argument(
-        "--term-name",
-        type=str,
-        help="Current term name (e.g., 'Fall 2025')"
-    )
-
-    parser.add_argument(
-        "--no-email",
-        action="store_true",
-        help="Disable email notifications"
-    )
-
-    parser.add_argument(
-        "--enable-sms",
-        action="store_true",
-        help="Enable SMS notifications"
+        "--enable-sms", action="store_true", help="Enable SMS notifications"
     )
 
     args = parser.parse_args()
@@ -192,15 +180,17 @@ def main():
         parser.error("--name and --short-name are required (unless using --list)")
 
     # Add college
-    asyncio.run(add_college(
-        name=args.name,
-        short_name=args.short_name.lower(),
-        domain=args.domain,
-        term_code=args.term_code,
-        term_name=args.term_name,
-        email_enabled=not args.no_email,
-        sms_enabled=args.enable_sms
-    ))
+    asyncio.run(
+        add_college(
+            name=args.name,
+            short_name=args.short_name.lower(),
+            domain=args.domain,
+            term_code=args.term_code,
+            term_name=args.term_name,
+            email_enabled=not args.no_email,
+            sms_enabled=args.enable_sms,
+        )
+    )
 
 
 if __name__ == "__main__":

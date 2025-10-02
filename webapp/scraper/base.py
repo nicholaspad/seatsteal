@@ -18,14 +18,18 @@ class BaseScraper(ABC):
         """
         self.college_short_name = college_short_name
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+        )
         self.request_count = 0
         self.last_request_time = 0
 
     @abstractmethod
-    async def scrape_courses(self, department: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def scrape_courses(
+        self, department: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """
         Scrape courses for a specific department.
 
@@ -88,7 +92,7 @@ class BaseScraper(ABC):
             self.request_count += 1
             self.last_request_time = time.time()
 
-            return BeautifulSoup(response.content, 'lxml')
+            return BeautifulSoup(response.content, "lxml")
 
         except requests.RequestException as e:
             logger.error(f"Failed to fetch {url}: {e}")
@@ -127,7 +131,9 @@ class BaseScraper(ABC):
             logger.error(f"Failed to fetch JSON from {url}: {e}")
             raise
 
-    def parse_enrollment(self, enrolled_text: str, capacity_text: str) -> tuple[int, int]:
+    def parse_enrollment(
+        self, enrolled_text: str, capacity_text: str
+    ) -> tuple[int, int]:
         """
         Parse enrollment numbers from text strings.
 
@@ -140,8 +146,8 @@ class BaseScraper(ABC):
         """
         try:
             # Remove common non-numeric characters
-            enrolled_clean = ''.join(filter(str.isdigit, enrolled_text.strip()))
-            capacity_clean = ''.join(filter(str.isdigit, capacity_text.strip()))
+            enrolled_clean = "".join(filter(str.isdigit, enrolled_text.strip()))
+            capacity_clean = "".join(filter(str.isdigit, capacity_text.strip()))
 
             enrolled = int(enrolled_clean) if enrolled_clean else 0
             capacity = int(capacity_clean) if capacity_clean else 0
@@ -149,7 +155,9 @@ class BaseScraper(ABC):
             return enrolled, capacity
 
         except (ValueError, AttributeError) as e:
-            logger.warning(f"Failed to parse enrollment: enrolled='{enrolled_text}', capacity='{capacity_text}': {e}")
+            logger.warning(
+                f"Failed to parse enrollment: enrolled='{enrolled_text}', capacity='{capacity_text}': {e}"
+            )
             return 0, 0
 
     def parse_waitlist(self, waitlist_text: str) -> int:
@@ -163,7 +171,7 @@ class BaseScraper(ABC):
             Waitlist count as integer
         """
         try:
-            waitlist_clean = ''.join(filter(str.isdigit, waitlist_text.strip()))
+            waitlist_clean = "".join(filter(str.isdigit, waitlist_text.strip()))
             return int(waitlist_clean) if waitlist_clean else 0
         except (ValueError, AttributeError):
             return 0
@@ -180,14 +188,18 @@ class BaseScraper(ABC):
         """
         status_lower = status_text.lower().strip()
 
-        if 'open' in status_lower or 'available' in status_lower:
-            return 'Open'
-        elif 'closed' in status_lower or 'full' in status_lower or 'filled' in status_lower:
-            return 'Closed'
-        elif 'waitlist' in status_lower or 'wait list' in status_lower:
-            return 'Waitlist'
+        if "open" in status_lower or "available" in status_lower:
+            return "Open"
+        elif (
+            "closed" in status_lower
+            or "full" in status_lower
+            or "filled" in status_lower
+        ):
+            return "Closed"
+        elif "waitlist" in status_lower or "wait list" in status_lower:
+            return "Waitlist"
         else:
-            return 'Unknown'
+            return "Unknown"
 
     def close(self):
         """Close the HTTP session"""

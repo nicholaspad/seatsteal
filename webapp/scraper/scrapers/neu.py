@@ -18,7 +18,9 @@ class NEUScraper(BaseScraper):
         super().__init__("neu")
         self.current_term = TermConfig.get_current_term("neu")
 
-    async def scrape_courses(self, department: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def scrape_courses(
+        self, department: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """
         Scrape NEU courses for a specific department.
 
@@ -29,25 +31,31 @@ class NEUScraper(BaseScraper):
         Returns:
             List of course dictionaries with class information
         """
-        logger.info(f"Scraping NEU {department} courses (limit: {limit}, term: {self.current_term})")
+        logger.info(
+            f"Scraping NEU {department} courses (limit: {limit}, term: {self.current_term})"
+        )
 
         try:
             # NEU often uses an API endpoint for course search
             # This is a simplified version - real implementation would use the API
             search_url = f"{self.BASE_URL}/searchResults/searchResults"
             params = {
-                'term': self.current_term,
-                'subject': department,
-                'txt_subject': department,
+                "term": self.current_term,
+                "subject": department,
+                "txt_subject": department,
             }
 
             # Try to fetch as JSON first (NEU uses JSON API)
             try:
-                data = self.fetch_json(f"{search_url}?{'&'.join([f'{k}={v}' for k, v in params.items()])}")
+                data = self.fetch_json(
+                    f"{search_url}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+                )
                 courses = self._parse_json_response(data, limit)
             except Exception:
                 # Fall back to HTML scraping
-                soup = self.fetch_html(f"{search_url}?{'&'.join([f'{k}={v}' for k, v in params.items()])}")
+                soup = self.fetch_html(
+                    f"{search_url}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+                )
                 courses = self._parse_html_response(soup, limit)
 
             logger.info(f"Scraped {len(courses)} courses from NEU {department}")
@@ -57,41 +65,62 @@ class NEUScraper(BaseScraper):
             logger.error(f"Failed to scrape NEU {department}: {e}")
             raise
 
-    def _parse_json_response(self, data: Dict, limit: Optional[int]) -> List[Dict[str, Any]]:
+    def _parse_json_response(
+        self, data: Dict, limit: Optional[int]
+    ) -> List[Dict[str, Any]]:
         """Parse JSON API response"""
         courses = []
-        course_data_list = data.get('data', []) if isinstance(data, dict) else []
+        course_data_list = data.get("data", []) if isinstance(data, dict) else []
 
         for idx, course_data in enumerate(course_data_list):
             if limit and idx >= limit:
                 break
 
             try:
-                course_code = course_data.get('subject', '') + ' ' + course_data.get('courseNumber', '')
-                title = course_data.get('courseTitle', '')
+                course_code = (
+                    course_data.get("subject", "")
+                    + " "
+                    + course_data.get("courseNumber", "")
+                )
+                title = course_data.get("courseTitle", "")
 
                 # Parse sections
                 classes = []
-                sections = course_data.get('sections', [])
+                sections = course_data.get("sections", [])
                 for section in sections:
                     class_info = {
-                        'class_number': section.get('courseReferenceNumber', ''),
-                        'section': section.get('sequenceNumber', ''),
-                        'instructor': ', '.join([i.get('displayName', '') for i in section.get('faculty', [])]),
-                        'schedule': self._format_meeting_times(section.get('meetingsFaculty', [])),
-                        'location': self._format_location(section.get('meetingsFaculty', [])),
-                        'enrolled': int(section.get('enrollment', 0)),
-                        'capacity': int(section.get('maximumEnrollment', 0)),
-                        'waitlist': int(section.get('waitCount', 0)),
-                        'status': self.normalize_status(section.get('openSection', 'N') == 'Y' and 'Open' or 'Closed')
+                        "class_number": section.get("courseReferenceNumber", ""),
+                        "section": section.get("sequenceNumber", ""),
+                        "instructor": ", ".join(
+                            [
+                                i.get("displayName", "")
+                                for i in section.get("faculty", [])
+                            ]
+                        ),
+                        "schedule": self._format_meeting_times(
+                            section.get("meetingsFaculty", [])
+                        ),
+                        "location": self._format_location(
+                            section.get("meetingsFaculty", [])
+                        ),
+                        "enrolled": int(section.get("enrollment", 0)),
+                        "capacity": int(section.get("maximumEnrollment", 0)),
+                        "waitlist": int(section.get("waitCount", 0)),
+                        "status": self.normalize_status(
+                            section.get("openSection", "N") == "Y"
+                            and "Open"
+                            or "Closed"
+                        ),
                     }
                     classes.append(class_info)
 
-                courses.append({
-                    'course_code': course_code.strip(),
-                    'title': title,
-                    'classes': classes
-                })
+                courses.append(
+                    {
+                        "course_code": course_code.strip(),
+                        "title": title,
+                        "classes": classes,
+                    }
+                )
 
             except Exception as e:
                 logger.error(f"Failed to parse course from JSON: {e}")
@@ -99,7 +128,9 @@ class NEUScraper(BaseScraper):
 
         return courses
 
-    def _parse_html_response(self, soup: BeautifulSoup, limit: Optional[int]) -> List[Dict[str, Any]]:
+    def _parse_html_response(
+        self, soup: BeautifulSoup, limit: Optional[int]
+    ) -> List[Dict[str, Any]]:
         """Parse HTML response as fallback"""
         courses = []
         course_elements = soup.select(".searchResultsItem, .course-row")
@@ -127,7 +158,7 @@ class NEUScraper(BaseScraper):
                 return None
 
             full_text = title_elem.text.strip()
-            parts = full_text.split(' - ', 1)
+            parts = full_text.split(" - ", 1)
             course_code = parts[0].strip() if len(parts) > 0 else "Unknown"
             title = parts[1].strip() if len(parts) > 1 else full_text
 
@@ -139,11 +170,7 @@ class NEUScraper(BaseScraper):
                 if class_data:
                     classes.append(class_data)
 
-            return {
-                'course_code': course_code,
-                'title': title,
-                'classes': classes
-            }
+            return {"course_code": course_code, "title": title, "classes": classes}
 
         except Exception as e:
             logger.error(f"Error parsing course HTML: {e}")
@@ -153,40 +180,42 @@ class NEUScraper(BaseScraper):
         """Parse class/section from HTML"""
         try:
             crn_elem = section_elem.select_one(".crn, .class-number")
-            class_number = crn_elem.text.strip() if crn_elem else ''
+            class_number = crn_elem.text.strip() if crn_elem else ""
 
             section_elem_code = section_elem.select_one(".section-number")
-            section_code = section_elem_code.text.strip() if section_elem_code else ''
+            section_code = section_elem_code.text.strip() if section_elem_code else ""
 
             instructor_elem = section_elem.select_one(".instructor")
-            instructor = instructor_elem.text.strip() if instructor_elem else ''
+            instructor = instructor_elem.text.strip() if instructor_elem else ""
 
             schedule_elem = section_elem.select_one(".meeting-time")
-            schedule = schedule_elem.text.strip() if schedule_elem else ''
+            schedule = schedule_elem.text.strip() if schedule_elem else ""
 
             location_elem = section_elem.select_one(".location")
-            location = location_elem.text.strip() if location_elem else ''
+            location = location_elem.text.strip() if location_elem else ""
 
             enrolled_elem = section_elem.select_one(".enrolled")
             capacity_elem = section_elem.select_one(".capacity")
             enrolled, capacity = self.parse_enrollment(
-                enrolled_elem.text if enrolled_elem else '0',
-                capacity_elem.text if capacity_elem else '0'
+                enrolled_elem.text if enrolled_elem else "0",
+                capacity_elem.text if capacity_elem else "0",
             )
 
             status_elem = section_elem.select_one(".status")
-            status = self.normalize_status(status_elem.text) if status_elem else 'Unknown'
+            status = (
+                self.normalize_status(status_elem.text) if status_elem else "Unknown"
+            )
 
             return {
-                'class_number': class_number,
-                'section': section_code,
-                'instructor': instructor,
-                'schedule': schedule,
-                'location': location,
-                'enrolled': enrolled,
-                'capacity': capacity,
-                'waitlist': 0,
-                'status': status
+                "class_number": class_number,
+                "section": section_code,
+                "instructor": instructor,
+                "schedule": schedule,
+                "location": location,
+                "enrolled": enrolled,
+                "capacity": capacity,
+                "waitlist": 0,
+                "status": status,
             }
 
         except Exception as e:
@@ -196,29 +225,29 @@ class NEUScraper(BaseScraper):
     def _format_meeting_times(self, meetings: List[Dict]) -> str:
         """Format meeting times from API data"""
         if not meetings:
-            return ''
+            return ""
 
         times = []
         for meeting in meetings:
-            meeting_time = meeting.get('meetingTime', {})
-            days = meeting_time.get('meetingDays', '')
-            start_time = meeting_time.get('beginTime', '')
-            end_time = meeting_time.get('endTime', '')
+            meeting_time = meeting.get("meetingTime", {})
+            days = meeting_time.get("meetingDays", "")
+            start_time = meeting_time.get("beginTime", "")
+            end_time = meeting_time.get("endTime", "")
             if days and start_time and end_time:
                 times.append(f"{days} {start_time}-{end_time}")
 
-        return ', '.join(times)
+        return ", ".join(times)
 
     def _format_location(self, meetings: List[Dict]) -> str:
         """Format location from API data"""
         if not meetings:
-            return ''
+            return ""
 
         locations = []
         for meeting in meetings:
-            building = meeting.get('building', '')
-            room = meeting.get('room', '')
+            building = meeting.get("building", "")
+            room = meeting.get("room", "")
             if building or room:
                 locations.append(f"{building} {room}".strip())
 
-        return ', '.join(locations)
+        return ", ".join(locations)

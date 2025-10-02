@@ -1,4 +1,13 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    text,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .base import Base
@@ -13,7 +22,9 @@ class Course(Base):
     title = Column(String, nullable=False, index=True)
 
     # Metadata
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     updated_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -27,9 +38,30 @@ class Course(Base):
 
     __table_args__ = (
         # Unique constraint for college + course_code combination
-        Index("courses_college_course_code_idx", "college_id", "course_code", unique=True),
+        Index(
+            "courses_college_course_code_idx", "college_id", "course_code", unique=True
+        ),
+        # Search performance indexes
+        Index("courses_course_code_idx", "course_code"),
+        Index("courses_title_idx", "title"),
+        # Trigram indexes for fuzzy search (requires pg_trgm extension)
+        Index(
+            "courses_course_code_trgm_idx",
+            text("course_code gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
+        Index(
+            "courses_title_trgm_idx",
+            text("title gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
         # Composite index for common queries
         Index("courses_college_active_idx", "college_id", "is_active"),
         # Performance optimization for time-based queries
-        Index("courses_college_active_updated_idx", "college_id", "is_active", "updated_at"),
+        Index(
+            "courses_college_active_updated_idx",
+            "college_id",
+            "is_active",
+            "updated_at",
+        ),
     )

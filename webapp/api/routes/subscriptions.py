@@ -9,7 +9,11 @@ from ...models.user import Profile
 from ...models.class_model import Class
 from ...models.course import Course
 from ...models.college import College
-from ...schemas.subscription import SubscriptionCreate, SubscriptionResponse, SubscriptionWithDetails
+from ...schemas.subscription import (
+    SubscriptionCreate,
+    SubscriptionResponse,
+    SubscriptionWithDetails,
+)
 from ...schemas.class_schema import ClassWithCourse
 from ...schemas.course import CourseWithCollege
 from ...schemas.college import CollegeResponse
@@ -88,7 +92,9 @@ async def get_subscriptions(
         )
 
 
-@router.post("/", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_subscription(
     subscription_data: SubscriptionCreate,
     user: Profile = Depends(require_auth),

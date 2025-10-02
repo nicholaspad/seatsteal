@@ -76,4 +76,6 @@ async def get_class(class_id: int, db: AsyncSession = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch class details: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch class details: {str(e)}"
+        )

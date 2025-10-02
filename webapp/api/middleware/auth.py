@@ -14,7 +14,9 @@ from ...models.user import Profile
 security = HTTPBearer()
 
 # Supabase client
-supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+supabase: Client = create_client(
+    settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
+)
 
 
 async def get_current_user(

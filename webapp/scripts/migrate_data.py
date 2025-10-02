@@ -32,7 +32,9 @@ from models.course import Course
 from models.class_model import Class
 
 
-async def migrate_colleges(old_db: AsyncSession, new_db: AsyncSession) -> Dict[int, int]:
+async def migrate_colleges(
+    old_db: AsyncSession, new_db: AsyncSession
+) -> Dict[int, int]:
     """
     Migrate colleges from old database to new database.
 
@@ -72,7 +74,7 @@ async def migrate_colleges(old_db: AsyncSession, new_db: AsyncSession) -> Dict[i
             term_name=old_row.term_name,
             is_active=True,
             email_enabled=True,
-            sms_enabled=False
+            sms_enabled=False,
         )
 
         new_db.add(new_college)
@@ -81,7 +83,9 @@ async def migrate_colleges(old_db: AsyncSession, new_db: AsyncSession) -> Dict[i
         id_mapping[old_id] = new_college.id
         migrated_count += 1
 
-        print(f"   ✅ Migrated: {old_row.name} (old ID: {old_id} -> new ID: {new_college.id})")
+        print(
+            f"   ✅ Migrated: {old_row.name} (old ID: {old_id} -> new ID: {new_college.id})"
+        )
 
     await new_db.commit()
     print(f"✅ Migrated {migrated_count} colleges\n")
@@ -90,9 +94,7 @@ async def migrate_colleges(old_db: AsyncSession, new_db: AsyncSession) -> Dict[i
 
 
 async def migrate_courses(
-    old_db: AsyncSession,
-    new_db: AsyncSession,
-    college_id_mapping: Dict[int, int]
+    old_db: AsyncSession, new_db: AsyncSession, college_id_mapping: Dict[int, int]
 ) -> Dict[int, int]:
     """
     Migrate courses from old database to new database.
@@ -114,14 +116,16 @@ async def migrate_courses(
         new_college_id = college_id_mapping.get(old_row.college_id)
 
         if not new_college_id:
-            print(f"   ⚠️  Skipping course {old_row.course_code} (college not migrated)")
+            print(
+                f"   ⚠️  Skipping course {old_row.course_code} (college not migrated)"
+            )
             continue
 
         # Check if already exists
         result = await new_db.execute(
             select(Course).where(
                 Course.college_id == new_college_id,
-                Course.course_code == old_row.course_code
+                Course.course_code == old_row.course_code,
             )
         )
         existing = result.scalar_one_or_none()
@@ -135,7 +139,7 @@ async def migrate_courses(
             college_id=new_college_id,
             course_code=old_row.course_code,
             title=old_row.title,
-            is_active=True
+            is_active=True,
         )
 
         new_db.add(new_course)
@@ -151,9 +155,7 @@ async def migrate_courses(
 
 
 async def migrate_classes(
-    old_db: AsyncSession,
-    new_db: AsyncSession,
-    course_id_mapping: Dict[int, int]
+    old_db: AsyncSession, new_db: AsyncSession, course_id_mapping: Dict[int, int]
 ) -> Dict[int, int]:
     """
     Migrate classes from old database to new database.
@@ -181,7 +183,7 @@ async def migrate_classes(
         result = await new_db.execute(
             select(Class).where(
                 Class.course_id == new_course_id,
-                Class.class_number == old_row.class_number
+                Class.class_number == old_row.class_number,
             )
         )
         existing = result.scalar_one_or_none()
@@ -195,7 +197,7 @@ async def migrate_classes(
             course_id=new_course_id,
             class_number=old_row.class_number,
             section_code=old_row.section_code,
-            is_active=True
+            is_active=True,
         )
 
         new_db.add(new_class)
@@ -221,8 +223,12 @@ async def run_migration(old_db_url: str, dry_run: bool = True):
     old_engine = create_async_engine(old_db_url)
     new_engine = create_async_engine(settings.async_database_url)
 
-    OldSessionLocal = sessionmaker(old_engine, class_=AsyncSession, expire_on_commit=False)
-    NewSessionLocal = sessionmaker(new_engine, class_=AsyncSession, expire_on_commit=False)
+    OldSessionLocal = sessionmaker(
+        old_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    NewSessionLocal = sessionmaker(
+        new_engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     async with OldSessionLocal() as old_db, NewSessionLocal() as new_db:
         # Migrate colleges
@@ -235,13 +241,13 @@ async def run_migration(old_db_url: str, dry_run: bool = True):
         class_mapping = await migrate_classes(old_db, new_db, course_mapping)
 
         # Summary
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("MIGRATION SUMMARY")
-        print("="*50)
+        print("=" * 50)
         print(f"Colleges migrated: {len(college_mapping)}")
         print(f"Courses migrated: {len(course_mapping)}")
         print(f"Classes migrated: {len(class_mapping)}")
-        print("="*50)
+        print("=" * 50)
 
         if dry_run:
             print("\n⚠️  DRY RUN - Rolling back changes")
@@ -260,22 +266,19 @@ def main():
     )
 
     parser.add_argument(
-        "--old-db",
-        type=str,
-        required=True,
-        help="Old database connection URL"
+        "--old-db", type=str, required=True, help="Old database connection URL"
     )
 
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Run migration without committing changes"
+        help="Run migration without committing changes",
     )
 
     parser.add_argument(
         "--confirm",
         action="store_true",
-        help="Confirm and execute migration (commits changes)"
+        help="Confirm and execute migration (commits changes)",
     )
 
     args = parser.parse_args()

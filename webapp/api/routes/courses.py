@@ -25,7 +25,9 @@ router = APIRouter(prefix="/api/courses", tags=["courses"])
 @router.get("/", response_model=PaginatedResponse[CourseWithClasses])
 async def get_courses(
     q: Optional[str] = Query(None, description="Search query"),
-    college_id: Optional[int] = Query(None, alias="collegeId", description="Filter by college ID"),
+    college_id: Optional[int] = Query(
+        None, alias="collegeId", description="Filter by college ID"
+    ),
     enrollment: str = Query("all", description="Filter by enrollment status"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -146,4 +148,6 @@ async def get_courses(
         return PaginatedResponse(data=result_data, pagination=pagination)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch courses: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch courses: {str(e)}"
+        )

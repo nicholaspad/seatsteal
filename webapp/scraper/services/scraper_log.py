@@ -31,10 +31,10 @@ class ScraperLogService:
         """
         log = ScraperLog(
             college_id=college_id,
-            status='running',
+            status="running",
             courses_scraped=0,
             classes_scraped=0,
-            started_at=datetime.now()
+            started_at=datetime.now(),
         )
 
         self.db.add(log)
@@ -49,7 +49,7 @@ class ScraperLogService:
         status: str,
         courses_scraped: int = 0,
         classes_scraped: int = 0,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """
         Complete a scraper log entry.
@@ -90,9 +90,7 @@ class ScraperLogService:
         )
 
     async def get_recent_logs(
-        self,
-        college_id: Optional[int] = None,
-        limit: int = 10
+        self, college_id: Optional[int] = None, limit: int = 10
     ) -> list[ScraperLog]:
         """
         Get recent scraper logs.
@@ -139,10 +137,7 @@ class ScraperLogService:
         """
         result = await self.db.execute(
             select(ScraperLog)
-            .where(
-                ScraperLog.college_id == college_id,
-                ScraperLog.status == 'success'
-            )
+            .where(ScraperLog.college_id == college_id, ScraperLog.status == "success")
             .order_by(ScraperLog.completed_at.desc())
             .limit(1)
         )

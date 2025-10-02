@@ -18,7 +18,9 @@ class USCScraper(BaseScraper):
         super().__init__("usc")
         self.current_term = TermConfig.get_current_term("usc")
 
-    async def scrape_courses(self, department: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def scrape_courses(
+        self, department: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """
         Scrape USC courses for a specific department.
 
@@ -29,7 +31,9 @@ class USCScraper(BaseScraper):
         Returns:
             List of course dictionaries with class information
         """
-        logger.info(f"Scraping USC {department} courses (limit: {limit}, term: {self.current_term})")
+        logger.info(
+            f"Scraping USC {department} courses (limit: {limit}, term: {self.current_term})"
+        )
 
         try:
             # USC schedule URL format
@@ -90,11 +94,7 @@ class USCScraper(BaseScraper):
                 if class_data:
                     classes.append(class_data)
 
-            return {
-                'course_code': course_code,
-                'title': title,
-                'classes': classes
-            }
+            return {"course_code": course_code, "title": title, "classes": classes}
 
         except Exception as e:
             logger.error(f"Error parsing course element: {e}")
@@ -105,26 +105,26 @@ class USCScraper(BaseScraper):
         try:
             # Extract section ID (USC's class number)
             section_id_elem = section_elem.select_one(".section-id, .section-number")
-            class_number = section_id_elem.text.strip() if section_id_elem else ''
+            class_number = section_id_elem.text.strip() if section_id_elem else ""
 
             # Extract section type (LEC, LAB, etc.) and number
             type_elem = section_elem.select_one(".section-type")
-            section_code = type_elem.text.strip() if type_elem else ''
+            section_code = type_elem.text.strip() if type_elem else ""
 
             # Instructor
             instructor_elem = section_elem.select_one(".instructor, .instructor-name")
-            instructor = instructor_elem.text.strip() if instructor_elem else ''
+            instructor = instructor_elem.text.strip() if instructor_elem else ""
 
             # Schedule/Days and Times
             days_elem = section_elem.select_one(".days")
             time_elem = section_elem.select_one(".time, .meeting-time")
-            days = days_elem.text.strip() if days_elem else ''
-            times = time_elem.text.strip() if time_elem else ''
-            schedule = f"{days} {times}".strip() if days or times else ''
+            days = days_elem.text.strip() if days_elem else ""
+            times = time_elem.text.strip() if time_elem else ""
+            schedule = f"{days} {times}".strip() if days or times else ""
 
             # Location
             location_elem = section_elem.select_one(".location, .building-room")
-            location = location_elem.text.strip() if location_elem else ''
+            location = location_elem.text.strip() if location_elem else ""
 
             # Enrollment information
             registered_elem = section_elem.select_one(".registered, .enrolled")
@@ -139,8 +139,8 @@ class USCScraper(BaseScraper):
                 enrollment_elem = section_elem.select_one(".enrollment")
                 if enrollment_elem:
                     enrollment_text = enrollment_elem.text.strip()
-                    if ' of ' in enrollment_text:
-                        parts = enrollment_text.split(' of ')
+                    if " of " in enrollment_text:
+                        parts = enrollment_text.split(" of ")
                         enrolled, capacity = self.parse_enrollment(parts[0], parts[1])
                     else:
                         enrolled, capacity = 0, 0
@@ -156,31 +156,31 @@ class USCScraper(BaseScraper):
             if status_elem:
                 status_text = status_elem.text.strip()
                 # USC uses specific status indicators
-                if 'open' in status_text.lower() or 'available' in status_text.lower():
-                    status = 'Open'
-                elif 'closed' in status_text.lower() or 'full' in status_text.lower():
-                    status = 'Closed'
-                elif 'waitlist' in status_text.lower():
-                    status = 'Waitlist'
+                if "open" in status_text.lower() or "available" in status_text.lower():
+                    status = "Open"
+                elif "closed" in status_text.lower() or "full" in status_text.lower():
+                    status = "Closed"
+                elif "waitlist" in status_text.lower():
+                    status = "Waitlist"
                 else:
                     status = self.normalize_status(status_text)
             elif enrolled >= capacity and capacity > 0:
-                status = 'Closed'
+                status = "Closed"
             elif waitlist > 0:
-                status = 'Waitlist'
+                status = "Waitlist"
             else:
-                status = 'Open'
+                status = "Open"
 
             return {
-                'class_number': class_number,
-                'section': section_code,
-                'instructor': instructor,
-                'schedule': schedule,
-                'location': location,
-                'enrolled': enrolled,
-                'capacity': capacity,
-                'waitlist': waitlist,
-                'status': status
+                "class_number": class_number,
+                "section": section_code,
+                "instructor": instructor,
+                "schedule": schedule,
+                "location": location,
+                "enrolled": enrolled,
+                "capacity": capacity,
+                "waitlist": waitlist,
+                "status": status,
             }
 
         except Exception as e:

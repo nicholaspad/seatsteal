@@ -19,12 +19,12 @@ from scraper.services.scraper_log import ScraperLogService
 
 # Map college short names to scraper classes
 SCRAPER_MAP = {
-    'princeton': PrincetonScraper,
-    'brown': BrownScraper,
-    'bu': BUScraper,
-    'cornell': CornellScraper,
-    'neu': NEUScraper,
-    'usc': USCScraper,
+    "princeton": PrincetonScraper,
+    "brown": BrownScraper,
+    "bu": BUScraper,
+    "cornell": CornellScraper,
+    "neu": NEUScraper,
+    "usc": USCScraper,
 }
 
 
@@ -42,10 +42,7 @@ class ScraperService:
         self.log_service = ScraperLogService(db)
 
     async def scrape_college(
-        self,
-        college_short_name: str,
-        department: str,
-        limit: Optional[int] = None
+        self, college_short_name: str, department: str, limit: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Scrape courses for a specific college and department.
@@ -92,14 +89,20 @@ class ScraperService:
             # Get appropriate scraper
             scraper_class = SCRAPER_MAP.get(college_short_name)
             if not scraper_class:
-                raise ValueError(f"No scraper implementation found for '{college_short_name}'")
+                raise ValueError(
+                    f"No scraper implementation found for '{college_short_name}'"
+                )
 
             scraper = scraper_class()
 
             # Scrape courses
-            logger.info(f"Starting scrape for {college_short_name} {department} (limit: {limit})")
+            logger.info(
+                f"Starting scrape for {college_short_name} {department} (limit: {limit})"
+            )
             courses_data = await scraper.scrape_courses(department, limit)
-            logger.info(f"Scraped {len(courses_data)} courses from {college_short_name} {department}")
+            logger.info(
+                f"Scraped {len(courses_data)} courses from {college_short_name} {department}"
+            )
 
             # Save to database
             courses_saved = 0
@@ -110,23 +113,25 @@ class ScraperService:
                 try:
                     # Upsert course
                     course = await self._upsert_course(
-                        college.id,
-                        course_data['course_code'],
-                        course_data['title']
+                        college.id, course_data["course_code"], course_data["title"]
                     )
                     courses_saved += 1
 
                     # Upsert classes
-                    for class_data in course_data.get('classes', []):
+                    for class_data in course_data.get("classes", []):
                         class_obj = await self._upsert_class(course.id, class_data)
                         classes_saved += 1
 
                         # Create enrollment snapshot
-                        await self._create_enrollment_snapshot(class_obj.class_id, class_data)
+                        await self._create_enrollment_snapshot(
+                            class_obj.class_id, class_data
+                        )
                         enrollments_saved += 1
 
                 except Exception as e:
-                    logger.error(f"Failed to save course {course_data.get('course_code')}: {e}")
+                    logger.error(
+                        f"Failed to save course {course_data.get('course_code')}: {e}"
+                    )
                     continue
 
             await self.db.commit()
@@ -138,9 +143,9 @@ class ScraperService:
             # Complete scraper log
             await self.log_service.complete_log(
                 log_id,
-                status='success',
+                status="success",
                 courses_scraped=courses_saved,
-                classes_scraped=classes_saved
+                classes_scraped=classes_saved,
             )
 
             logger.info(
@@ -149,22 +154,20 @@ class ScraperService:
             )
 
             return {
-                'college': college_short_name,
-                'department': department,
-                'courses_saved': courses_saved,
-                'classes_saved': classes_saved,
-                'enrollments_saved': enrollments_saved,
-                'duration_seconds': duration,
-                'success': True,
-                'error': None
+                "college": college_short_name,
+                "department": department,
+                "courses_saved": courses_saved,
+                "classes_saved": classes_saved,
+                "enrollments_saved": enrollments_saved,
+                "duration_seconds": duration,
+                "success": True,
+                "error": None,
             }
 
         except Exception as e:
             # Log error
             await self.log_service.complete_log(
-                log_id,
-                status='failed',
-                error_message=str(e)
+                log_id, status="failed", error_message=str(e)
             )
 
             logger.error(f"Scrape failed for {college_short_name} {department}: {e}")
@@ -172,21 +175,18 @@ class ScraperService:
             duration = (datetime.now() - start_time).total_seconds()
 
             return {
-                'college': college_short_name,
-                'department': department,
-                'courses_saved': 0,
-                'classes_saved': 0,
-                'enrollments_saved': 0,
-                'duration_seconds': duration,
-                'success': False,
-                'error': str(e)
+                "college": college_short_name,
+                "department": department,
+                "courses_saved": 0,
+                "classes_saved": 0,
+                "enrollments_saved": 0,
+                "duration_seconds": duration,
+                "success": False,
+                "error": str(e),
             }
 
     async def _upsert_course(
-        self,
-        college_id: int,
-        course_code: str,
-        title: str
+        self, college_id: int, course_code: str, title: str
     ) -> Course:
         """
         Insert or update a course.
@@ -202,8 +202,7 @@ class ScraperService:
         # Check if course exists
         result = await self.db.execute(
             select(Course).where(
-                Course.college_id == college_id,
-                Course.course_code == course_code
+                Course.college_id == college_id, Course.course_code == course_code
             )
         )
         course = result.scalar_one_or_none()
@@ -219,7 +218,7 @@ class ScraperService:
                 college_id=college_id,
                 course_code=course_code,
                 title=title,
-                is_active=True
+                is_active=True,
             )
             self.db.add(course)
 
@@ -237,20 +236,19 @@ class ScraperService:
         Returns:
             Class object
         """
-        class_number = class_data.get('class_number', '')
+        class_number = class_data.get("class_number", "")
 
         # Check if class exists
         result = await self.db.execute(
             select(Class).where(
-                Class.course_id == course_id,
-                Class.class_number == class_number
+                Class.course_id == course_id, Class.class_number == class_number
             )
         )
         class_obj = result.scalar_one_or_none()
 
         if class_obj:
             # Update existing class
-            class_obj.section_code = class_data.get('section', '')
+            class_obj.section_code = class_data.get("section", "")
             class_obj.is_active = True
             class_obj.updated_at = datetime.now()
         else:
@@ -258,8 +256,8 @@ class ScraperService:
             class_obj = Class(
                 course_id=course_id,
                 class_number=class_number,
-                section_code=class_data.get('section', ''),
-                is_active=True
+                section_code=class_data.get("section", ""),
+                is_active=True,
             )
             self.db.add(class_obj)
 
@@ -276,13 +274,13 @@ class ScraperService:
         """
         enrollment = Enrollment(
             class_id=class_id,
-            enrolled=class_data.get('enrolled', 0),
-            capacity=class_data.get('capacity', 0),
-            waitlist=class_data.get('waitlist', 0),
-            status=class_data.get('status', 'Unknown'),
-            instructor=class_data.get('instructor', ''),
-            schedule=class_data.get('schedule', ''),
-            location=class_data.get('location', ''),
+            enrolled=class_data.get("enrolled", 0),
+            capacity=class_data.get("capacity", 0),
+            waitlist=class_data.get("waitlist", 0),
+            status=class_data.get("status", "Unknown"),
+            instructor=class_data.get("instructor", ""),
+            schedule=class_data.get("schedule", ""),
+            location=class_data.get("location", ""),
         )
         self.db.add(enrollment)
         await self.db.flush()

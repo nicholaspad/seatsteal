@@ -44,7 +44,7 @@ class RedisLock:
         self,
         college: str,
         department: Optional[str] = None,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
     ) -> bool:
         """
         Acquire a lock for scraping a college/department.
@@ -106,10 +106,7 @@ class RedisLock:
         return bool(self.redis_client.exists(key))
 
     def extend(
-        self,
-        college: str,
-        department: Optional[str] = None,
-        additional_time: int = 300
+        self, college: str, department: Optional[str] = None, additional_time: int = 300
     ) -> bool:
         """
         Extend the expiry time of an existing lock.
@@ -141,7 +138,7 @@ class RedisLock:
         department: Optional[str] = None,
         timeout: Optional[int] = None,
         blocking: bool = False,
-        blocking_timeout: int = 60
+        blocking_timeout: int = 60,
     ):
         """
         Context manager for acquiring and automatically releasing a lock.

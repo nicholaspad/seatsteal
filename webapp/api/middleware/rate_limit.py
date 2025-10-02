@@ -27,7 +27,9 @@ class RateLimiter:
         self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
         self.key_prefix = "seatsteal:ratelimit:"
 
-    def _get_client_key(self, request: Request, identifier: Optional[str] = None) -> str:
+    def _get_client_key(
+        self, request: Request, identifier: Optional[str] = None
+    ) -> str:
         """
         Generate a unique key for rate limiting based on client identifier.
 
@@ -71,7 +73,7 @@ class RateLimiter:
         request: Request,
         max_requests: int = 100,
         window_seconds: int = 60,
-        identifier: Optional[str] = None
+        identifier: Optional[str] = None,
     ) -> tuple[bool, dict]:
         """
         Check if request should be rate limited.
@@ -102,9 +104,9 @@ class RateLimiter:
             self.redis_client.setex(timestamp_key, window_seconds, str(current_time))
 
             return True, {
-                'remaining': tokens,
-                'reset_time': int(current_time + window_seconds),
-                'retry_after': 0
+                "remaining": tokens,
+                "reset_time": int(current_time + window_seconds),
+                "retry_after": 0,
             }
 
         tokens = int(tokens)
@@ -131,9 +133,9 @@ class RateLimiter:
             reset_time = int(current_time + ttl)
 
             return True, {
-                'remaining': tokens,
-                'reset_time': reset_time,
-                'retry_after': 0
+                "remaining": tokens,
+                "reset_time": reset_time,
+                "retry_after": 0,
             }
         else:
             # Rate limit exceeded
@@ -141,9 +143,9 @@ class RateLimiter:
             reset_time = int(current_time + max(ttl, 1))
 
             return False, {
-                'remaining': 0,
-                'reset_time': reset_time,
-                'retry_after': max(ttl, 1)
+                "remaining": 0,
+                "reset_time": reset_time,
+                "retry_after": max(ttl, 1),
             }
 
 
@@ -152,9 +154,7 @@ rate_limiter = RateLimiter()
 
 
 def rate_limit(
-    max_requests: int = 100,
-    window_seconds: int = 60,
-    use_user_id: bool = False
+    max_requests: int = 100, window_seconds: int = 60, use_user_id: bool = False
 ):
     """
     Decorator for rate limiting FastAPI endpoints.
@@ -173,6 +173,7 @@ def rate_limit(
     Returns:
         Decorated function
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -185,7 +186,7 @@ def rate_limit(
 
             if not request:
                 # Check kwargs
-                request = kwargs.get('request')
+                request = kwargs.get("request")
 
             if not request:
                 # No request object found, skip rate limiting
@@ -195,7 +196,7 @@ def rate_limit(
             identifier = None
             if use_user_id:
                 # Try to get user from request state (set by auth middleware)
-                user = getattr(request.state, 'user', None)
+                user = getattr(request.state, "user", None)
                 if user:
                     identifier = f"user:{user.id}"
 
@@ -204,7 +205,7 @@ def rate_limit(
                 request,
                 max_requests=max_requests,
                 window_seconds=window_seconds,
-                identifier=identifier
+                identifier=identifier,
             )
 
             if not is_allowed:
@@ -212,29 +213,30 @@ def rate_limit(
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail={
-                        'error': 'Rate limit exceeded',
-                        'retry_after': info['retry_after'],
-                        'reset_time': info['reset_time']
+                        "error": "Rate limit exceeded",
+                        "retry_after": info["retry_after"],
+                        "reset_time": info["reset_time"],
                     },
                     headers={
-                        'Retry-After': str(info['retry_after']),
-                        'X-RateLimit-Limit': str(max_requests),
-                        'X-RateLimit-Remaining': str(info['remaining']),
-                        'X-RateLimit-Reset': str(info['reset_time'])
-                    }
+                        "Retry-After": str(info["retry_after"]),
+                        "X-RateLimit-Limit": str(max_requests),
+                        "X-RateLimit-Remaining": str(info["remaining"]),
+                        "X-RateLimit-Reset": str(info["reset_time"]),
+                    },
                 )
 
             # Add rate limit headers to response
             response = await func(*args, **kwargs)
 
-            if hasattr(response, 'headers'):
-                response.headers['X-RateLimit-Limit'] = str(max_requests)
-                response.headers['X-RateLimit-Remaining'] = str(info['remaining'])
-                response.headers['X-RateLimit-Reset'] = str(info['reset_time'])
+            if hasattr(response, "headers"):
+                response.headers["X-RateLimit-Limit"] = str(max_requests)
+                response.headers["X-RateLimit-Remaining"] = str(info["remaining"])
+                response.headers["X-RateLimit-Reset"] = str(info["reset_time"])
 
             return response
 
         return wrapper
+
     return decorator
 
 
@@ -251,32 +253,30 @@ async def rate_limit_middleware(request: Request, call_next):
     """
     # Default global rate limit: 1000 requests per minute per IP
     is_allowed, info = await rate_limiter.check_rate_limit(
-        request,
-        max_requests=1000,
-        window_seconds=60
+        request, max_requests=1000, window_seconds=60
     )
 
     if not is_allowed:
         return JSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             content={
-                'error': 'Rate limit exceeded',
-                'retry_after': info['retry_after'],
-                'reset_time': info['reset_time']
+                "error": "Rate limit exceeded",
+                "retry_after": info["retry_after"],
+                "reset_time": info["reset_time"],
             },
             headers={
-                'Retry-After': str(info['retry_after']),
-                'X-RateLimit-Limit': '1000',
-                'X-RateLimit-Remaining': str(info['remaining']),
-                'X-RateLimit-Reset': str(info['reset_time'])
-            }
+                "Retry-After": str(info["retry_after"]),
+                "X-RateLimit-Limit": "1000",
+                "X-RateLimit-Remaining": str(info["remaining"]),
+                "X-RateLimit-Reset": str(info["reset_time"]),
+            },
         )
 
     response = await call_next(request)
 
     # Add rate limit headers
-    response.headers['X-RateLimit-Limit'] = '1000'
-    response.headers['X-RateLimit-Remaining'] = str(info['remaining'])
-    response.headers['X-RateLimit-Reset'] = str(info['reset_time'])
+    response.headers["X-RateLimit-Limit"] = "1000"
+    response.headers["X-RateLimit-Remaining"] = str(info["remaining"])
+    response.headers["X-RateLimit-Reset"] = str(info["reset_time"])
 
     return response

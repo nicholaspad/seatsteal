@@ -12,53 +12,53 @@ class TermConfig:
 
     # Standard term mappings
     TERM_MAPPING = {
-        'fall': ['fall', 'autumn'],
-        'spring': ['spring'],
-        'summer': ['summer'],
-        'winter': ['winter', 'january'],
+        "fall": ["fall", "autumn"],
+        "spring": ["spring"],
+        "summer": ["summer"],
+        "winter": ["winter", "january"],
     }
 
     # Term code patterns for different colleges
     COLLEGE_TERM_PATTERNS = {
-        'princeton': {
+        "princeton": {
             # Princeton uses format: 1252 (1=Fall, 25=2025, 2=Spring)
-            'format': 'SYYT',  # S=semester, YY=year, T=term
-            'fall': '1',
-            'spring': '2',
+            "format": "SYYT",  # S=semester, YY=year, T=term
+            "fall": "1",
+            "spring": "2",
         },
-        'brown': {
+        "brown": {
             # Brown uses format: 202520 (2025 Spring 20)
-            'format': 'YYYYST',
-            'fall': '10',
-            'spring': '20',
+            "format": "YYYYST",
+            "fall": "10",
+            "spring": "20",
         },
-        'bu': {
+        "bu": {
             # BU uses format: similar to Brown
-            'format': 'YYYYST',
-            'fall': '09',
-            'spring': '01',
-            'summer': '05',
+            "format": "YYYYST",
+            "fall": "09",
+            "spring": "01",
+            "summer": "05",
         },
-        'cornell': {
+        "cornell": {
             # Cornell uses format: FA25 (Fall 2025)
-            'format': 'SSYY',
-            'fall': 'FA',
-            'spring': 'SP',
-            'summer': 'SU',
+            "format": "SSYY",
+            "fall": "FA",
+            "spring": "SP",
+            "summer": "SU",
         },
-        'neu': {
+        "neu": {
             # Northeastern uses semester codes
-            'format': 'YYYYMM',
-            'fall': '09',
-            'spring': '01',
-            'summer': '05',
+            "format": "YYYYMM",
+            "fall": "09",
+            "spring": "01",
+            "summer": "05",
         },
-        'usc': {
+        "usc": {
             # USC uses term codes
-            'format': 'YYYYT',
-            'fall': '3',
-            'spring': '1',
-            'summer': '2',
+            "format": "YYYYT",
+            "fall": "3",
+            "spring": "1",
+            "summer": "2",
         },
     }
 
@@ -79,13 +79,13 @@ class TermConfig:
 
         # Determine current term based on month
         if month >= 8:  # August onwards = Fall
-            term = 'fall'
+            term = "fall"
             term_year = year
         elif month <= 5:  # January-May = Spring
-            term = 'spring'
+            term = "spring"
             term_year = year
         else:  # June-July = Summer
-            term = 'summer'
+            term = "summer"
             term_year = year
 
         return TermConfig.build_term_code(college_short_name, term, term_year)
@@ -111,23 +111,23 @@ class TermConfig:
         year_str = str(year)
         year_short = year_str[2:]  # Last 2 digits
 
-        format_type = pattern['format']
-        term_code = pattern.get(term, '')
+        format_type = pattern["format"]
+        term_code = pattern.get(term, "")
 
-        if format_type == 'SYYT':  # Princeton format
-            semester = pattern.get(term, '1')
+        if format_type == "SYYT":  # Princeton format
+            semester = pattern.get(term, "1")
             return f"{semester}{year_short}{semester}"
 
-        elif format_type == 'YYYYST':  # Brown, BU format
+        elif format_type == "YYYYST":  # Brown, BU format
             return f"{year}{term_code}"
 
-        elif format_type == 'SSYY':  # Cornell format
+        elif format_type == "SSYY":  # Cornell format
             return f"{term_code}{year_short}"
 
-        elif format_type == 'YYYYMM':  # NEU format
+        elif format_type == "YYYYMM":  # NEU format
             return f"{year}{term_code}"
 
-        elif format_type == 'YYYYT':  # USC format
+        elif format_type == "YYYYT":  # USC format
             return f"{year}{term_code}"
 
         else:
@@ -151,11 +151,15 @@ class TermConfig:
 
         # This is a simplified parser - could be expanded based on needs
         try:
-            if 'fall' in term_code.lower() or pattern.get('fall', '') in term_code:
+            if "fall" in term_code.lower() or pattern.get("fall", "") in term_code:
                 return f"Fall {term_code}"
-            elif 'spring' in term_code.lower() or pattern.get('spring', '') in term_code:
+            elif (
+                "spring" in term_code.lower() or pattern.get("spring", "") in term_code
+            ):
                 return f"Spring {term_code}"
-            elif 'summer' in term_code.lower() or pattern.get('summer', '') in term_code:
+            elif (
+                "summer" in term_code.lower() or pattern.get("summer", "") in term_code
+            ):
                 return f"Summer {term_code}"
             else:
                 return term_code
