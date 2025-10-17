@@ -170,9 +170,7 @@ def main():
     args = parser.parse_args()
 
     if not args.confirm:
-        print(
-            "⚠️  WARNING: This will delete all course data for the specified college!"
-        )
+        print("⚠️  WARNING: This will delete all course data for the specified college!")
         print("   Use --confirm flag to proceed")
         return
 

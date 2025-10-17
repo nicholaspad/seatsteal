@@ -18,5 +18,6 @@
 ## Code style
 
 ## Workflow
-
+- Make sure to `source venv/bin/activate` to activate the virtual environment before running or testing the webapp.
 - When you're done making changes, run `black .` from the webapp directory to format all code. If you don't have black installed, run `pip install black`.
+- Make sure to run all tests before committing changes. Use `pytest` to run the tests.

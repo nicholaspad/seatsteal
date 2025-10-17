@@ -52,15 +52,25 @@ async def get_courses(
         if college_id and college_id != 0:
             conditions.append(Course.college_id == college_id)
 
-        # Add search conditions
+        # Add fuzzy search conditions using trigram similarity
+        similarity_threshold = 0.1
+        search_query = None
         if q:
-            search_term = q.strip().upper()
-            search_conditions = or_(
-                func.upper(Course.course_code).like(f"{search_term}%"),
-                func.upper(Course.title).like(f"%{search_term}%"),
-                func.upper(Course.course_code).like(f"%{search_term}%"),
+            search_term = q.strip()
+            # Calculate combined similarity score for course_code and title
+            code_similarity = func.coalesce(
+                func.similarity(Course.course_code, search_term), 0
             )
-            conditions.append(search_conditions)
+            title_similarity = func.coalesce(
+                func.similarity(Course.title, search_term), 0
+            )
+            combined_similarity = code_similarity + title_similarity
+
+            # Filter by minimum similarity threshold
+            conditions.append(combined_similarity >= similarity_threshold)
+
+            # Store the similarity expression for ordering
+            search_query = combined_similarity
 
         # Get total count
         count_query = select(func.count()).select_from(Course).where(and_(*conditions))
@@ -75,7 +85,9 @@ async def get_courses(
             select(Course)
             .options(joinedload(Course.college))
             .where(and_(*conditions))
-            .order_by(Course.course_code)
+            .order_by(
+                search_query.desc() if search_query is not None else Course.course_code
+            )
             .offset(offset)
             .limit(limit)
         )

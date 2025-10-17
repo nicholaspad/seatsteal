@@ -260,9 +260,9 @@ async def get_query_performance(
                     "id": metric.id,
                     "queryName": metric.query_name,
                     "executionTime": metric.execution_time,
-                    "executedAt": metric.executed_at.isoformat()
-                    if metric.executed_at
-                    else None,
+                    "executedAt": (
+                        metric.executed_at.isoformat() if metric.executed_at else None
+                    ),
                 }
                 for metric in metrics
             ],
@@ -303,19 +303,25 @@ async def get_scrapers(
                     "collegeId": scraper.college_id,
                     "name": scraper.name,
                     "isActive": scraper.is_active,
-                    "latestLog": {
-                        "id": latest_log.id,
-                        "outcome": latest_log.outcome,
-                        "startedAt": latest_log.started_at.isoformat()
-                        if latest_log.started_at
-                        else None,
-                        "completedAt": latest_log.completed_at.isoformat()
-                        if latest_log.completed_at
-                        else None,
-                        "errorMessage": latest_log.error_message,
-                    }
-                    if latest_log
-                    else None,
+                    "latestLog": (
+                        {
+                            "id": latest_log.id,
+                            "outcome": latest_log.outcome,
+                            "startedAt": (
+                                latest_log.started_at.isoformat()
+                                if latest_log.started_at
+                                else None
+                            ),
+                            "completedAt": (
+                                latest_log.completed_at.isoformat()
+                                if latest_log.completed_at
+                                else None
+                            ),
+                            "errorMessage": latest_log.error_message,
+                        }
+                        if latest_log
+                        else None
+                    ),
                 }
             )
 

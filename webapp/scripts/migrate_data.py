@@ -117,9 +117,7 @@ async def migrate_courses(
         new_college_id = college_id_mapping.get(old_row.college_id)
 
         if not new_college_id:
-            print(
-                f"   ⚠️  Skipping course {old_row.course_code} (college not migrated)"
-            )
+            print(f"   ⚠️  Skipping course {old_row.course_code} (college not migrated)")
             continue
 
         # Check if already exists
