@@ -3,7 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .config import settings
-from .api.routes import colleges, courses, classes, subscriptions, auth
+from .api.routes import (
+    colleges,
+    courses,
+    classes,
+    subscriptions,
+    auth,
+    admin,
+    notifications,
+    stripe,
+    user,
+)
 from .db.connection import init_db, close_db
 
 
@@ -48,6 +58,10 @@ app.include_router(courses.router)
 app.include_router(classes.router)
 app.include_router(subscriptions.router)
 app.include_router(auth.router)
+app.include_router(admin.router)
+app.include_router(notifications.router)
+app.include_router(stripe.router)
+app.include_router(user.router)
 
 
 @app.get("/health")

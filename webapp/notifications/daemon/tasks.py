@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, and_
 import asyncio
 from datetime import datetime
+from uuid import uuid4
 from loguru import logger
 
 from ...config import settings
@@ -32,7 +33,12 @@ celery_app.conf.update(
 )
 
 # Database engine for Celery workers
-engine = create_async_engine(settings.async_database_url)
+engine = create_async_engine(
+    settings.async_database_url,
+    connect_args={
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    },  # Required for pgbouncer compatibility
+)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

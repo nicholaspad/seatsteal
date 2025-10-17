@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+from uuid import uuid4
 from ..config import settings
 
 # Create async database engine
@@ -8,6 +9,9 @@ engine: AsyncEngine = create_async_engine(
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
+    connect_args={
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    },  # Required for pgbouncer compatibility
 )
 
 

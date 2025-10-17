@@ -64,6 +64,19 @@ class Settings(BaseSettings):
     SCRAPER_RATE_LIMIT: int = 100
     """Maximum requests per minute for scrapers"""
 
+    # Stripe
+    STRIPE_SECRET_KEY: str = ""
+    """Stripe secret API key"""
+
+    STRIPE_WEBHOOK_SECRET: str = ""
+    """Stripe webhook signing secret"""
+
+    STRIPE_PLUS_PRICE_ID: str = ""
+    """Stripe price ID for Plus tier subscription"""
+
+    STRIPE_PRO_PRICE_ID: str = ""
+    """Stripe price ID for Pro tier subscription"""
+
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),
         case_sensitive=True,

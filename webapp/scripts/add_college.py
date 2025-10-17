@@ -11,6 +11,7 @@ import argparse
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
+from uuid import uuid4
 
 import sys
 from pathlib import Path
@@ -44,7 +45,10 @@ async def add_college(
         sms_enabled: Enable SMS notifications
     """
     # Create database engine
-    engine = create_async_engine(settings.async_database_url)
+    engine = create_async_engine(
+        settings.async_database_url,
+        connect_args={"prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__"},
+    )
     AsyncSessionLocal = sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -95,7 +99,10 @@ async def add_college(
 
 async def list_colleges():
     """List all colleges in the database"""
-    engine = create_async_engine(settings.async_database_url)
+    engine = create_async_engine(
+        settings.async_database_url,
+        connect_args={"prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__"},
+    )
     AsyncSessionLocal = sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
     )

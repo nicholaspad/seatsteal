@@ -18,6 +18,7 @@ import argparse
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, text
+from uuid import uuid4
 
 import sys
 from pathlib import Path
@@ -220,8 +221,14 @@ async def run_migration(old_db_url: str, dry_run: bool = True):
     print(f"   Mode: {'DRY RUN' if dry_run else 'LIVE'}\n")
 
     # Create database engines
-    old_engine = create_async_engine(old_db_url)
-    new_engine = create_async_engine(settings.async_database_url)
+    old_engine = create_async_engine(
+        old_db_url,
+        connect_args={"prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__"},
+    )
+    new_engine = create_async_engine(
+        settings.async_database_url,
+        connect_args={"prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__"},
+    )
 
     OldSessionLocal = sessionmaker(
         old_engine, class_=AsyncSession, expire_on_commit=False

@@ -107,3 +107,22 @@ def require_auth(user: Profile = Depends(get_current_user)) -> Profile:
             return {"user_id": user.id}
     """
     return user
+
+
+def require_admin(user: Profile = Depends(get_current_user)) -> Profile:
+    """
+    Dependency to require admin authentication.
+
+    Usage:
+        @router.get("/admin/analytics")
+        async def get_analytics(
+            admin: Profile = Depends(require_admin)
+        ):
+            return {"data": "admin only"}
+    """
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return user
