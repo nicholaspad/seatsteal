@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 from webapp.models.course import Course
 from webapp.models.college import College
@@ -199,7 +199,7 @@ class TestGetCourseSummary:
         test_class: Class,
     ):
         """Test successfully getting course summary (premium)."""
-        with patch("webapp.api.routes.courses.require_premium_access") as mock_premium:
+        with patch("webapp.api.routes.courses.require_premium_access", new_callable=AsyncMock) as mock_premium:
             mock_premium.return_value = None  # User has premium access
 
             response = await authenticated_client.get(
@@ -220,7 +220,7 @@ class TestGetCourseSummary:
         authenticated_client: AsyncClient,
     ):
         """Test getting summary for non-existent course."""
-        with patch("webapp.api.routes.courses.require_premium_access") as mock_premium:
+        with patch("webapp.api.routes.courses.require_premium_access", new_callable=AsyncMock) as mock_premium:
             mock_premium.return_value = None
 
             response = await authenticated_client.get("/api/courses/99999/summary")
@@ -247,7 +247,7 @@ class TestGetCourseSummary:
         """Test getting summary without premium access."""
         from fastapi import HTTPException
 
-        with patch("webapp.api.routes.courses.require_premium_access") as mock_premium:
+        with patch("webapp.api.routes.courses.require_premium_access", new_callable=AsyncMock) as mock_premium:
             mock_premium.side_effect = HTTPException(
                 status_code=403, detail="Premium access required"
             )

@@ -225,9 +225,10 @@ async def get_notifications(
                     "id": log.id,
                     "subscriptionId": log.subscription_id,
                     "collegeId": log.college_id,
+                    "notificationType": log.notification_type,
+                    "message": log.message,
                     "status": log.status,
                     "sentAt": log.sent_at.isoformat() if log.sent_at else None,
-                    "errorMessage": log.error_message,
                 }
                 for log in logs
             ],
@@ -301,8 +302,7 @@ async def get_scrapers(
                 {
                     "id": scraper.id,
                     "collegeId": scraper.college_id,
-                    "name": scraper.name,
-                    "isActive": scraper.is_active,
+                    "status": scraper.status,
                     "latestLog": (
                         {
                             "id": latest_log.id,

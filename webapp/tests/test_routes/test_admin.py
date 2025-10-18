@@ -100,6 +100,8 @@ class TestGetNotifications:
         log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            notification_type="email",
+            message="Test notification",
             status="sent",
             sent_at=datetime.utcnow(),
         )
@@ -336,7 +338,7 @@ class TestUpdateUser:
         test_user: Profile,
     ):
         """Test successfully updating user college."""
-        from models.college import College
+        from webapp.models.college import College
 
         new_college = College(
             name="New Admin University",

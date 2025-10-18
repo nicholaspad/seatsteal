@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 from datetime import datetime, timedelta
 
 from webapp.models.class_model import Class
@@ -96,7 +96,7 @@ class TestGetEnrollmentAnalysis:
         test_enrollment: Enrollment,
     ):
         """Test successfully getting enrollment analysis (premium)."""
-        with patch("webapp.api.routes.classes.require_premium_access") as mock_premium:
+        with patch("webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock) as mock_premium:
             mock_premium.return_value = None  # User has premium access
 
             # Create some enrollment history
@@ -104,6 +104,7 @@ class TestGetEnrollmentAnalysis:
             for i in range(5):
                 enrollment = Enrollment(
                     class_id=test_class.class_id,
+                    college_id=test_enrollment.college_id,
                     enrollment_status="open" if i % 2 == 0 else "closed",
                     scraped_at=now - timedelta(days=i * 10),
                 )
@@ -132,7 +133,7 @@ class TestGetEnrollmentAnalysis:
         test_class: Class,
     ):
         """Test that competition level is calculated correctly."""
-        with patch("webapp.api.routes.classes.require_premium_access") as mock_premium:
+        with patch("webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock) as mock_premium:
             mock_premium.return_value = None
 
             response = await authenticated_client.get(
@@ -166,7 +167,7 @@ class TestGetEnrollmentAnalysis:
         """Test getting enrollment analysis without premium access."""
         from fastapi import HTTPException
 
-        with patch("webapp.api.routes.classes.require_premium_access") as mock_premium:
+        with patch("webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock) as mock_premium:
             mock_premium.side_effect = HTTPException(
                 status_code=403, detail="Premium access required"
             )
@@ -184,7 +185,7 @@ class TestGetEnrollmentAnalysis:
         test_class: Class,
     ):
         """Test getting enrollment analysis with no enrollment history."""
-        with patch("webapp.api.routes.classes.require_premium_access") as mock_premium:
+        with patch("webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock) as mock_premium:
             mock_premium.return_value = None
 
             response = await authenticated_client.get(

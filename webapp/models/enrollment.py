@@ -24,7 +24,7 @@ class Enrollment(Base):
     raw_text = Column(Text)
 
     __table_args__ = (
-        Index("enrollments_class_id_idx", "class_id", unique=True),
+        Index("enrollments_class_id_idx", "class_id"),
         Index("enrollments_scraped_at_idx", "scraped_at"),
         Index("enrollments_status_idx", "enrollment_status"),
         Index("enrollments_college_status_idx", "college_id", "enrollment_status"),

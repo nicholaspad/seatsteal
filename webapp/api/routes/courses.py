@@ -396,6 +396,8 @@ async def get_course_summary(
         )
         total_notifications_sent = total_notifs_result.scalar() or 0
 
+        from datetime import datetime
+
         return {
             "success": True,
             "data": {
@@ -405,7 +407,7 @@ async def get_course_summary(
                 "uniqueSubscribedUsers": unique_subscribed_users,
                 "totalNotificationsSent": total_notifications_sent,
                 "totalClasses": total_classes,
-                "generatedAt": func.now(),
+                "generatedAt": datetime.utcnow().isoformat(),
             },
         }
 

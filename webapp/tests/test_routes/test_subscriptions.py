@@ -228,7 +228,7 @@ class TestDeleteSubscription:
         await test_db.commit()
 
         # Create class
-        from models.course import Course
+        from webapp.models.course import Course
 
         course = Course(
             college_id=test_college.id,

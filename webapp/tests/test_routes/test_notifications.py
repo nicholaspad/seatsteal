@@ -26,6 +26,8 @@ class TestGetNotificationTrends:
             log = NotificationLog(
                 subscription_id=test_subscription.id,
                 college_id=test_subscription.college_id,
+                notification_type="email",
+                message="Test notification",
                 status="sent",
                 sent_at=now - timedelta(days=i),
             )
@@ -68,6 +70,8 @@ class TestGetNotificationTrends:
         recent_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            notification_type="email",
+            message="Recent notification",
             status="sent",
             sent_at=now - timedelta(days=15),
         )
@@ -77,6 +81,8 @@ class TestGetNotificationTrends:
         old_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            notification_type="email",
+            message="Old notification",
             status="sent",
             sent_at=now - timedelta(days=35),
         )
