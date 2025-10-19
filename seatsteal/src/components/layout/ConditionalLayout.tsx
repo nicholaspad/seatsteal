@@ -17,16 +17,17 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
     location.pathname.includes("/error");
 
   if (isAuthPage) {
-    // For auth pages, render children without header/footer and use full height
-    return <main className="h-screen">{children}</main>;
+    // For auth pages, render children without header/footer
+    return <>{children}</>;
   }
 
-  // For regular pages, use the standard layout with header and footer
+  // For regular pages, render Header and Footer alongside children
+  // Header will be fixed at top, pages handle their own scrolling
   return (
-    <div className="min-h-screen flex flex-col">
+    <>
       <Header />
-      <main className="flex-1">{children}</main>
+      {children}
       <Footer />
-    </div>
+    </>
   );
 }
