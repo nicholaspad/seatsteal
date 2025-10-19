@@ -75,7 +75,8 @@
 }
 
 @keyframes pulse-slow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -84,7 +85,8 @@
 }
 
 @keyframes pulse-slower {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.6;
   }
   50% {
@@ -119,5 +121,24 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Ensure IonPage respects the flex layout */
+  ion-page {
+    position: relative;
+    height: 100%;
+    min-height: 0; /* Allow flex child to shrink */
+  }
+
+  /* Ensure IonContent scrolls within the available space */
+  ion-content {
+    --background: transparent;
+    height: 100%;
+  }
+
+  /* Header positioning to stay above Ionic components */
+  header {
+    position: relative;
+    z-index: 1000;
   }
 }
