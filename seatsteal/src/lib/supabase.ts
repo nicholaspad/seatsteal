@@ -13,3 +13,50 @@ export const supabase = createClient(
   config.supabase.url,
   config.supabase.anonKey
 )
+
+// Helper function to sign in with magic link
+export const signInWithMagicLink = async (email: string) => {
+  return await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      // Mobile apps typically use deep links or universal links for redirect
+      // This can be configured in your Capacitor app
+      emailRedirectTo: window.location.origin,
+    },
+  })
+}
+
+// Helper function to sign in with admin magic link
+export const signInWithAdminMagicLink = async (email: string) => {
+  return await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: window.location.origin + '/admin',
+    },
+  })
+}
+
+// Helper function to sign out
+export const signOut = async () => {
+  return await supabase.auth.signOut()
+}
+
+// Helper function to get current user
+export const getCurrentUser = async () => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  return user
+}
+
+// Helper function to get current user with secure validation
+export const getCurrentSession = async () => {
+  // Validate user securely - no getSession() calls
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  // Return only validated user data, no session metadata
+  return userError || !user ? null : user
+}

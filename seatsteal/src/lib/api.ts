@@ -1,5 +1,67 @@
 import { config } from './config'
 import { supabase } from './supabase'
+import { toast } from 'sonner'
+
+/**
+ * Custom error class for server errors that have already shown a toast.
+ * Callers can check for this error type to avoid showing duplicate toasts.
+ */
+export class ServerErrorWithToast extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ServerErrorWithToast'
+  }
+}
+
+/**
+ * Enhanced fetch wrapper that handles rate limiting (429 responses)
+ * and server errors (5xx responses) with automatic toast messages.
+ * Throws ServerErrorWithToast for any error to prevent duplicate toasts.
+ */
+export async function fetchWithToasts(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  const response = await fetch(url, options)
+
+  // Handle rate limiting specifically
+  if (response.status === 429) {
+    toast.error('Too many requests. Try again later.')
+    throw new ServerErrorWithToast('Rate limited')
+  }
+
+  // Handle server errors (5xx)
+  if (response.status >= 500) {
+    toast.error('An error has occurred. Please try again later.')
+    throw new ServerErrorWithToast('Server error')
+  }
+
+  return response
+}
+
+/**
+ * @deprecated Use fetchWithToasts instead
+ * Legacy function for backwards compatibility
+ */
+export const fetchWithRateLimit = fetchWithToasts
+
+/**
+ * Alternative fetch wrapper that handles rate limiting silently
+ * for cases where you want to handle the error differently.
+ */
+export async function fetchWithRateLimitSilent(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  const response = await fetch(url, options)
+
+  // Handle rate limiting without toast (for custom error handling)
+  if (response.status === 429) {
+    throw new Error('Rate limited')
+  }
+
+  return response
+}
 
 class ApiClient {
   private baseUrl: string
