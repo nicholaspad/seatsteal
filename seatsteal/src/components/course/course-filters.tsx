@@ -88,7 +88,7 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
               placeholder="Search courses..."
             />
             <p className="text-sm text-muted-foreground">
-              Courses with 0 sections are hidden
+              Courses with no sections are hidden
             </p>
           </div>
 

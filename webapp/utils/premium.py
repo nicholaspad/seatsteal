@@ -1,7 +1,7 @@
 """Premium subscription utilities for handling user tiers and feature access"""
 
 from typing import Literal
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func
 from uuid import UUID
 
@@ -35,12 +35,12 @@ TIER_FEATURES = {
 }
 
 
-async def get_user_subscription_tier(
-    user_id: UUID, db: AsyncSession
+def get_user_subscription_tier(
+    user_id: UUID, db: Session
 ) -> SubscriptionTier:
     """Get the subscription tier for a user based on their active Stripe subscription"""
     # Query for active Stripe subscription
-    result = await db.execute(
+    result = db.execute(
         select(StripeSubscription)
         .where(
             and_(
@@ -60,9 +60,9 @@ async def get_user_subscription_tier(
     return subscription.tier  # type: ignore
 
 
-async def get_user_active_subscription_count(user_id: UUID, db: AsyncSession) -> int:
+def get_user_active_subscription_count(user_id: UUID, db: Session) -> int:
     """Get count of active subscriptions for a user"""
-    result = await db.execute(
+    result = db.execute(
         select(func.count())
         .select_from(Subscription)
         .where(and_(Subscription.user_id == user_id, Subscription.is_active == True))
@@ -75,11 +75,11 @@ def get_subscription_features(tier: SubscriptionTier) -> dict:
     return TIER_FEATURES.get(tier, TIER_FEATURES["free"])
 
 
-async def require_premium_access(user_id: UUID, db: AsyncSession) -> None:
+def require_premium_access(user_id: UUID, db: Session) -> None:
     """Raise exception if user doesn't have premium access (Plus or Pro)"""
     from fastapi import HTTPException, status
 
-    tier = await get_user_subscription_tier(user_id, db)
+    tier = get_user_subscription_tier(user_id, db)
     if tier == "free":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -87,10 +87,10 @@ async def require_premium_access(user_id: UUID, db: AsyncSession) -> None:
         )
 
 
-async def check_subscription_limit(user_id: UUID, db: AsyncSession) -> bool:
+def check_subscription_limit(user_id: UUID, db: Session) -> bool:
     """Check if user has reached their subscription limit"""
-    tier = await get_user_subscription_tier(user_id, db)
+    tier = get_user_subscription_tier(user_id, db)
     features = get_subscription_features(tier)
-    current_count = await get_user_active_subscription_count(user_id, db)
+    current_count = get_user_active_subscription_count(user_id, db)
 
     return current_count < features["max_subscriptions"]

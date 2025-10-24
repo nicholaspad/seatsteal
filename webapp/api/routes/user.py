@@ -1,7 +1,7 @@
 """User settings and profile API routes"""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
@@ -27,14 +27,14 @@ class UserSettingsResponse(BaseModel):
 @router.get("/settings")
 async def get_user_settings(
     user: Profile = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get user settings"""
     try:
         # Get college details if user has a college
         college = None
         if user.college_id:
-            college_result = await db.execute(
+            college_result = db.execute(
                 select(College).where(College.id == user.college_id)
             )
             college = college_result.scalar_one_or_none()
@@ -66,14 +66,14 @@ class UpdateUserSettingsRequest(BaseModel):
 async def update_user_settings(
     request: UpdateUserSettingsRequest,
     user: Profile = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Update user settings"""
     try:
         # Verify college exists if provided
         college = None
         if request.collegeId and request.collegeId > 0:
-            college_result = await db.execute(
+            college_result = db.execute(
                 select(College).where(College.id == request.collegeId)
             )
             college = college_result.scalar_one_or_none()
@@ -91,8 +91,8 @@ async def update_user_settings(
         if request.collegeId is not None:
             user.college_id = request.collegeId
 
-        await db.commit()
-        await db.refresh(user)
+        db.commit()
+        db.refresh(user)
 
         return {
             "success": True,
@@ -108,7 +108,7 @@ async def update_user_settings(
     except HTTPException:
         raise
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(
             status_code=500, detail=f"Failed to update user settings: {str(e)}"
         )
@@ -117,11 +117,11 @@ async def update_user_settings(
 @router.get("/subscription-tier")
 async def get_subscription_tier(
     user: Profile = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get user's subscription tier"""
     try:
-        tier = await get_user_subscription_tier(user.id, db)
+        tier = get_user_subscription_tier(user.id, db)
 
         return {
             "success": True,

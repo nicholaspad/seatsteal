@@ -22,12 +22,12 @@ async def lifespan(app: FastAPI):
     """Application lifespan context manager for startup and shutdown"""
     # Startup
     print("🚀 Starting SeatSteal API...")
-    await init_db()
+    init_db()
     print("✅ Database connection initialized")
     yield
     # Shutdown
     print("🛑 Shutting down SeatSteal API...")
-    await close_db()
+    close_db()
     print("✅ Database connections closed")
 
 

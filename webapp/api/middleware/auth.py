@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from supabase import create_client, Client
 from typing import Optional
@@ -11,7 +11,8 @@ from ...db.session import get_db
 from ...models.user import Profile
 
 # HTTP Bearer token security
-security = HTTPBearer()
+# auto_error=False allows optional authentication - returns None instead of 403 when no token
+security = HTTPBearer(auto_error=False)
 
 # Supabase client
 supabase: Client = create_client(
@@ -21,7 +22,7 @@ supabase: Client = create_client(
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ) -> Profile:
     """
     Get the current authenticated user from JWT token.
@@ -47,7 +48,7 @@ async def get_current_user(
         user_id = UUID(user_response.user.id)
 
         # Get user profile from database
-        result = await db.execute(select(Profile).where(Profile.id == user_id))
+        result = db.execute(select(Profile).where(Profile.id == user_id))
         profile = result.scalar_one_or_none()
 
         if not profile:
@@ -74,7 +75,7 @@ async def get_current_user(
 
 async def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ) -> Optional[Profile]:
     """
     Get the current user if authenticated, otherwise None.

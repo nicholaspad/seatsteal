@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func
 from typing import List
 
@@ -22,10 +22,10 @@ from ...api.middleware.auth import require_auth
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 
 
-@router.get("/", response_model=List[SubscriptionWithDetails])
+@router.get("/")
 async def get_subscriptions(
     user: Profile = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get user's active subscriptions with details"""
     try:
@@ -44,7 +44,7 @@ async def get_subscriptions(
             .order_by(Subscription.created_at.desc())
         )
 
-        result = await db.execute(query)
+        result = db.execute(query)
         rows = result.all()
 
         # Build response
@@ -83,7 +83,10 @@ async def get_subscriptions(
             )
             subscriptions.append(subscription_data)
 
-        return subscriptions
+        return {
+            "success": True,
+            "data": subscriptions,
+        }
 
     except Exception as e:
         raise HTTPException(
@@ -92,13 +95,11 @@ async def get_subscriptions(
         )
 
 
-@router.post(
-    "/", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_subscription(
     subscription_data: SubscriptionCreate,
     user: Profile = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Create a new subscription"""
     try:
@@ -110,7 +111,7 @@ async def create_subscription(
                 Subscription.is_active == True,
             )
         )
-        existing_result = await db.execute(existing_query)
+        existing_result = db.execute(existing_query)
         existing_sub = existing_result.scalar_one_or_none()
 
         if existing_sub:
@@ -120,7 +121,7 @@ async def create_subscription(
             )
 
         # Verify class exists
-        class_result = await db.get(Class, subscription_data.class_id)
+        class_result = db.get(Class, subscription_data.class_id)
         if not class_result:
             raise HTTPException(status_code=404, detail="Class not found")
 
@@ -134,15 +135,18 @@ async def create_subscription(
         )
 
         db.add(new_subscription)
-        await db.commit()
-        await db.refresh(new_subscription)
+        db.commit()
+        db.refresh(new_subscription)
 
-        return new_subscription
+        return {
+            "success": True,
+            "data": SubscriptionResponse.model_validate(new_subscription),
+        }
 
     except HTTPException:
         raise
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create subscription: {str(e)}",
@@ -153,12 +157,12 @@ async def create_subscription(
 async def delete_subscription(
     subscription_id: int,
     user: Profile = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Delete (deactivate) a subscription"""
     try:
         # Get subscription
-        subscription = await db.get(Subscription, subscription_id)
+        subscription = db.get(Subscription, subscription_id)
 
         if not subscription:
             raise HTTPException(status_code=404, detail="Subscription not found")
@@ -172,14 +176,14 @@ async def delete_subscription(
 
         # Deactivate instead of delete
         subscription.is_active = False
-        await db.commit()
+        db.commit()
 
         return None
 
     except HTTPException:
         raise
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete subscription: {str(e)}",

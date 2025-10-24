@@ -1,7 +1,7 @@
 """Stripe payment integration API routes"""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Literal, Optional
@@ -35,12 +35,12 @@ class CheckoutSessionRequest(BaseModel):
 async def create_stripe_checkout_session(
     request: CheckoutSessionRequest,
     user: Profile = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Create a Stripe checkout session for subscription"""
     try:
         # Get or create Stripe customer
-        customer_result = await db.execute(
+        customer_result = db.execute(
             select(StripeCustomer).where(StripeCustomer.user_id == user.id)
         )
         stripe_customer = customer_result.scalar_one_or_none()
@@ -56,8 +56,8 @@ async def create_stripe_checkout_session(
                 email=user.email,
             )
             db.add(stripe_customer)
-            await db.commit()
-            await db.refresh(stripe_customer)
+            db.commit()
+            db.refresh(stripe_customer)
 
         # Get price ID for tier
         price_id = get_price_id_for_tier(request.tier)
@@ -89,12 +89,12 @@ async def create_stripe_checkout_session(
 @router.post("/create-portal-session")
 async def create_stripe_portal_session(
     user: Profile = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Create a Stripe billing portal session"""
     try:
         # Get user's Stripe customer
-        customer_result = await db.execute(
+        customer_result = db.execute(
             select(StripeCustomer).where(StripeCustomer.user_id == user.id)
         )
         stripe_customer = customer_result.scalar_one_or_none()
@@ -131,7 +131,7 @@ async def create_stripe_portal_session(
 async def stripe_webhooks(
     request: Request,
     stripe_signature: Optional[str] = Header(None),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Handle Stripe webhook events"""
     try:
@@ -152,14 +152,14 @@ async def stripe_webhooks(
 
             if email:
                 # Find user by email
-                user_result = await db.execute(
+                user_result = db.execute(
                     select(Profile).where(Profile.email == email)
                 )
                 user = user_result.scalar_one_or_none()
 
                 if user:
                     # Check if customer already exists
-                    existing_customer = await db.execute(
+                    existing_customer = db.execute(
                         select(StripeCustomer).where(
                             StripeCustomer.stripe_customer_id == customer.id
                         )
@@ -172,7 +172,7 @@ async def stripe_webhooks(
                             email=email,
                         )
                         db.add(stripe_customer)
-                        await db.commit()
+                        db.commit()
 
         elif event.type in [
             "customer.subscription.created",
@@ -182,7 +182,7 @@ async def stripe_webhooks(
             customer_id = subscription.get("customer")
 
             # Find user's stripe customer
-            customer_result = await db.execute(
+            customer_result = db.execute(
                 select(StripeCustomer).where(
                     StripeCustomer.stripe_customer_id == customer_id
                 )
@@ -196,7 +196,7 @@ async def stripe_webhooks(
 
                 if tier:
                     # Check if subscription exists
-                    existing_sub = await db.execute(
+                    existing_sub = db.execute(
                         select(StripeSubscription).where(
                             StripeSubscription.stripe_subscription_id == subscription.id
                         )
@@ -220,13 +220,13 @@ async def stripe_webhooks(
                         )
                         db.add(stripe_subscription)
 
-                    await db.commit()
+                    db.commit()
 
         elif event.type == "customer.subscription.deleted":
             subscription = event.data.object
 
             # Update subscription status to canceled
-            result = await db.execute(
+            result = db.execute(
                 select(StripeSubscription).where(
                     StripeSubscription.stripe_subscription_id == subscription.id
                 )
@@ -235,7 +235,7 @@ async def stripe_webhooks(
 
             if stripe_subscription:
                 stripe_subscription.status = "canceled"
-                await db.commit()
+                db.commit()
 
         return {"success": True, "received": True}
 

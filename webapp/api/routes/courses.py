@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, func, or_, and_, text
-from sqlalchemy.orm import joinedload
 from typing import Optional
 import math
 
@@ -26,7 +25,7 @@ from ...utils.premium import require_premium_access
 router = APIRouter(prefix="/api/courses", tags=["courses"])
 
 
-@router.get("/", response_model=PaginatedResponse[CourseWithClasses])
+@router.get("/")
 async def get_courses(
     q: Optional[str] = Query(None, description="Search query"),
     college_id: Optional[int] = Query(
@@ -35,7 +34,7 @@ async def get_courses(
     enrollment: str = Query("all", description="Filter by enrollment status"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """
     Get courses with search, filtering, and pagination.
@@ -74,7 +73,7 @@ async def get_courses(
 
         # Get total count
         count_query = select(func.count()).select_from(Course).where(and_(*conditions))
-        total_result = await db.execute(count_query)
+        total_result = db.execute(count_query)
         total = total_result.scalar()
 
         # Calculate offset
@@ -91,7 +90,7 @@ async def get_courses(
             .offset(offset)
             .limit(limit)
         )
-        courses_result = await db.execute(courses_query)
+        courses_result = db.execute(courses_query)
         courses = courses_result.unique().scalars().all()
 
         # For each course, get classes with latest enrollment
@@ -103,7 +102,7 @@ async def get_courses(
                 .where(and_(Class.course_id == course.id, Class.is_active == True))
                 .order_by(Class.class_number)
             )
-            classes_result = await db.execute(classes_query)
+            classes_result = db.execute(classes_query)
             classes = classes_result.scalars().all()
 
             # Get latest enrollment for each class
@@ -116,7 +115,7 @@ async def get_courses(
                     .order_by(Enrollment.scraped_at.desc())
                     .limit(1)
                 )
-                enrollment_result = await db.execute(enrollment_query)
+                enrollment_result = db.execute(enrollment_query)
                 enrollment = enrollment_result.scalar_one_or_none()
 
                 # Build class response
@@ -161,7 +160,15 @@ async def get_courses(
             total_pages=math.ceil(total / limit) if total > 0 else 0,
         )
 
-        return PaginatedResponse(data=result_data, pagination=pagination)
+        paginated_response = PaginatedResponse(data=result_data, pagination=pagination)
+
+        return {
+            "success": True,
+            "data": {
+                "data": paginated_response.data,
+                "pagination": paginated_response.pagination,
+            },
+        }
 
     except Exception as e:
         raise HTTPException(
@@ -169,8 +176,8 @@ async def get_courses(
         )
 
 
-@router.get("/{course_id}", response_model=CourseWithClasses)
-async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
+@router.get("/{course_id}")
+async def get_course(course_id: int, db: Session = Depends(get_db)):
     """Get course details with classes and college"""
     try:
         # Get course with college
@@ -179,7 +186,7 @@ async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
             .options(joinedload(Course.college))
             .where(and_(Course.id == course_id, Course.is_active == True))
         )
-        result = await db.execute(course_query)
+        result = db.execute(course_query)
         course = result.unique().scalar_one_or_none()
 
         if not course:
@@ -191,7 +198,7 @@ async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
             .where(and_(Class.course_id == course_id, Class.is_active == True))
             .order_by(Class.class_number)
         )
-        classes_result = await db.execute(classes_query)
+        classes_result = db.execute(classes_query)
         classes = classes_result.scalars().all()
 
         # Get latest enrollment for each class
@@ -203,7 +210,7 @@ async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
                 .order_by(Enrollment.scraped_at.desc())
                 .limit(1)
             )
-            enrollment_result = await db.execute(enrollment_query)
+            enrollment_result = db.execute(enrollment_query)
             enrollment = enrollment_result.scalar_one_or_none()
 
             class_data = ClassInCourse(
@@ -226,7 +233,7 @@ async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
             classes_with_enrollment.append(class_data)
 
         # Build response
-        return CourseWithClasses(
+        course_data = CourseWithClasses(
             id=course.id,
             college_id=course.college_id,
             course_code=course.course_code,
@@ -238,6 +245,11 @@ async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
             classes=classes_with_enrollment,
         )
 
+        return {
+            "success": True,
+            "data": course_data,
+        }
+
     except HTTPException:
         raise
     except Exception as e:
@@ -247,11 +259,11 @@ async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{course_id}/classes")
-async def get_course_classes(course_id: int, db: AsyncSession = Depends(get_db)):
+async def get_course_classes(course_id: int, db: Session = Depends(get_db)):
     """Get classes for a specific course"""
     try:
         # Verify course exists
-        course_result = await db.execute(
+        course_result = db.execute(
             select(Course).where(and_(Course.id == course_id, Course.is_active == True))
         )
         course = course_result.scalar_one_or_none()
@@ -265,7 +277,7 @@ async def get_course_classes(course_id: int, db: AsyncSession = Depends(get_db))
             .where(and_(Class.course_id == course_id, Class.is_active == True))
             .order_by(Class.class_number)
         )
-        classes_result = await db.execute(classes_query)
+        classes_result = db.execute(classes_query)
         classes = classes_result.scalars().all()
 
         # Build response with enrollments
@@ -277,7 +289,7 @@ async def get_course_classes(course_id: int, db: AsyncSession = Depends(get_db))
                 .order_by(Enrollment.scraped_at.desc())
                 .limit(1)
             )
-            enrollment_result = await db.execute(enrollment_query)
+            enrollment_result = db.execute(enrollment_query)
             enrollment = enrollment_result.scalar_one_or_none()
 
             class_data = {
@@ -313,7 +325,7 @@ async def get_course_classes(course_id: int, db: AsyncSession = Depends(get_db))
 async def get_course_summary(
     course_id: int,
     user=Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get course summary statistics (Premium feature)"""
     try:
@@ -321,14 +333,14 @@ async def get_course_summary(
         await require_premium_access(user.id, db)
 
         # Verify course exists
-        course_result = await db.execute(
+        course_result = db.execute(
             select(Course).where(and_(Course.id == course_id, Course.is_active == True))
         )
         if not course_result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Course not found")
 
         # Get total classes for this course
-        total_classes_result = await db.execute(
+        total_classes_result = db.execute(
             select(func.count())
             .select_from(Class)
             .where(and_(Class.course_id == course_id, Class.is_active == True))
@@ -336,7 +348,7 @@ async def get_course_summary(
         total_classes = total_classes_result.scalar() or 0
 
         # Get total subscriptions for classes in this course
-        total_subs_result = await db.execute(
+        total_subs_result = db.execute(
             select(func.count())
             .select_from(Subscription)
             .join(Class, Subscription.class_id == Class.class_id)
@@ -351,7 +363,7 @@ async def get_course_summary(
         total_subscriptions = total_subs_result.scalar() or 0
 
         # Get classes with subscriptions count
-        classes_with_subs_result = await db.execute(
+        classes_with_subs_result = db.execute(
             select(func.count(func.distinct(Class.class_id)))
             .select_from(Class)
             .join(Subscription, Class.class_id == Subscription.class_id)
@@ -366,7 +378,7 @@ async def get_course_summary(
         classes_with_subscriptions = classes_with_subs_result.scalar() or 0
 
         # Get unique subscribed users count
-        unique_users_result = await db.execute(
+        unique_users_result = db.execute(
             select(func.count(func.distinct(Subscription.user_id)))
             .select_from(Subscription)
             .join(Class, Subscription.class_id == Class.class_id)
@@ -381,7 +393,7 @@ async def get_course_summary(
         unique_subscribed_users = unique_users_result.scalar() or 0
 
         # Get total notifications sent
-        total_notifs_result = await db.execute(
+        total_notifs_result = db.execute(
             select(func.count())
             .select_from(NotificationLog)
             .join(Subscription, NotificationLog.subscription_id == Subscription.id)

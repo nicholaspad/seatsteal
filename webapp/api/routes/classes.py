@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
@@ -20,8 +20,8 @@ from ...utils.premium import require_premium_access
 router = APIRouter(prefix="/api/classes", tags=["classes"])
 
 
-@router.get("/{class_id}", response_model=ClassWithCourse)
-async def get_class(class_id: int, db: AsyncSession = Depends(get_db)):
+@router.get("/{class_id}")
+async def get_class(class_id: int, db: Session = Depends(get_db)):
     """Get class details with course, college, and latest enrollment"""
     try:
         # Get class with related course and college
@@ -31,7 +31,7 @@ async def get_class(class_id: int, db: AsyncSession = Depends(get_db)):
             .join(College, Course.college_id == College.id)
             .where(and_(Class.class_id == class_id, Class.is_active == True))
         )
-        result = await db.execute(class_query)
+        result = db.execute(class_query)
         row = result.first()
 
         if not row:
@@ -46,11 +46,11 @@ async def get_class(class_id: int, db: AsyncSession = Depends(get_db)):
             .order_by(Enrollment.scraped_at.desc())
             .limit(1)
         )
-        enrollment_result = await db.execute(enrollment_query)
+        enrollment_result = db.execute(enrollment_query)
         enrollment = enrollment_result.scalar_one_or_none()
 
         # Build response
-        return ClassWithCourse(
+        class_data = ClassWithCourse(
             class_id=class_obj.class_id,
             course_id=class_obj.course_id,
             class_number=class_obj.class_number,
@@ -78,6 +78,11 @@ async def get_class(class_id: int, db: AsyncSession = Depends(get_db)):
             ),
         )
 
+        return {
+            "success": True,
+            "data": class_data,
+        }
+
     except HTTPException:
         raise
     except Exception as e:
@@ -90,12 +95,12 @@ async def get_class(class_id: int, db: AsyncSession = Depends(get_db)):
 async def get_enrollment_analysis(
     class_id: int,
     user=Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get enrollment analysis for a class (Premium feature)"""
     try:
         # Require premium access
-        await require_premium_access(user.id, db)
+        require_premium_access(user.id, db)
 
         # Get times opened in last 60 days
         sixty_days_ago = datetime.utcnow() - timedelta(days=60)
@@ -118,7 +123,7 @@ async def get_enrollment_analysis(
               AND (prev_status = 'closed' OR prev_status IS NULL)
             """
         )
-        times_result = await db.execute(
+        times_result = db.execute(
             times_opened_query, {"class_id": class_id, "sixty_days_ago": sixty_days_ago}
         )
         times_opened_last_60_days = times_result.scalar() or 0
@@ -148,7 +153,7 @@ async def get_enrollment_analysis(
             WHERE next_open_time IS NOT NULL
             """
         )
-        avg_result = await db.execute(
+        avg_result = db.execute(
             avg_days_query, {"class_id": class_id, "sixty_days_ago": sixty_days_ago}
         )
         avg_days_to_open_last_60_days = round(avg_result.scalar() or 0, 1)
@@ -169,7 +174,7 @@ async def get_enrollment_analysis(
               )
             """
         )
-        recent_result = await db.execute(most_recent_query, {"class_id": class_id})
+        recent_result = db.execute(most_recent_query, {"class_id": class_id})
         most_recent_opening = recent_result.scalar()
 
         # Fallback to most recent open status if no transition found
@@ -185,11 +190,11 @@ async def get_enrollment_analysis(
                 .order_by(Enrollment.scraped_at.desc())
                 .limit(1)
             )
-            fallback_result = await db.execute(fallback_query)
+            fallback_result = db.execute(fallback_query)
             most_recent_opening = fallback_result.scalar()
 
         # Get subscription statistics
-        subs_count_result = await db.execute(
+        subs_count_result = db.execute(
             select(func.count())
             .select_from(Subscription)
             .where(
@@ -199,7 +204,7 @@ async def get_enrollment_analysis(
         subscriptions_count = subs_count_result.scalar() or 0
 
         # Get notifications sent
-        notifs_count_result = await db.execute(
+        notifs_count_result = db.execute(
             select(func.count())
             .select_from(NotificationLog)
             .join(Subscription, NotificationLog.subscription_id == Subscription.id)
@@ -213,7 +218,7 @@ async def get_enrollment_analysis(
 
         # Get recent notifications (last 14 days)
         fourteen_days_ago = datetime.utcnow() - timedelta(days=14)
-        recent_notifs_result = await db.execute(
+        recent_notifs_result = db.execute(
             select(func.count())
             .select_from(NotificationLog)
             .join(Subscription, NotificationLog.subscription_id == Subscription.id)
