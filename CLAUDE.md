@@ -19,7 +19,12 @@
 
 ## Workflow
 - Make sure to `source venv/bin/activate` to activate the virtual environment before running or testing the webapp.
+- For local development with scrapers and dev tools, install from `requirements-full.txt`: `pip install -r requirements-full.txt`
 - To run the backend API locally, use `uvicorn app:app --reload --port 5000` from the webapp directory.
 - When you're done making changes, run `black .` from the webapp directory to format all code. If you don't have black installed, run `pip install black`.
 - Make sure to run all tests before committing changes. Use `pytest` to run the tests.
 - Make sure to update/add tests for any new/changed functionality you add.
+
+## Dependencies
+- `requirements.txt` - Optimized for Vercel deployment (no scrapers, dev tools)
+- `requirements-full.txt` - Full dependencies for local development

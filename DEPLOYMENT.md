@@ -24,10 +24,12 @@ The frontend will run on `http://localhost:5173`
 ```bash
 cd webapp
 source venv/bin/activate  # Activate virtual environment
-pip install -r requirements.txt  # If not already installed
+pip install -r requirements-full.txt  # Install all dependencies including scrapers
 uvicorn app:app --reload --port 5000
 ```
 The backend will run on `http://localhost:5000`
+
+**Note:** Use `requirements-full.txt` for local development to get all dependencies including scrapers and dev tools. The default `requirements.txt` is optimized for Vercel deployment.
 
 ### Environment Variables
 Make sure you have a `.env` file in the project root with all required variables (see Prerequisites section).
@@ -73,25 +75,12 @@ Go to your project settings > Environment Variables and add:
 
 ### 2. Deploy Backend
 
-Before deploying, you need to handle the requirements file:
-
-**Option A: Temporarily rename requirements file**
 ```bash
 cd ../webapp
-mv requirements.txt requirements-dev.txt
-mv requirements-vercel.txt requirements.txt
 vercel --prod
-# After deployment, restore files:
-mv requirements.txt requirements-vercel.txt
-mv requirements-dev.txt requirements.txt
 ```
 
-**Option B: Copy optimized requirements**
-```bash
-cd ../webapp
-cp requirements-vercel.txt requirements.txt
-vercel --prod
-```
+**Note:** The repository uses `requirements.txt` (optimized for Vercel) by default. For local development with all dependencies including scrapers and dev tools, use `requirements-full.txt`.
 
 **Environment Variables to Set in Vercel Dashboard:**
 
@@ -132,7 +121,8 @@ Go to your project settings > Environment Variables and add:
 **Configuration Files:**
 - `vercel.json` - Python serverless configuration
 - `api/index.py` - Vercel entry point
-- `requirements-vercel.txt` - Optimized dependencies (excludes playwright, celery)
+- `requirements.txt` - Optimized dependencies (excludes playwright, celery, dev tools)
+- `requirements-full.txt` - Full dependencies for local development with scrapers
 
 ### 3. Update CORS Configuration
 
@@ -195,7 +185,7 @@ Visit your frontend URL and ensure it loads correctly and can communicate with t
 
 2. **Lifespan Events**: The FastAPI lifespan events (startup/shutdown) work differently in serverless. The database connection is tested on each cold start.
 
-3. **Scrapers Not Included**: The Vercel deployment uses `requirements-vercel.txt` which excludes:
+3. **Scrapers Not Included**: The Vercel deployment uses `requirements.txt` (optimized) which excludes:
    - `playwright` (large browser automation library)
    - `celery` and `redis` (background task processing)
    - `beautifulsoup4`, `requests`, `lxml` (scraping libraries)
