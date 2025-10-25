@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, Index
 from sqlalchemy.sql import func
-from .base import Base
+from models.base import Base
 
 
 class QueryPerformanceMetric(Base):

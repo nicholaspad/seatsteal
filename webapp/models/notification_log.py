@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index
 from sqlalchemy.sql import func
-from .base import Base
+from models.base import Base
 
 
 class NotificationLog(Base):

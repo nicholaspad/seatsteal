@@ -4,18 +4,18 @@ from sqlalchemy import select, and_, func, text
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 
-from ...db.session import get_db
-from ...models.class_model import Class
-from ...models.course import Course
-from ...models.college import College
-from ...models.enrollment import Enrollment
-from ...models.subscription import Subscription
-from ...models.notification_log import NotificationLog
-from ...schemas.class_schema import ClassWithCourse
-from ...schemas.course import EnrollmentStatus, CourseWithCollege
-from ...schemas.college import CollegeResponse
-from ...api.middleware.auth import require_auth
-from ...utils.premium import require_premium_access
+from db.session import get_db
+from models.class_model import Class
+from models.course import Course
+from models.college import College
+from models.enrollment import Enrollment
+from models.subscription import Subscription
+from models.notification_log import NotificationLog
+from schemas.class_schema import ClassWithCourse
+from schemas.course import EnrollmentStatus, CourseWithCollege
+from schemas.college import CollegeResponse
+from api.middleware.auth import require_auth
+from utils.premium import require_premium_access
 
 router = APIRouter(prefix="/api/classes", tags=["classes"])
 

@@ -3,12 +3,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, and_
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-from ...db.session import get_db
-from ...models.user import Profile
-from ...models.college import College
-from ...models.early_access_email import EarlyAccessEmail
-from ...api.middleware.auth import require_auth, supabase
-from ...config import settings
+from db.session import get_db
+from models.user import Profile
+from models.college import College
+from models.early_access_email import EarlyAccessEmail
+from api.middleware.auth import require_auth, supabase
+from config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

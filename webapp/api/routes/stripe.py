@@ -7,12 +7,12 @@ from pydantic import BaseModel
 from typing import Literal, Optional
 import stripe
 
-from ...db.session import get_db
-from ...models.stripe_customer import StripeCustomer
-from ...models.stripe_subscription import StripeSubscription
-from ...models.user import Profile
-from ...api.middleware.auth import require_auth
-from ...utils.stripe_utils import (
+from db.session import get_db
+from models.stripe_customer import StripeCustomer
+from models.stripe_subscription import StripeSubscription
+from models.user import Profile
+from api.middleware.auth import require_auth
+from utils.stripe_utils import (
     create_stripe_customer,
     create_checkout_session,
     create_portal_session,
@@ -20,7 +20,7 @@ from ...utils.stripe_utils import (
     get_price_id_for_tier,
     get_tier_from_price_id,
 )
-from ...config import settings
+from config import settings
 
 router = APIRouter(prefix="/api/stripe", tags=["stripe"])
 

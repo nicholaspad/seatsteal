@@ -2,7 +2,7 @@
 
 import stripe
 from typing import Literal, Optional
-from ..config import settings
+from config import settings
 
 # Initialize Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY

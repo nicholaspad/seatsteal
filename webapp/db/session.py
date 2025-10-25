@@ -1,6 +1,6 @@
 from typing import Generator
 from sqlalchemy.orm import Session, sessionmaker
-from .connection import engine
+from db.connection import engine
 
 # Create sync session factory
 SessionLocal = sessionmaker(

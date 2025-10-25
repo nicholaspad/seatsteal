@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional
-from .course import EnrollmentStatus, CourseWithCollege
+from schemas.course import EnrollmentStatus, CourseWithCollege
 
 
 class ClassBase(BaseModel):

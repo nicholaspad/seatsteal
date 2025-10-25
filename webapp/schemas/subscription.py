@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from .class_schema import ClassWithCourse
+from schemas.class_schema import ClassWithCourse
 
 
 class SubscriptionBase(BaseModel):

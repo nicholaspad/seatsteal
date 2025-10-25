@@ -25,11 +25,9 @@ The frontend will run on `http://localhost:5173`
 cd webapp
 source venv/bin/activate  # Activate virtual environment
 pip install -r requirements.txt  # If not already installed
-uvicorn app:app --reload
+uvicorn app:app --reload --port 5000
 ```
-The backend will run on `http://localhost:8000`
-
-**Important**: Do NOT run `python app.py` directly - the app uses relative imports which require running via uvicorn.
+The backend will run on `http://localhost:5000`
 
 ### Environment Variables
 Make sure you have a `.env` file in the project root with all required variables (see Prerequisites section).

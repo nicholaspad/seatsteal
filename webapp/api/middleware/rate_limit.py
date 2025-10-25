@@ -6,7 +6,7 @@ import time
 from functools import wraps
 import hashlib
 
-from ...config import settings
+from config import settings
 
 
 class RateLimiter:

@@ -1,19 +1,19 @@
 # database models
 
-from .base import Base
-from .college import College
-from .course import Course
-from .class_model import Class
-from .subscription import Subscription
-from .user import Profile
-from .scraper_log import ScraperLog
-from .scraper import Scraper
-from .enrollment import Enrollment
-from .notification_log import NotificationLog
-from .early_access_email import EarlyAccessEmail
-from .stripe_customer import StripeCustomer
-from .stripe_subscription import StripeSubscription
-from .query_performance_metric import QueryPerformanceMetric
+from models.base import Base
+from models.college import College
+from models.course import Course
+from models.class_model import Class
+from models.subscription import Subscription
+from models.user import Profile
+from models.scraper_log import ScraperLog
+from models.scraper import Scraper
+from models.enrollment import Enrollment
+from models.notification_log import NotificationLog
+from models.early_access_email import EarlyAccessEmail
+from models.stripe_customer import StripeCustomer
+from models.stripe_subscription import StripeSubscription
+from models.query_performance_metric import QueryPerformanceMetric
 
 __all__ = [
     "Base",

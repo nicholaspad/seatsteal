@@ -8,17 +8,17 @@ from typing import Optional, List, Literal
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from ...db.session import get_db
-from ...models.user import Profile
-from ...models.subscription import Subscription
-from ...models.notification_log import NotificationLog
-from ...models.course import Course
-from ...models.college import College
-from ...models.enrollment import Enrollment
-from ...models.query_performance_metric import QueryPerformanceMetric
-from ...models.scraper import Scraper
-from ...models.scraper_log import ScraperLog
-from ...api.middleware.auth import require_admin
+from db.session import get_db
+from models.user import Profile
+from models.subscription import Subscription
+from models.notification_log import NotificationLog
+from models.course import Course
+from models.college import College
+from models.enrollment import Enrollment
+from models.query_performance_metric import QueryPerformanceMetric
+from models.scraper import Scraper
+from models.scraper_log import ScraperLog
+from api.middleware.auth import require_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 

@@ -7,13 +7,13 @@ from datetime import datetime
 from uuid import uuid4
 from loguru import logger
 
-from ...config import settings
-from ...models.subscription import Subscription
-from ...models.class_model import Class
-from ...models.course import Course
-from ...models.college import College
-from ...models.enrollment import Enrollment
-from ..email_service import EmailService
+from config import settings
+from models.subscription import Subscription
+from models.class_model import Class
+from models.course import Course
+from models.college import College
+from models.enrollment import Enrollment
+from notifications.email_service import EmailService
 
 # Initialize Celery
 celery_app = Celery(
@@ -122,7 +122,7 @@ def check_and_send_notifications(self):
                     # Get user email from subscription
                     # Note: In a real implementation, you'd join with the Profile table
                     # For now, we'll need to fetch the user separately
-                    from ...models.user import Profile
+                    from models.user import Profile
 
                     user_result = await db.execute(
                         select(Profile).where(Profile.id == subscription.user_id)

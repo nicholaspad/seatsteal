@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func, text
 from datetime import datetime, timedelta
 
-from ...db.session import get_db
-from ...models.notification_log import NotificationLog
+from db.session import get_db
+from models.notification_log import NotificationLog
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 

@@ -5,8 +5,8 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import Any
 
-from .config import settings
-from .api.routes import (
+from config import settings
+from api.routes import (
     colleges,
     courses,
     classes,
@@ -17,7 +17,7 @@ from .api.routes import (
     stripe,
     user,
 )
-from .db.connection import init_db, close_db
+from db.connection import init_db, close_db
 
 
 class PydanticJSONResponse(JSONResponse):

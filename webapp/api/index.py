@@ -8,7 +8,7 @@ Note: The application uses database connection pooling with pool_pre_ping=True
 to handle serverless cold starts and connection management.
 """
 
-from ..app import app
+from app import app
 
 # Export the FastAPI app instance for Vercel
 __all__ = ["app"]

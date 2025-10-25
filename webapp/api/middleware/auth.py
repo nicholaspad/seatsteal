@@ -6,9 +6,9 @@ from supabase import create_client, Client
 from typing import Optional
 from uuid import UUID
 
-from ...config import settings
-from ...db.session import get_db
-from ...models.user import Profile
+from config import settings
+from db.session import get_db
+from models.user import Profile
 
 # HTTP Bearer token security
 # auto_error=False allows optional authentication - returns None instead of 403 when no token

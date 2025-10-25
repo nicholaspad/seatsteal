@@ -5,7 +5,7 @@ from pathlib import Path
 from loguru import logger
 from typing import List, Optional
 
-from ..config import settings
+from config import settings
 
 
 class EmailService:

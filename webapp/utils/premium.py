@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func
 from uuid import UUID
 
-from ..models.stripe_subscription import StripeSubscription
-from ..models.subscription import Subscription
+from models.stripe_subscription import StripeSubscription
+from models.subscription import Subscription
 
 # Subscription tier types
 SubscriptionTier = Literal["free", "plus", "pro"]

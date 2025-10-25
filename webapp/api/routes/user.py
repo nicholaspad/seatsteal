@@ -6,11 +6,11 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
 
-from ...db.session import get_db
-from ...models.user import Profile
-from ...models.college import College
-from ...api.middleware.auth import require_auth
-from ...utils.premium import get_user_subscription_tier
+from db.session import get_db
+from models.user import Profile
+from models.college import College
+from api.middleware.auth import require_auth
+from utils.premium import get_user_subscription_tier
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 

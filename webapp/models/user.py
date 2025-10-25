@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID
-from .base import Base
+from models.base import Base
 
 
 class Profile(Base):

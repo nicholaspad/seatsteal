@@ -4,23 +4,23 @@ from sqlalchemy import select, func, or_, and_, text
 from typing import Optional
 import math
 
-from ...db.session import get_db
-from ...models.course import Course
-from ...models.college import College
-from ...models.class_model import Class
-from ...models.enrollment import Enrollment
-from ...models.subscription import Subscription
-from ...models.notification_log import NotificationLog
-from ...schemas.course import (
+from db.session import get_db
+from models.course import Course
+from models.college import College
+from models.class_model import Class
+from models.enrollment import Enrollment
+from models.subscription import Subscription
+from models.notification_log import NotificationLog
+from schemas.course import (
     CourseWithClasses,
     PaginatedResponse,
     PaginationMetadata,
     EnrollmentStatus,
     ClassInCourse,
 )
-from ...schemas.college import CollegeResponse
-from ...api.middleware.auth import require_auth
-from ...utils.premium import require_premium_access
+from schemas.college import CollegeResponse
+from api.middleware.auth import require_auth
+from utils.premium import require_premium_access
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
 

@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from typing import List
 
-from ...db.session import get_db
-from ...models.college import College
-from ...schemas.college import CollegeResponse
+from db.session import get_db
+from models.college import College
+from schemas.college import CollegeResponse
 
 router = APIRouter(prefix="/api/colleges", tags=["colleges"])
 

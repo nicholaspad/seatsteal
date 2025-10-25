@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional, List, Generic, TypeVar
-from .college import CollegeResponse
+from schemas.college import CollegeResponse
 
 T = TypeVar("T")
 

@@ -3,21 +3,21 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func
 from typing import List
 
-from ...db.session import get_db
-from ...models.subscription import Subscription
-from ...models.user import Profile
-from ...models.class_model import Class
-from ...models.course import Course
-from ...models.college import College
-from ...schemas.subscription import (
+from db.session import get_db
+from models.subscription import Subscription
+from models.user import Profile
+from models.class_model import Class
+from models.course import Course
+from models.college import College
+from schemas.subscription import (
     SubscriptionCreate,
     SubscriptionResponse,
     SubscriptionWithDetails,
 )
-from ...schemas.class_schema import ClassWithCourse
-from ...schemas.course import CourseWithCollege
-from ...schemas.college import CollegeResponse
-from ...api.middleware.auth import require_auth
+from schemas.class_schema import ClassWithCourse
+from schemas.course import CourseWithCollege
+from schemas.college import CollegeResponse
+from api.middleware.auth import require_auth
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 

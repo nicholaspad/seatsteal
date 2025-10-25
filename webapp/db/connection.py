@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine, Engine
-from ..config import settings
+from config import settings
 
 # Create sync database engine with psycopg2 (works with PgBouncer)
 engine: Engine = create_engine(
