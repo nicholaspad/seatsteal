@@ -35,9 +35,7 @@ TIER_FEATURES = {
 }
 
 
-def get_user_subscription_tier(
-    user_id: UUID, db: Session
-) -> SubscriptionTier:
+def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
     """Get the subscription tier for a user based on their active Stripe subscription"""
     # Query for active Stripe subscription
     result = db.execute(

@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
+from typing import Any
 
 from .config import settings
 from .api.routes import (
@@ -15,6 +18,31 @@ from .api.routes import (
     user,
 )
 from .db.connection import init_db, close_db
+
+
+class PydanticJSONResponse(JSONResponse):
+    """
+    Custom JSON response class that serializes Pydantic models with by_alias=True
+    to ensure camelCase field names in API responses.
+    """
+
+    @staticmethod
+    def _serialize_value(value: Any) -> Any:
+        """Recursively serialize values, handling Pydantic models with by_alias=True"""
+        if isinstance(value, BaseModel):
+            return value.model_dump(by_alias=True, mode="json")
+        elif isinstance(value, dict):
+            return {
+                k: PydanticJSONResponse._serialize_value(v) for k, v in value.items()
+            }
+        elif isinstance(value, (list, tuple)):
+            return [PydanticJSONResponse._serialize_value(item) for item in value]
+        return value
+
+    def render(self, content: Any) -> bytes:
+        """Override render to serialize Pydantic models with aliases"""
+        serialized_content = self._serialize_value(content)
+        return super().render(serialized_content)
 
 
 @asynccontextmanager
@@ -37,6 +65,7 @@ app = FastAPI(
     version="1.0.0",
     description="Course enrollment tracking and notification system",
     lifespan=lifespan,
+    default_response_class=PydanticJSONResponse,
 )
 
 # CORS middleware
