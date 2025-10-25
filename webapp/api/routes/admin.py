@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func, or_, desc, text
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List, Literal
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -58,9 +58,7 @@ async def get_analytics(
         admin_users = admin_users_result.scalar() or 0
 
         # Subscription statistics
-        total_subs_result = db.execute(
-            select(func.count()).select_from(Subscription)
-        )
+        total_subs_result = db.execute(select(func.count()).select_from(Subscription))
         total_subscriptions = total_subs_result.scalar() or 0
 
         active_subs_result = db.execute(
@@ -112,9 +110,7 @@ async def get_analytics(
         )
         total_courses = total_courses_result.scalar() or 0
 
-        total_colleges_result = db.execute(
-            select(func.count()).select_from(College)
-        )
+        total_colleges_result = db.execute(select(func.count()).select_from(College))
         total_colleges = total_colleges_result.scalar() or 0
 
         # Most popular courses
@@ -399,7 +395,9 @@ class UpdateUserRequest(BaseModel):
     """Request schema for updating user"""
 
     role: Optional[Literal["user", "admin"]] = None
-    college_id: Optional[int] = None
+    college_id: Optional[int] = Field(None, alias="collegeId")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 @router.patch("/users/{user_id}")

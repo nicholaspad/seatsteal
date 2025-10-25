@@ -34,14 +34,14 @@ class TestUpdateCollege:
 
         response = await authenticated_client.patch(
             "/api/auth/update-college",
-            json={"college_id": new_college.id},
+            json={"collegeId": new_college.id},
         )
 
         assert response.status_code == 200
         response_json = response.json()
         assert response_json["success"] is True
         data = response_json
-        assert data["user"]["college_id"] == new_college.id
+        assert data["user"]["collegeId"] == new_college.id
 
     @pytest.mark.unit
     async def test_update_college_not_found(
@@ -52,7 +52,7 @@ class TestUpdateCollege:
         """Test updating to non-existent college."""
         response = await authenticated_client.patch(
             "/api/auth/update-college",
-            json={"college_id": 99999},
+            json={"collegeId": 99999},
         )
 
         assert response.status_code == 404
@@ -77,7 +77,7 @@ class TestUpdateCollege:
 
         response = await authenticated_client.patch(
             "/api/auth/update-college",
-            json={"college_id": inactive_college.id},
+            json={"collegeId": inactive_college.id},
         )
 
         assert response.status_code == 400
@@ -88,7 +88,7 @@ class TestUpdateCollege:
         """Test updating college without authentication."""
         response = await client.patch(
             "/api/auth/update-college",
-            json={"college_id": 1},
+            json={"collegeId": 1},
         )
 
         assert response.status_code == 401

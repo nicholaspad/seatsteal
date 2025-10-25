@@ -359,7 +359,7 @@ class TestUpdateUser:
 
         response = await admin_client.patch(
             f"/api/admin/users/{test_user.id}",
-            json={"college_id": new_college.id},
+            json={"collegeId": new_college.id},
         )
 
         assert response.status_code == 200

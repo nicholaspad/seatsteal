@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 from ...db.session import get_db
 from ...models.user import Profile
@@ -16,7 +16,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 class UpdateCollegeRequest(BaseModel):
     """Request schema for updating user's college"""
 
-    college_id: int
+    college_id: int = Field(..., alias="collegeId")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 @router.patch("/update-college")
@@ -46,7 +48,7 @@ async def update_college(
             "user": {
                 "id": str(user.id),
                 "email": user.email,
-                "college_id": user.college_id,
+                "collegeId": user.college_id,
                 "role": user.role,
             },
         }

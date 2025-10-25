@@ -152,9 +152,7 @@ async def stripe_webhooks(
 
             if email:
                 # Find user by email
-                user_result = db.execute(
-                    select(Profile).where(Profile.email == email)
-                )
+                user_result = db.execute(select(Profile).where(Profile.email == email))
                 user = user_result.scalar_one_or_none()
 
                 if user:

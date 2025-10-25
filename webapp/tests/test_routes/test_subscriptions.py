@@ -32,8 +32,8 @@ class TestGetSubscriptions:
         data = response_json["data"]
         assert len(data) == 1
         assert data[0]["id"] == test_subscription.id
-        assert data[0]["class_id"] == test_class.class_id
-        assert data[0]["is_active"] is True
+        assert data[0]["classId"] == test_class.class_id
+        assert data[0]["isActive"] is True
 
     @pytest.mark.unit
     async def test_get_subscriptions_empty(
@@ -88,7 +88,7 @@ class TestGetSubscriptions:
         assert response_json["success"] is True
         data = response_json["data"]
         assert len(data) == 1
-        assert data[0]["is_active"] is True
+        assert data[0]["isActive"] is True
 
     @pytest.mark.unit
     async def test_get_subscriptions_unauthenticated(self, client: AsyncClient):
@@ -114,8 +114,8 @@ class TestCreateSubscription:
         response = await authenticated_client.post(
             "/api/subscriptions/",
             json={
-                "class_id": test_class.class_id,
-                "college_id": test_college.id,
+                "classId": test_class.class_id,
+                "collegeId": test_college.id,
             },
         )
 
@@ -123,10 +123,10 @@ class TestCreateSubscription:
         response_json = response.json()
         assert response_json["success"] is True
         data = response_json["data"]
-        assert data["class_id"] == test_class.class_id
-        assert data["user_id"] == str(test_user.id)
-        assert data["is_active"] is True
-        assert data["notification_count"] == 0
+        assert data["classId"] == test_class.class_id
+        assert data["userId"] == str(test_user.id)
+        assert data["isActive"] is True
+        assert data["notificationCount"] == 0
 
         # Verify in database
         result = test_db.execute(
@@ -145,8 +145,8 @@ class TestCreateSubscription:
         response = await authenticated_client.post(
             "/api/subscriptions/",
             json={
-                "class_id": test_subscription.class_id,
-                "college_id": test_subscription.college_id,
+                "classId": test_subscription.class_id,
+                "collegeId": test_subscription.college_id,
             },
         )
 
@@ -163,8 +163,8 @@ class TestCreateSubscription:
         response = await authenticated_client.post(
             "/api/subscriptions/",
             json={
-                "class_id": 99999,
-                "college_id": test_college.id,
+                "classId": 99999,
+                "collegeId": test_college.id,
             },
         )
 
@@ -176,7 +176,7 @@ class TestCreateSubscription:
         """Test creating subscription without authentication."""
         response = await client.post(
             "/api/subscriptions/",
-            json={"class_id": 1, "college_id": 1},
+            json={"classId": 1, "collegeId": 1},
         )
 
         assert response.status_code == 401

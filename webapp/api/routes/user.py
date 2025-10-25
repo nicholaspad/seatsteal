@@ -83,7 +83,9 @@ async def update_user_settings(
 
         # Track if college changed
         old_college_id = user.college_id
-        college_changed = request.collegeId is not None and request.collegeId != old_college_id
+        college_changed = (
+            request.collegeId is not None and request.collegeId != old_college_id
+        )
 
         # Update user settings
         if request.phone is not None:

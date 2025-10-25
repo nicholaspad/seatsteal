@@ -211,7 +211,9 @@ class TestGetCourseSummary:
         test_class: Class,
     ):
         """Test successfully getting course summary (premium)."""
-        with patch("webapp.api.routes.courses.require_premium_access", new_callable=AsyncMock) as mock_premium:
+        with patch(
+            "webapp.api.routes.courses.require_premium_access", new_callable=AsyncMock
+        ) as mock_premium:
             mock_premium.return_value = None  # User has premium access
 
             response = await authenticated_client.get(
@@ -232,7 +234,9 @@ class TestGetCourseSummary:
         authenticated_client: AsyncClient,
     ):
         """Test getting summary for non-existent course."""
-        with patch("webapp.api.routes.courses.require_premium_access", new_callable=AsyncMock) as mock_premium:
+        with patch(
+            "webapp.api.routes.courses.require_premium_access", new_callable=AsyncMock
+        ) as mock_premium:
             mock_premium.return_value = None
 
             response = await authenticated_client.get("/api/courses/99999/summary")

@@ -29,9 +29,9 @@ class TestGetClass:
         response_json = response.json()
         assert response_json["success"] is True
         data = response_json["data"]
-        assert data["class_id"] == test_class.class_id
-        assert data["class_number"] == test_class.class_number
-        assert data["section_code"] == test_class.section_code
+        assert data["classId"] == test_class.class_id
+        assert data["classNumber"] == test_class.class_number
+        assert data["sectionCode"] == test_class.section_code
         assert "course" in data
         assert data["course"]["id"] == test_course.id
 
@@ -49,10 +49,10 @@ class TestGetClass:
         response_json = response.json()
         assert response_json["success"] is True
         data = response_json["data"]
-        assert "current_enrollment" in data
-        if data["current_enrollment"]:
-            assert "enrollment_status" in data["current_enrollment"]
-            assert "scraped_at" in data["current_enrollment"]
+        assert "currentEnrollment" in data
+        if data["currentEnrollment"]:
+            assert "enrollmentStatus" in data["currentEnrollment"]
+            assert "scrapedAt" in data["currentEnrollment"]
 
     @pytest.mark.unit
     async def test_get_class_not_found(
@@ -100,7 +100,9 @@ class TestGetEnrollmentAnalysis:
         test_enrollment: Enrollment,
     ):
         """Test successfully getting enrollment analysis (premium)."""
-        with patch("webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock) as mock_premium:
+        with patch(
+            "webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock
+        ) as mock_premium:
             mock_premium.return_value = None  # User has premium access
 
             # Create some enrollment history
@@ -137,7 +139,9 @@ class TestGetEnrollmentAnalysis:
         test_class: Class,
     ):
         """Test that competition level is calculated correctly."""
-        with patch("webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock) as mock_premium:
+        with patch(
+            "webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock
+        ) as mock_premium:
             mock_premium.return_value = None
 
             response = await authenticated_client.get(
@@ -190,7 +194,9 @@ class TestGetEnrollmentAnalysis:
         test_class: Class,
     ):
         """Test getting enrollment analysis with no enrollment history."""
-        with patch("webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock) as mock_premium:
+        with patch(
+            "webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock
+        ) as mock_premium:
             mock_premium.return_value = None
 
             response = await authenticated_client.get(

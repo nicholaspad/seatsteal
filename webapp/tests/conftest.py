@@ -140,9 +140,7 @@ def test_college(test_db: Session) -> College:
 
 
 @pytest.fixture
-def test_user(
-    test_db: Session, test_college: College, mock_supabase_user
-) -> Profile:
+def test_user(test_db: Session, test_college: College, mock_supabase_user) -> Profile:
     """Create a test user."""
     _, user_id = mock_supabase_user
     user = Profile(
@@ -248,8 +246,9 @@ def test_subscription(
 @pytest.fixture
 def mock_supabase():
     """Mock Supabase client."""
-    with patch("webapp.api.middleware.auth.supabase") as mock1, \
-         patch("webapp.api.routes.auth.supabase") as mock2:
+    with patch("webapp.api.middleware.auth.supabase") as mock1, patch(
+        "webapp.api.routes.auth.supabase"
+    ) as mock2:
         mock_auth = MagicMock()
         mock1.auth = mock_auth
         mock2.auth = mock_auth
@@ -265,9 +264,7 @@ def mock_stripe():
 
 
 @pytest.fixture
-async def client(
-    test_db: Session, mock_supabase
-) -> AsyncGenerator[AsyncClient, None]:
+async def client(test_db: Session, mock_supabase) -> AsyncGenerator[AsyncClient, None]:
     """Create a test client with database dependency override."""
 
     def override_get_db():
