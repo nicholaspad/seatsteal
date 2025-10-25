@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from webapp.models.college import College
 
@@ -20,7 +20,9 @@ class TestGetColleges:
         response = await client.get("/api/colleges/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert len(data) >= 1
         assert any(c["id"] == test_college.id for c in data)
         assert any(c["name"] == test_college.name for c in data)
@@ -29,7 +31,7 @@ class TestGetColleges:
     async def test_get_colleges_only_active(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_college: College,
     ):
         """Test that only active colleges are returned."""
@@ -40,12 +42,14 @@ class TestGetColleges:
             is_active=False,
         )
         test_db.add(inactive_college)
-        await test_db.commit()
+        test_db.commit()
 
         response = await client.get("/api/colleges/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert all(c["is_active"] is True for c in data)
         assert not any(c["name"] == "Inactive University" for c in data)
 
@@ -53,21 +57,23 @@ class TestGetColleges:
     async def test_get_colleges_empty(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test getting colleges when none exist."""
         # Note: test_college fixture not used, so no colleges in db
         response = await client.get("/api/colleges/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert len(data) == 0
 
     @pytest.mark.unit
     async def test_get_colleges_sorted_by_name(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test that colleges are sorted by name."""
         # Create multiple colleges
@@ -78,12 +84,14 @@ class TestGetColleges:
         ]
         for college in colleges:
             test_db.add(college)
-        await test_db.commit()
+        test_db.commit()
 
         response = await client.get("/api/colleges/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         names = [c["name"] for c in data]
         assert names == sorted(names)
 
@@ -101,7 +109,9 @@ class TestGetCollege:
         response = await client.get(f"/api/colleges/{test_college.id}")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert data["id"] == test_college.id
         assert data["name"] == test_college.name
         assert data["short_name"] == test_college.short_name
@@ -122,7 +132,7 @@ class TestGetCollege:
     async def test_get_college_inactive(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test getting inactive college (should still return it)."""
         inactive_college = College(
@@ -131,11 +141,13 @@ class TestGetCollege:
             is_active=False,
         )
         test_db.add(inactive_college)
-        await test_db.commit()
-        await test_db.refresh(inactive_college)
+        test_db.commit()
+        test_db.refresh(inactive_college)
 
         response = await client.get(f"/api/colleges/{inactive_college.id}")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert data["is_active"] is False

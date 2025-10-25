@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from datetime import datetime
 
 from webapp.models.user import Profile
@@ -27,12 +27,12 @@ class TestGetAnalytics:
         response = await admin_client.get("/api/admin/analytics")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert "data" in data
-        assert "overview" in data["data"]
-        assert "popularCourses" in data["data"]
-        assert "collegeStats" in data["data"]
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert "overview" in data
+        assert "popularCourses" in data
+        assert "collegeStats" in data
 
     @pytest.mark.unit
     async def test_get_analytics_with_timeframe(
@@ -44,8 +44,8 @@ class TestGetAnalytics:
         response = await admin_client.get("/api/admin/analytics?timeframe=7")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
+        response_json = response.json()
+        assert response_json["success"] is True
 
     @pytest.mark.unit
     async def test_get_analytics_with_college_filter(
@@ -60,8 +60,8 @@ class TestGetAnalytics:
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
+        response_json = response.json()
+        assert response_json["success"] is True
 
     @pytest.mark.unit
     async def test_get_analytics_non_admin(
@@ -82,7 +82,7 @@ class TestGetAnalytics:
         """Test analytics without authentication."""
         response = await client.get("/api/admin/analytics")
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestGetNotifications:
@@ -92,7 +92,7 @@ class TestGetNotifications:
     async def test_get_notifications_success(
         self,
         admin_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_subscription: Subscription,
     ):
         """Test successfully getting notification logs."""
@@ -106,14 +106,15 @@ class TestGetNotifications:
             sent_at=datetime.utcnow(),
         )
         test_db.add(log)
-        await test_db.commit()
+        test_db.commit()
 
         response = await admin_client.get("/api/admin/notifications")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert len(data["data"]) >= 1
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert len(data) >= 1
 
     @pytest.mark.unit
     async def test_get_notifications_non_admin(
@@ -133,7 +134,7 @@ class TestGetQueryPerformance:
     async def test_get_query_performance_success(
         self,
         admin_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test successfully getting query performance metrics."""
         # Create metric
@@ -143,14 +144,15 @@ class TestGetQueryPerformance:
             executed_at=datetime.utcnow(),
         )
         test_db.add(metric)
-        await test_db.commit()
+        test_db.commit()
 
         response = await admin_client.get("/api/admin/query-performance")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert len(data["data"]) >= 1
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert len(data) >= 1
 
     @pytest.mark.unit
     async def test_get_query_performance_non_admin(
@@ -170,7 +172,7 @@ class TestGetScrapers:
     async def test_get_scrapers_success(
         self,
         admin_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_college,
     ):
         """Test successfully getting scraper status."""
@@ -180,21 +182,22 @@ class TestGetScrapers:
             status="idle",
         )
         test_db.add(scraper)
-        await test_db.commit()
-        await test_db.refresh(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
 
         response = await admin_client.get("/api/admin/scrapers")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert len(data["data"]) >= 1
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert len(data) >= 1
 
     @pytest.mark.unit
     async def test_get_scrapers_with_logs(
         self,
         admin_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_college,
     ):
         """Test getting scrapers with latest logs."""
@@ -204,8 +207,8 @@ class TestGetScrapers:
             status="idle",
         )
         test_db.add(scraper)
-        await test_db.commit()
-        await test_db.refresh(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
 
         # Create log
         log = ScraperLog(
@@ -215,13 +218,15 @@ class TestGetScrapers:
             completed_at=datetime.utcnow(),
         )
         test_db.add(log)
-        await test_db.commit()
+        test_db.commit()
 
         response = await admin_client.get("/api/admin/scrapers")
 
         assert response.status_code == 200
-        data = response.json()
-        scraper_data = next(s for s in data["data"] if s["id"] == scraper.id)
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        scraper_data = next(s for s in data if s["id"] == scraper.id)
         assert scraper_data["latestLog"] is not None
 
     @pytest.mark.unit
@@ -248,9 +253,10 @@ class TestGetUsers:
         response = await admin_client.get("/api/admin/users")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert len(data["data"]) >= 1
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert len(data) >= 1
 
     @pytest.mark.unit
     async def test_get_users_non_admin(
@@ -276,10 +282,11 @@ class TestGetUser:
         response = await admin_client.get(f"/api/admin/users/{test_user.id}")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["data"]["id"] == str(test_user.id)
-        assert data["data"]["email"] == test_user.email
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert data["id"] == str(test_user.id)
+        assert data["email"] == test_user.email
 
     @pytest.mark.unit
     async def test_get_user_not_found(
@@ -312,7 +319,7 @@ class TestUpdateUser:
     async def test_update_user_role_success(
         self,
         admin_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test successfully updating user role."""
@@ -322,19 +329,20 @@ class TestUpdateUser:
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["data"]["role"] == "admin"
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert data["role"] == "admin"
 
         # Verify in database
-        await test_db.refresh(test_user)
+        test_db.refresh(test_user)
         assert test_user.role == "admin"
 
     @pytest.mark.unit
     async def test_update_user_college_success(
         self,
         admin_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test successfully updating user college."""
@@ -346,8 +354,8 @@ class TestUpdateUser:
             is_active=True,
         )
         test_db.add(new_college)
-        await test_db.commit()
-        await test_db.refresh(new_college)
+        test_db.commit()
+        test_db.refresh(new_college)
 
         response = await admin_client.patch(
             f"/api/admin/users/{test_user.id}",
@@ -355,8 +363,10 @@ class TestUpdateUser:
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["data"]["collegeId"] == new_college.id
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert data["collegeId"] == new_college.id
 
     @pytest.mark.unit
     async def test_update_user_not_found(

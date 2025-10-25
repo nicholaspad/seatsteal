@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from unittest.mock import patch, AsyncMock
 
 from webapp.models.course import Course
@@ -24,7 +24,9 @@ class TestGetCourses:
         response = await client.get("/api/courses/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert "data" in data
         assert "pagination" in data
         assert len(data["data"]) >= 1
@@ -39,7 +41,9 @@ class TestGetCourses:
         response = await client.get("/api/courses/?page=1&limit=2")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert len(data["data"]) <= 2
         assert data["pagination"]["page"] == 1
         assert data["pagination"]["limit"] == 2
@@ -54,7 +58,9 @@ class TestGetCourses:
         response = await client.get(f"/api/courses/?q={test_course.course_code}")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         # Should find the course
         assert any(c["course_code"] == test_course.course_code for c in data["data"])
 
@@ -69,7 +75,9 @@ class TestGetCourses:
         response = await client.get(f"/api/courses/?collegeId={test_college.id}")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         # All courses should be from the test college
         assert all(c["college_id"] == test_college.id for c in data["data"])
 
@@ -77,13 +85,15 @@ class TestGetCourses:
     async def test_get_courses_empty(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test getting courses when none exist."""
         response = await client.get("/api/courses/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert len(data["data"]) == 0
         assert data["pagination"]["total"] == 0
 
@@ -102,7 +112,9 @@ class TestGetCourse:
         response = await client.get(f"/api/courses/{test_course.id}")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert data["id"] == test_course.id
         assert data["course_code"] == test_course.course_code
         assert data["title"] == test_course.title
@@ -124,7 +136,7 @@ class TestGetCourse:
     async def test_get_course_inactive(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_college: College,
     ):
         """Test getting inactive course."""
@@ -135,8 +147,8 @@ class TestGetCourse:
             is_active=False,
         )
         test_db.add(inactive_course)
-        await test_db.commit()
-        await test_db.refresh(inactive_course)
+        test_db.commit()
+        test_db.refresh(inactive_course)
 
         response = await client.get(f"/api/courses/{inactive_course.id}")
 
@@ -236,7 +248,7 @@ class TestGetCourseSummary:
         """Test getting summary without authentication."""
         response = await client.get(f"/api/courses/{test_course.id}/summary")
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     @pytest.mark.unit
     async def test_get_course_summary_no_premium(
@@ -247,7 +259,7 @@ class TestGetCourseSummary:
         """Test getting summary without premium access."""
         from fastapi import HTTPException
 
-        with patch("webapp.api.routes.courses.require_premium_access", new_callable=AsyncMock) as mock_premium:
+        with patch("webapp.api.routes.courses.require_premium_access") as mock_premium:
             mock_premium.side_effect = HTTPException(
                 status_code=403, detail="Premium access required"
             )

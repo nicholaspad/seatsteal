@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from unittest.mock import MagicMock, patch
 from sqlalchemy import select
 
@@ -18,7 +18,7 @@ class TestCreateCheckoutSession:
     async def test_create_checkout_session_new_customer(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
         mock_stripe,
     ):
@@ -51,13 +51,14 @@ class TestCreateCheckoutSession:
             )
 
             assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["data"]["sessionId"] == "cs_test123"
-            assert data["data"]["sessionUrl"] == "https://checkout.stripe.com/test"
+            response_json = response.json()
+            assert response_json["success"] is True
+            data = response_json["data"]
+            assert data["sessionId"] == "cs_test123"
+            assert data["sessionUrl"] == "https://checkout.stripe.com/test"
 
             # Verify customer was created in database
-            result = await test_db.execute(
+            result = test_db.execute(
                 select(StripeCustomer).where(StripeCustomer.user_id == test_user.id)
             )
             customer = result.scalar_one_or_none()
@@ -68,7 +69,7 @@ class TestCreateCheckoutSession:
     async def test_create_checkout_session_existing_customer(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test creating checkout session for existing customer."""
@@ -79,7 +80,7 @@ class TestCreateCheckoutSession:
             email=test_user.email,
         )
         test_db.add(existing_customer)
-        await test_db.commit()
+        test_db.commit()
 
         with patch(
             "webapp.api.routes.stripe.create_checkout_session"
@@ -101,8 +102,8 @@ class TestCreateCheckoutSession:
             )
 
             assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
+            response_json = response.json()
+            assert response_json["success"] is True
 
     @pytest.mark.unit
     async def test_create_checkout_session_invalid_tier(
@@ -129,7 +130,7 @@ class TestCreateCheckoutSession:
             json={"tier": "plus"},
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestCreatePortalSession:
@@ -139,7 +140,7 @@ class TestCreatePortalSession:
     async def test_create_portal_session_success(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test creating portal session successfully."""
@@ -150,7 +151,7 @@ class TestCreatePortalSession:
             email=test_user.email,
         )
         test_db.add(customer)
-        await test_db.commit()
+        test_db.commit()
 
         with patch("webapp.api.routes.stripe.create_portal_session") as mock_portal:
             # Mock portal session
@@ -163,9 +164,10 @@ class TestCreatePortalSession:
             )
 
             assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["data"]["sessionUrl"] == "https://billing.stripe.com/test"
+            response_json = response.json()
+            assert response_json["success"] is True
+            data = response_json["data"]
+            assert data["sessionUrl"] == "https://billing.stripe.com/test"
 
     @pytest.mark.unit
     async def test_create_portal_session_no_customer(
@@ -187,7 +189,7 @@ class TestCreatePortalSession:
         """Test creating portal session without authentication."""
         response = await client.post("/api/stripe/create-portal-session")
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestStripeWebhooks:
@@ -197,7 +199,7 @@ class TestStripeWebhooks:
     async def test_webhook_customer_created(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test handling customer.created webhook."""
@@ -218,15 +220,15 @@ class TestStripeWebhooks:
             )
 
             assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["received"] is True
+            response_json = response.json()
+            assert response_json["success"] is True
+            assert response_json["received"] is True
 
     @pytest.mark.unit
     async def test_webhook_subscription_created(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test handling customer.subscription.created webhook."""
@@ -237,7 +239,7 @@ class TestStripeWebhooks:
             email=test_user.email,
         )
         test_db.add(customer)
-        await test_db.commit()
+        test_db.commit()
 
         with patch(
             "webapp.api.routes.stripe.verify_webhook_signature"
@@ -270,7 +272,7 @@ class TestStripeWebhooks:
             assert response.status_code == 200
 
             # Verify subscription was created
-            result = await test_db.execute(
+            result = test_db.execute(
                 select(StripeSubscription).where(
                     StripeSubscription.stripe_subscription_id == "sub_test123"
                 )
@@ -283,7 +285,7 @@ class TestStripeWebhooks:
     async def test_webhook_subscription_updated(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test handling customer.subscription.updated webhook."""
@@ -305,7 +307,7 @@ class TestStripeWebhooks:
             tier="plus",
         )
         test_db.add(subscription)
-        await test_db.commit()
+        test_db.commit()
 
         with patch(
             "webapp.api.routes.stripe.verify_webhook_signature"
@@ -337,7 +339,7 @@ class TestStripeWebhooks:
             assert response.status_code == 200
 
             # Verify subscription was updated
-            await test_db.refresh(subscription)
+            test_db.refresh(subscription)
             assert subscription.tier == "pro"
             assert subscription.price_id == "price_new"
 
@@ -345,7 +347,7 @@ class TestStripeWebhooks:
     async def test_webhook_subscription_deleted(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test handling customer.subscription.deleted webhook."""
@@ -366,7 +368,7 @@ class TestStripeWebhooks:
             tier="plus",
         )
         test_db.add(subscription)
-        await test_db.commit()
+        test_db.commit()
 
         with patch("webapp.api.routes.stripe.verify_webhook_signature") as mock_verify:
             mock_event = MagicMock()
@@ -385,7 +387,7 @@ class TestStripeWebhooks:
             assert response.status_code == 200
 
             # Verify subscription was canceled
-            await test_db.refresh(subscription)
+            test_db.refresh(subscription)
             assert subscription.status == "canceled"
 
     @pytest.mark.unit

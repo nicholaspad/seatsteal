@@ -1,7 +1,7 @@
 """Admin API routes for analytics, user management, and platform administration"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func, or_, desc, text
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Literal
@@ -28,7 +28,7 @@ async def get_analytics(
     timeframe: int = Query(30, description="Days to look back"),
     college_id: Optional[int] = Query(None, alias="college"),
     admin: Profile = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get platform analytics (admin only)"""
     try:
@@ -38,14 +38,14 @@ async def get_analytics(
         college_filter = College.id == college_id if college_id else text("1=1")
 
         # User statistics
-        total_users_result = await db.execute(
+        total_users_result = db.execute(
             select(func.count())
             .select_from(Profile)
             .where(Profile.college_id == college_id if college_id else text("1=1"))
         )
         total_users = total_users_result.scalar() or 0
 
-        admin_users_result = await db.execute(
+        admin_users_result = db.execute(
             select(func.count())
             .select_from(Profile)
             .where(
@@ -58,19 +58,19 @@ async def get_analytics(
         admin_users = admin_users_result.scalar() or 0
 
         # Subscription statistics
-        total_subs_result = await db.execute(
+        total_subs_result = db.execute(
             select(func.count()).select_from(Subscription)
         )
         total_subscriptions = total_subs_result.scalar() or 0
 
-        active_subs_result = await db.execute(
+        active_subs_result = db.execute(
             select(func.count())
             .select_from(Subscription)
             .where(Subscription.is_active == True)
         )
         active_subscriptions = active_subs_result.scalar() or 0
 
-        recent_subs_result = await db.execute(
+        recent_subs_result = db.execute(
             select(func.count())
             .select_from(Subscription)
             .where(Subscription.created_at >= days_ago)
@@ -78,26 +78,26 @@ async def get_analytics(
         recent_subscriptions = recent_subs_result.scalar() or 0
 
         # Notification statistics
-        total_notifs_result = await db.execute(
+        total_notifs_result = db.execute(
             select(func.count()).select_from(NotificationLog)
         )
         total_notifications = total_notifs_result.scalar() or 0
 
-        recent_notifs_result = await db.execute(
+        recent_notifs_result = db.execute(
             select(func.count())
             .select_from(NotificationLog)
             .where(NotificationLog.sent_at >= days_ago)
         )
         recent_notifications = recent_notifs_result.scalar() or 0
 
-        successful_notifs_result = await db.execute(
+        successful_notifs_result = db.execute(
             select(func.count())
             .select_from(NotificationLog)
             .where(NotificationLog.status == "sent")
         )
         successful_notifications = successful_notifs_result.scalar() or 0
 
-        failed_notifs_result = await db.execute(
+        failed_notifs_result = db.execute(
             select(func.count())
             .select_from(NotificationLog)
             .where(NotificationLog.status == "failed")
@@ -105,14 +105,14 @@ async def get_analytics(
         failed_notifications = failed_notifs_result.scalar() or 0
 
         # Course and college counts
-        total_courses_result = await db.execute(
+        total_courses_result = db.execute(
             select(func.count())
             .select_from(Course)
             .where(Course.college_id == college_id if college_id else text("1=1"))
         )
         total_courses = total_courses_result.scalar() or 0
 
-        total_colleges_result = await db.execute(
+        total_colleges_result = db.execute(
             select(func.count()).select_from(College)
         )
         total_colleges = total_colleges_result.scalar() or 0
@@ -134,7 +134,7 @@ async def get_analytics(
             .order_by(desc(func.count(Subscription.id)))
             .limit(10)
         )
-        popular_courses_result = await db.execute(popular_courses_query)
+        popular_courses_result = db.execute(popular_courses_query)
         popular_courses = [
             {
                 "courseId": row.courseId,
@@ -159,7 +159,7 @@ async def get_analytics(
             .group_by(College.id, College.name, College.short_name)
             .order_by(desc(func.count(Profile.id)))
         )
-        college_stats_result = await db.execute(college_stats_query)
+        college_stats_result = db.execute(college_stats_query)
         college_stats = [
             {
                 "collegeId": row.collegeId,
@@ -209,11 +209,11 @@ async def get_analytics(
 @router.get("/notifications")
 async def get_notifications(
     admin: Profile = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get notification logs (admin only)"""
     try:
-        result = await db.execute(
+        result = db.execute(
             select(NotificationLog).order_by(desc(NotificationLog.sent_at)).limit(100)
         )
         logs = result.scalars().all()
@@ -243,11 +243,11 @@ async def get_notifications(
 @router.get("/query-performance")
 async def get_query_performance(
     admin: Profile = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get query performance metrics (admin only)"""
     try:
-        result = await db.execute(
+        result = db.execute(
             select(QueryPerformanceMetric)
             .order_by(desc(QueryPerformanceMetric.executed_at))
             .limit(100)
@@ -278,19 +278,19 @@ async def get_query_performance(
 @router.get("/scrapers")
 async def get_scrapers(
     admin: Profile = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get scraper status and logs (admin only)"""
     try:
         # Get all scrapers with latest log
         scrapers_query = select(Scraper).options()
-        scrapers_result = await db.execute(scrapers_query)
+        scrapers_result = db.execute(scrapers_query)
         scrapers = scrapers_result.scalars().all()
 
         scrapers_data = []
         for scraper in scrapers:
             # Get latest log
-            log_result = await db.execute(
+            log_result = db.execute(
                 select(ScraperLog)
                 .where(ScraperLog.scraper_id == scraper.id)
                 .order_by(desc(ScraperLog.started_at))
@@ -339,11 +339,11 @@ async def get_scrapers(
 @router.get("/users")
 async def get_users(
     admin: Profile = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get all users (admin only)"""
     try:
-        result = await db.execute(select(Profile).order_by(desc(Profile.id)).limit(100))
+        result = db.execute(select(Profile).order_by(desc(Profile.id)).limit(100))
         users = result.scalars().all()
 
         return {
@@ -368,11 +368,11 @@ async def get_users(
 async def get_user(
     user_id: UUID,
     admin: Profile = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Get specific user details (admin only)"""
     try:
-        result = await db.execute(select(Profile).where(Profile.id == user_id))
+        result = db.execute(select(Profile).where(Profile.id == user_id))
         user = result.scalar_one_or_none()
 
         if not user:
@@ -407,11 +407,11 @@ async def update_user(
     user_id: UUID,
     request: UpdateUserRequest,
     admin: Profile = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Update user details (admin only)"""
     try:
-        result = await db.execute(select(Profile).where(Profile.id == user_id))
+        result = db.execute(select(Profile).where(Profile.id == user_id))
         user = result.scalar_one_or_none()
 
         if not user:
@@ -423,8 +423,8 @@ async def update_user(
         if request.college_id is not None:
             user.college_id = request.college_id
 
-        await db.commit()
-        await db.refresh(user)
+        db.commit()
+        db.refresh(user)
 
         return {
             "success": True,
@@ -440,5 +440,5 @@ async def update_user(
     except HTTPException:
         raise
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update user: {str(e)}")

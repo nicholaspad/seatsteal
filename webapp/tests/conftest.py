@@ -8,11 +8,8 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    create_async_engine,
-    async_sessionmaker,
-)
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 import sys
@@ -47,13 +44,13 @@ from webapp.config import settings
 
 
 # Test database URL - Use PostgreSQL test database
-# Format: postgresql+asyncpg://user:password@host:port/database
-# Default: postgresql+asyncpg://[current_user]@localhost:5432/seatsteal_test
+# Format: postgresql+psycopg2://user:password@host:port/database
+# Default: postgresql+psycopg2://[current_user]@localhost:5432/seatsteal_test
 import getpass
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    f"postgresql+asyncpg://{getpass.getuser()}@localhost:5432/seatsteal_test",
+    f"postgresql+psycopg2://{getpass.getuser()}@localhost:5432/seatsteal_test",
 )
 
 
@@ -66,38 +63,38 @@ def event_loop() -> Generator:
 
 
 @pytest.fixture(scope="function")
-async def test_db() -> AsyncGenerator[AsyncSession, None]:
+def test_db() -> Generator[Session, None, None]:
     """
     Create a test database session.
 
     Uses PostgreSQL test database. Tables are created before each test
     and dropped after each test for complete isolation.
     """
-    engine = create_async_engine(
+    engine = create_engine(
         TEST_DATABASE_URL,
         echo=False,
         poolclass=NullPool,
     )
 
     # Create all tables (including PostgreSQL-specific features)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    Base.metadata.create_all(engine)
 
-    async_session = async_sessionmaker(
+    SessionLocal = sessionmaker(
         engine,
-        class_=AsyncSession,
+        class_=Session,
         expire_on_commit=False,
     )
 
-    async with async_session() as session:
+    session = SessionLocal()
+    try:
         yield session
-        await session.rollback()
+        session.rollback()
+    finally:
+        session.close()
 
     # Clean up: drop all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
-    await engine.dispose()
+    Base.metadata.drop_all(engine)
+    engine.dispose()
 
 
 @pytest.fixture
@@ -129,7 +126,7 @@ def mock_supabase_admin_user():
 
 
 @pytest.fixture
-async def test_college(test_db: AsyncSession) -> College:
+def test_college(test_db: Session) -> College:
     """Create a test college."""
     college = College(
         name="Test University",
@@ -137,14 +134,14 @@ async def test_college(test_db: AsyncSession) -> College:
         is_active=True,
     )
     test_db.add(college)
-    await test_db.commit()
-    await test_db.refresh(college)
+    test_db.commit()
+    test_db.refresh(college)
     return college
 
 
 @pytest.fixture
-async def test_user(
-    test_db: AsyncSession, test_college: College, mock_supabase_user
+def test_user(
+    test_db: Session, test_college: College, mock_supabase_user
 ) -> Profile:
     """Create a test user."""
     _, user_id = mock_supabase_user
@@ -156,14 +153,14 @@ async def test_user(
         role="user",
     )
     test_db.add(user)
-    await test_db.commit()
-    await test_db.refresh(user)
+    test_db.commit()
+    test_db.refresh(user)
     return user
 
 
 @pytest.fixture
-async def test_admin_user(
-    test_db: AsyncSession, test_college: College, mock_supabase_admin_user
+def test_admin_user(
+    test_db: Session, test_college: College, mock_supabase_admin_user
 ) -> Profile:
     """Create a test admin user."""
     _, user_id = mock_supabase_admin_user
@@ -175,13 +172,13 @@ async def test_admin_user(
         role="admin",
     )
     test_db.add(admin)
-    await test_db.commit()
-    await test_db.refresh(admin)
+    test_db.commit()
+    test_db.refresh(admin)
     return admin
 
 
 @pytest.fixture
-async def test_course(test_db: AsyncSession, test_college: College) -> Course:
+def test_course(test_db: Session, test_college: College) -> Course:
     """Create a test course."""
     course = Course(
         college_id=test_college.id,
@@ -190,13 +187,13 @@ async def test_course(test_db: AsyncSession, test_college: College) -> Course:
         is_active=True,
     )
     test_db.add(course)
-    await test_db.commit()
-    await test_db.refresh(course)
+    test_db.commit()
+    test_db.refresh(course)
     return course
 
 
 @pytest.fixture
-async def test_class(test_db: AsyncSession, test_course: Course) -> Class:
+def test_class(test_db: Session, test_course: Course) -> Class:
     """Create a test class."""
     test_class = Class(
         course_id=test_course.id,
@@ -205,14 +202,14 @@ async def test_class(test_db: AsyncSession, test_course: Course) -> Class:
         is_active=True,
     )
     test_db.add(test_class)
-    await test_db.commit()
-    await test_db.refresh(test_class)
+    test_db.commit()
+    test_db.refresh(test_class)
     return test_class
 
 
 @pytest.fixture
-async def test_enrollment(
-    test_db: AsyncSession, test_class: Class, test_course: Course
+def test_enrollment(
+    test_db: Session, test_class: Class, test_course: Course
 ) -> Enrollment:
     """Create a test enrollment."""
     enrollment = Enrollment(
@@ -222,14 +219,14 @@ async def test_enrollment(
         scraped_at=datetime.utcnow(),
     )
     test_db.add(enrollment)
-    await test_db.commit()
-    await test_db.refresh(enrollment)
+    test_db.commit()
+    test_db.refresh(enrollment)
     return enrollment
 
 
 @pytest.fixture
-async def test_subscription(
-    test_db: AsyncSession,
+def test_subscription(
+    test_db: Session,
     test_user: Profile,
     test_class: Class,
     test_college: College,
@@ -243,8 +240,8 @@ async def test_subscription(
         notification_count=0,
     )
     test_db.add(subscription)
-    await test_db.commit()
-    await test_db.refresh(subscription)
+    test_db.commit()
+    test_db.refresh(subscription)
     return subscription
 
 
@@ -269,11 +266,11 @@ def mock_stripe():
 
 @pytest.fixture
 async def client(
-    test_db: AsyncSession, mock_supabase
+    test_db: Session, mock_supabase
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create a test client with database dependency override."""
 
-    async def override_get_db():
+    def override_get_db():
         yield test_db
 
     app.dependency_overrides[get_db] = override_get_db
@@ -319,7 +316,7 @@ async def admin_client(
 
 
 @pytest.fixture
-async def multiple_courses(test_db: AsyncSession, test_college: College):
+def multiple_courses(test_db: Session, test_college: College):
     """Create multiple test courses."""
     courses = []
     for i in range(5):
@@ -332,15 +329,15 @@ async def multiple_courses(test_db: AsyncSession, test_college: College):
         test_db.add(course)
         courses.append(course)
 
-    await test_db.commit()
+    test_db.commit()
     for course in courses:
-        await test_db.refresh(course)
+        test_db.refresh(course)
 
     return courses
 
 
 @pytest.fixture
-async def multiple_classes(test_db: AsyncSession, test_course: Course):
+def multiple_classes(test_db: Session, test_course: Course):
     """Create multiple test classes."""
     classes = []
     for i in range(3):
@@ -353,8 +350,8 @@ async def multiple_classes(test_db: AsyncSession, test_course: Course):
         test_db.add(test_class)
         classes.append(test_class)
 
-    await test_db.commit()
+    test_db.commit()
     for test_class in classes:
-        await test_db.refresh(test_class)
+        test_db.refresh(test_class)
 
     return classes

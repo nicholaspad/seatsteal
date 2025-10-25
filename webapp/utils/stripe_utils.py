@@ -81,6 +81,6 @@ def verify_webhook_signature(payload: str, sig_header: str) -> stripe.Event:
     except ValueError as e:
         # Invalid payload
         raise ValueError(f"Invalid payload: {str(e)}")
-    except stripe.error.SignatureVerificationError as e:
+    except stripe.SignatureVerificationError as e:
         # Invalid signature
         raise ValueError(f"Invalid signature: {str(e)}")

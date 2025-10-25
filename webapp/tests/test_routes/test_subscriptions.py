@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from webapp.models.user import Profile
@@ -27,7 +27,9 @@ class TestGetSubscriptions:
         response = await authenticated_client.get("/api/subscriptions/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert len(data) == 1
         assert data[0]["id"] == test_subscription.id
         assert data[0]["class_id"] == test_class.class_id
@@ -43,14 +45,16 @@ class TestGetSubscriptions:
         response = await authenticated_client.get("/api/subscriptions/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert len(data) == 0
 
     @pytest.mark.unit
     async def test_get_subscriptions_only_active(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
         test_class: Class,
         test_college: College,
@@ -75,12 +79,14 @@ class TestGetSubscriptions:
             notification_count=0,
         )
         test_db.add(inactive_sub)
-        await test_db.commit()
+        test_db.commit()
 
         response = await authenticated_client.get("/api/subscriptions/")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert len(data) == 1
         assert data[0]["is_active"] is True
 
@@ -89,7 +95,7 @@ class TestGetSubscriptions:
         """Test getting subscriptions without authentication."""
         response = await client.get("/api/subscriptions/")
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestCreateSubscription:
@@ -99,7 +105,7 @@ class TestCreateSubscription:
     async def test_create_subscription_success(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
         test_class: Class,
         test_college: College,
@@ -114,14 +120,16 @@ class TestCreateSubscription:
         )
 
         assert response.status_code == 201
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert data["class_id"] == test_class.class_id
         assert data["user_id"] == str(test_user.id)
         assert data["is_active"] is True
         assert data["notification_count"] == 0
 
         # Verify in database
-        result = await test_db.execute(
+        result = test_db.execute(
             select(Subscription).where(Subscription.id == data["id"])
         )
         subscription = result.scalar_one_or_none()
@@ -171,7 +179,7 @@ class TestCreateSubscription:
             json={"class_id": 1, "college_id": 1},
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestDeleteSubscription:
@@ -181,7 +189,7 @@ class TestDeleteSubscription:
     async def test_delete_subscription_success(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_subscription: Subscription,
     ):
         """Test successfully deleting a subscription."""
@@ -192,7 +200,7 @@ class TestDeleteSubscription:
         assert response.status_code == 204
 
         # Verify subscription is deactivated
-        await test_db.refresh(test_subscription)
+        test_db.refresh(test_subscription)
         assert test_subscription.is_active is False
 
     @pytest.mark.unit
@@ -210,7 +218,7 @@ class TestDeleteSubscription:
     async def test_delete_subscription_wrong_user(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_college: College,
     ):
         """Test deleting another user's subscription."""
@@ -225,7 +233,7 @@ class TestDeleteSubscription:
             role="user",
         )
         test_db.add(other_user)
-        await test_db.commit()
+        test_db.commit()
 
         # Create class
         from webapp.models.course import Course
@@ -237,8 +245,8 @@ class TestDeleteSubscription:
             is_active=True,
         )
         test_db.add(course)
-        await test_db.commit()
-        await test_db.refresh(course)
+        test_db.commit()
+        test_db.refresh(course)
 
         other_class = Class(
             course_id=course.id,
@@ -247,8 +255,8 @@ class TestDeleteSubscription:
             is_active=True,
         )
         test_db.add(other_class)
-        await test_db.commit()
-        await test_db.refresh(other_class)
+        test_db.commit()
+        test_db.refresh(other_class)
 
         # Create subscription for other user
         other_subscription = Subscription(
@@ -259,8 +267,8 @@ class TestDeleteSubscription:
             notification_count=0,
         )
         test_db.add(other_subscription)
-        await test_db.commit()
-        await test_db.refresh(other_subscription)
+        test_db.commit()
+        test_db.refresh(other_subscription)
 
         response = await authenticated_client.delete(
             f"/api/subscriptions/{other_subscription.id}"
@@ -274,4 +282,4 @@ class TestDeleteSubscription:
         """Test deleting subscription without authentication."""
         response = await client.delete("/api/subscriptions/1")
 
-        assert response.status_code == 403
+        assert response.status_code == 401

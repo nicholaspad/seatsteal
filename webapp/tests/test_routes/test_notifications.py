@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
 from webapp.models.notification_log import NotificationLog
@@ -16,7 +16,7 @@ class TestGetNotificationTrends:
     async def test_get_notification_trends_success(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_subscription: Subscription,
     ):
         """Test successfully getting notification trends."""
@@ -32,35 +32,36 @@ class TestGetNotificationTrends:
                 sent_at=now - timedelta(days=i),
             )
             test_db.add(log)
-        await test_db.commit()
+        test_db.commit()
 
         response = await client.get("/api/notifications/trends")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert "data" in data
-        assert isinstance(data["data"], list)
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert isinstance(data, list)
 
     @pytest.mark.unit
     async def test_get_notification_trends_empty(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test getting notification trends when no logs exist."""
         response = await client.get("/api/notifications/trends")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert len(data["data"]) == 0
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert len(data) == 0
 
     @pytest.mark.unit
     async def test_get_notification_trends_last_30_days(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_subscription: Subscription,
     ):
         """Test that trends only include last 30 days."""
@@ -87,15 +88,17 @@ class TestGetNotificationTrends:
             sent_at=now - timedelta(days=35),
         )
         test_db.add(old_log)
-        await test_db.commit()
+        test_db.commit()
 
         response = await client.get("/api/notifications/trends")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
 
         # Check that dates are within the last 30 days
-        for trend in data["data"]:
+        for trend in data:
             if trend["date"]:
                 trend_date = datetime.fromisoformat(trend["date"])
                 assert (now - trend_date).days <= 30

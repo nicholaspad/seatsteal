@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from unittest.mock import MagicMock
 
 from webapp.models.college import College
@@ -17,7 +17,7 @@ class TestUpdateCollege:
     async def test_update_college_success(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
         test_college: College,
     ):
@@ -29,8 +29,8 @@ class TestUpdateCollege:
             is_active=True,
         )
         test_db.add(new_college)
-        await test_db.commit()
-        await test_db.refresh(new_college)
+        test_db.commit()
+        test_db.refresh(new_college)
 
         response = await authenticated_client.patch(
             "/api/auth/update-college",
@@ -38,8 +38,9 @@ class TestUpdateCollege:
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json
         assert data["user"]["college_id"] == new_college.id
 
     @pytest.mark.unit
@@ -61,7 +62,7 @@ class TestUpdateCollege:
     async def test_update_college_inactive(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test updating to inactive college."""
@@ -71,8 +72,8 @@ class TestUpdateCollege:
             is_active=False,
         )
         test_db.add(inactive_college)
-        await test_db.commit()
-        await test_db.refresh(inactive_college)
+        test_db.commit()
+        test_db.refresh(inactive_college)
 
         response = await authenticated_client.patch(
             "/api/auth/update-college",
@@ -90,7 +91,7 @@ class TestUpdateCollege:
             json={"college_id": 1},
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestAdminSignIn:
@@ -100,7 +101,7 @@ class TestAdminSignIn:
     async def test_admin_signin_success(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_admin_user: Profile,
         mock_supabase,
     ):
@@ -116,13 +117,15 @@ class TestAdminSignIn:
         )
 
         assert response.status_code == 200
-        assert "magic link sent" in response.json()["message"].lower()
+        response_json = response.json()
+        assert response_json["success"] is True
+        assert "magic link sent" in response_json["message"].lower()
 
     @pytest.mark.unit
     async def test_admin_signin_user_not_found(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test admin sign-in with non-existent user."""
         response = await client.post(
@@ -137,7 +140,7 @@ class TestAdminSignIn:
     async def test_admin_signin_non_admin_user(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test admin sign-in with non-admin user."""
@@ -153,7 +156,7 @@ class TestAdminSignIn:
     async def test_admin_signin_supabase_error(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_admin_user: Profile,
         mock_supabase,
     ):
@@ -179,7 +182,7 @@ class TestCheckEarlyAccess:
     async def test_check_early_access_has_access(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test checking early access for user with access."""
         email = "earlyuser@example.edu"
@@ -190,7 +193,7 @@ class TestCheckEarlyAccess:
             is_active=True,
         )
         test_db.add(early_access)
-        await test_db.commit()
+        test_db.commit()
 
         response = await client.post(
             "/api/auth/check-early-access",
@@ -206,7 +209,7 @@ class TestCheckEarlyAccess:
     async def test_check_early_access_no_access(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test checking early access for user without access."""
         email = "nouser@example.edu"
@@ -225,7 +228,7 @@ class TestCheckEarlyAccess:
     async def test_check_early_access_inactive(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
     ):
         """Test checking early access for inactive entry."""
         email = "inactive@example.edu"
@@ -236,7 +239,7 @@ class TestCheckEarlyAccess:
             is_active=False,
         )
         test_db.add(early_access)
-        await test_db.commit()
+        test_db.commit()
 
         response = await client.post(
             "/api/auth/check-early-access",

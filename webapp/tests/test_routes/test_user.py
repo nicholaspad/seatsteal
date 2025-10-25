@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from unittest.mock import AsyncMock, patch
 
 from webapp.models.user import Profile
@@ -23,38 +23,41 @@ class TestGetUserSettings:
         response = await authenticated_client.get("/api/user/settings")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["data"]["email"] == test_user.email
-        assert data["data"]["phone"] == test_user.phone
-        assert data["data"]["collegeId"] == test_college.id
-        assert data["data"]["collegeName"] == test_college.name
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert data["email"] == test_user.email
+        assert data["phone"] == test_user.phone
+        assert data["collegeId"] == test_college.id
+        assert data["collegeName"] == test_college.name
 
     @pytest.mark.unit
     async def test_get_user_settings_no_college(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test getting user settings when user has no college."""
         # Update user to have no college
         test_user.college_id = None
-        await test_db.commit()
+        test_db.commit()
 
         response = await authenticated_client.get("/api/user/settings")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["data"]["collegeId"] == 0
-        assert data["data"]["collegeName"] == ""
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert data["collegeId"] == 0
+        assert data["collegeName"] == ""
 
     @pytest.mark.unit
     async def test_get_user_settings_unauthenticated(self, client: AsyncClient):
         """Test getting user settings without authentication."""
         response = await client.get("/api/user/settings")
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestUpdateUserSettings:
@@ -64,7 +67,7 @@ class TestUpdateUserSettings:
     async def test_update_user_settings_phone(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test updating user phone number."""
@@ -76,20 +79,21 @@ class TestUpdateUserSettings:
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["data"]["phone"] == new_phone
-        assert data["collegeChanged"] is False
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert data["phone"] == new_phone
+        assert response_json["collegeChanged"] is False
 
         # Verify in database
-        await test_db.refresh(test_user)
+        test_db.refresh(test_user)
         assert test_user.phone == new_phone
 
     @pytest.mark.unit
     async def test_update_user_settings_college(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
         test_college: College,
     ):
@@ -101,8 +105,8 @@ class TestUpdateUserSettings:
             is_active=True,
         )
         test_db.add(new_college)
-        await test_db.commit()
-        await test_db.refresh(new_college)
+        test_db.commit()
+        test_db.refresh(new_college)
 
         response = await authenticated_client.put(
             "/api/user/settings",
@@ -110,17 +114,18 @@ class TestUpdateUserSettings:
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["data"]["collegeId"] == new_college.id
-        assert data["data"]["collegeName"] == new_college.name
-        assert data["collegeChanged"] is True
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert data["collegeId"] == new_college.id
+        assert data["collegeName"] == new_college.name
+        assert response_json["collegeChanged"] is True
 
     @pytest.mark.unit
     async def test_update_user_settings_both(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_user: Profile,
     ):
         """Test updating both phone and college."""
@@ -130,8 +135,8 @@ class TestUpdateUserSettings:
             is_active=True,
         )
         test_db.add(new_college)
-        await test_db.commit()
-        await test_db.refresh(new_college)
+        test_db.commit()
+        test_db.refresh(new_college)
 
         new_phone = "+1111111111"
 
@@ -141,9 +146,11 @@ class TestUpdateUserSettings:
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["data"]["phone"] == new_phone
-        assert data["data"]["collegeId"] == new_college.id
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        assert data["phone"] == new_phone
+        assert data["collegeId"] == new_college.id
 
     @pytest.mark.unit
     async def test_update_user_settings_invalid_college(
@@ -168,7 +175,7 @@ class TestUpdateUserSettings:
             json={"phone": "+1234567890"},
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestGetSubscriptionTier:
@@ -189,9 +196,10 @@ class TestGetSubscriptionTier:
             response = await authenticated_client.get("/api/user/subscription-tier")
 
             assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["data"]["tier"] == "free"
+            response_json = response.json()
+            assert response_json["success"] is True
+            data = response_json["data"]
+            assert data["tier"] == "free"
 
     @pytest.mark.unit
     async def test_get_subscription_tier_plus(
@@ -208,8 +216,10 @@ class TestGetSubscriptionTier:
             response = await authenticated_client.get("/api/user/subscription-tier")
 
             assert response.status_code == 200
-            data = response.json()
-            assert data["data"]["tier"] == "plus"
+            response_json = response.json()
+            assert response_json["success"] is True
+            data = response_json["data"]
+            assert data["tier"] == "plus"
 
     @pytest.mark.unit
     async def test_get_subscription_tier_pro(
@@ -226,12 +236,14 @@ class TestGetSubscriptionTier:
             response = await authenticated_client.get("/api/user/subscription-tier")
 
             assert response.status_code == 200
-            data = response.json()
-            assert data["data"]["tier"] == "pro"
+            response_json = response.json()
+            assert response_json["success"] is True
+            data = response_json["data"]
+            assert data["tier"] == "pro"
 
     @pytest.mark.unit
     async def test_get_subscription_tier_unauthenticated(self, client: AsyncClient):
         """Test getting subscription tier without authentication."""
         response = await client.get("/api/user/subscription-tier")
 
-        assert response.status_code == 403
+        assert response.status_code == 401

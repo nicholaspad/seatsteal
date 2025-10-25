@@ -2,7 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from unittest.mock import patch, AsyncMock
 from datetime import datetime, timedelta
 
@@ -26,7 +26,9 @@ class TestGetClass:
         response = await client.get(f"/api/classes/{test_class.class_id}")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert data["class_id"] == test_class.class_id
         assert data["class_number"] == test_class.class_number
         assert data["section_code"] == test_class.section_code
@@ -44,7 +46,9 @@ class TestGetClass:
         response = await client.get(f"/api/classes/{test_class.class_id}")
 
         assert response.status_code == 200
-        data = response.json()
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
         assert "current_enrollment" in data
         if data["current_enrollment"]:
             assert "enrollment_status" in data["current_enrollment"]
@@ -65,7 +69,7 @@ class TestGetClass:
     async def test_get_class_inactive(
         self,
         client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_course: Course,
     ):
         """Test getting inactive class."""
@@ -76,8 +80,8 @@ class TestGetClass:
             is_active=False,
         )
         test_db.add(inactive_class)
-        await test_db.commit()
-        await test_db.refresh(inactive_class)
+        test_db.commit()
+        test_db.refresh(inactive_class)
 
         response = await client.get(f"/api/classes/{inactive_class.class_id}")
 
@@ -91,7 +95,7 @@ class TestGetEnrollmentAnalysis:
     async def test_get_enrollment_analysis_success(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_class: Class,
         test_enrollment: Enrollment,
     ):
@@ -109,7 +113,7 @@ class TestGetEnrollmentAnalysis:
                     scraped_at=now - timedelta(days=i * 10),
                 )
                 test_db.add(enrollment)
-            await test_db.commit()
+            test_db.commit()
 
             response = await authenticated_client.get(
                 f"/api/classes/{test_class.class_id}/enrollment-analysis"
@@ -129,7 +133,7 @@ class TestGetEnrollmentAnalysis:
     async def test_get_enrollment_analysis_competition_levels(
         self,
         authenticated_client: AsyncClient,
-        test_db: AsyncSession,
+        test_db: Session,
         test_class: Class,
     ):
         """Test that competition level is calculated correctly."""
@@ -156,7 +160,7 @@ class TestGetEnrollmentAnalysis:
             f"/api/classes/{test_class.class_id}/enrollment-analysis"
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     @pytest.mark.unit
     async def test_get_enrollment_analysis_no_premium(
@@ -166,8 +170,9 @@ class TestGetEnrollmentAnalysis:
     ):
         """Test getting enrollment analysis without premium access."""
         from fastapi import HTTPException
+        from unittest.mock import MagicMock
 
-        with patch("webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock) as mock_premium:
+        with patch("webapp.api.routes.classes.require_premium_access") as mock_premium:
             mock_premium.side_effect = HTTPException(
                 status_code=403, detail="Premium access required"
             )

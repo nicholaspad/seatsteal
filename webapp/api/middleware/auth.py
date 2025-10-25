@@ -32,6 +32,13 @@ async def get_current_user(
         async def protected_route(user: Profile = Depends(get_current_user)):
             return {"user_id": user.id}
     """
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token = credentials.credentials
 
     try:
