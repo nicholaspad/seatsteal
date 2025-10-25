@@ -52,7 +52,7 @@ export function FullWidthCTA() {
                 size="lg"
                 className="text-lg px-8 py-3 bg-white text-black hover:bg-white/90"
               >
-                <Link to="/login">Get started for free</Link>
+                <Link to="/login">Get started</Link>
               </Button>
             </div>
           </div>

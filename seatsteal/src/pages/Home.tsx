@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { FAQSection } from "@/components/home/faq-section";
 import { PricingTiers } from "@/components/home/pricing-tiers";
 import type { College } from "@/types/api";
-import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 
@@ -27,32 +26,8 @@ export default function Home() {
   const [colleges, setColleges] = useState<College[]>([]);
 
   useEffect(() => {
-    // Handle hash scrolling for /#pricing links
-    const handleHashScroll = () => {
-      const hash = window.location.hash;
-      if (hash) {
-        const elementId = hash.substring(1);
-        const element = document.getElementById(elementId);
-        if (element) {
-          setTimeout(() => {
-            element.scrollIntoView({
-              behavior: "smooth",
-              block: "start",
-            });
-          }, 100);
-        }
-      }
-    };
-
-    handleHashScroll();
-    window.addEventListener("popstate", handleHashScroll);
-
     // Fetch colleges data
     getColleges().then(setColleges);
-
-    return () => {
-      window.removeEventListener("popstate", handleHashScroll);
-    };
   }, []);
 
   return (
@@ -80,7 +55,7 @@ export default function Home() {
                 <Button
                   asChild
                   size="lg"
-                  className="text-lg px-8 py-6 bg-white text-black hover:bg-white/90"
+                  className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
                 >
                   <a
                     href="https://form.typeform.com/to/mi3IrgGR"
@@ -90,18 +65,37 @@ export default function Home() {
                     Request early access
                   </a>
                 </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="text-lg px-6 py-4 border-white bg-black text-white hover:bg-white/10"
+                >
+                  <a
+                    href="https://form.typeform.com/to/oPSf8iXX"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Request a college
+                  </a>
+                </Button>
               </div>
 
               <div className="flex justify-center mt-4">
-                <a
-                  href="https://form.typeform.com/to/oPSf8iXX"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 text-sm"
+                <button
+                  onClick={() => {
+                    const element = document.getElementById("pricing");
+                    if (element) {
+                      element.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
+                    }
+                  }}
+                  className="text-gray-300 hover:text-white transition-colors text-base underline"
                 >
-                  Request a college
-                  <ExternalLink className="w-4 h-4" />
-                </a>
+                  View pricing
+                </button>
               </div>
             </div>
           </section>

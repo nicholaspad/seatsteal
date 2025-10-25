@@ -13,7 +13,6 @@ import {
   User,
   LogOut,
   LogIn,
-  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -40,8 +39,21 @@ export function Header({ className }: HeaderProps) {
     ...(user
       ? [{ name: "Dashboard", href: "/dashboard", icon: LayoutDashboard }]
       : []),
-    { name: "Plans", href: "/#pricing", icon: Rocket },
   ];
+
+  const handleNavClick = async (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+  ) => {
+    // Handle Home link - scroll to top if already on homepage
+    if (href === "/" && location.pathname === "/") {
+      e.preventDefault();
+      const ionContent = document.querySelector("ion-content");
+      if (ionContent) {
+        await ionContent.scrollToTop(300);
+      }
+    }
+  };
 
   return (
     <header
@@ -53,7 +65,11 @@ export function Header({ className }: HeaderProps) {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
+          <Link
+            to="/"
+            onClick={(e) => handleNavClick(e, "/")}
+            className="flex items-center space-x-2"
+          >
             <span className="font-bold text-lg">seatsteal</span>
             <Badge variant="secondary" className="text-xs">
               BETA
@@ -70,6 +86,7 @@ export function Header({ className }: HeaderProps) {
                 <Link
                   key={item.href}
                   to={item.href}
+                  onClick={(e) => handleNavClick(e, item.href)}
                   className={cn(
                     "flex items-center space-x-2 transition-colors hover:text-foreground/80",
                     isActive ? "text-foreground" : "text-foreground/60",
@@ -158,7 +175,10 @@ export function Header({ className }: HeaderProps) {
                         ? "bg-primary text-primary-foreground"
                         : "text-foreground/60 hover:text-foreground hover:bg-muted",
                     )}
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={(e) => {
+                      handleNavClick(e, item.href);
+                      setMobileMenuOpen(false);
+                    }}
                   >
                     <Icon className="h-4 w-4" />
                     <span>{item.name}</span>

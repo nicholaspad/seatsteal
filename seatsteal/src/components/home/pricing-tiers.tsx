@@ -20,7 +20,6 @@ export function PricingTiers() {
       id: "free",
       name: "Free",
       price: `$${freeFeatures.monthlyPrice}`,
-      description: "Perfect for trying out Course Watcher",
       features: [
         `Monitor ${freeFeatures.maxSubscriptions} class`,
         "Email notifications",
@@ -33,7 +32,6 @@ export function PricingTiers() {
       id: "plus",
       name: "Plus",
       price: `$${plusFeatures.monthlyPrice}`,
-      description: "For serious students who need more",
       features: [
         `Monitor ${plusFeatures.maxSubscriptions} classes`,
         `Checks every ${plusFeatures.checkFrequency} minutes`,
@@ -47,7 +45,6 @@ export function PricingTiers() {
       id: "pro",
       name: "Pro",
       price: `$${proFeatures.monthlyPrice}`,
-      description: "For power users and course shoppers",
       features: [
         `Monitor ${proFeatures.maxSubscriptions} classes`,
         `Checks every ${proFeatures.checkFrequency} minute`,
@@ -130,7 +127,6 @@ export function PricingTiers() {
                 /month
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">{tier.description}</p>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col">
             <ul className="space-y-2 flex-1">
