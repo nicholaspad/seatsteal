@@ -90,8 +90,8 @@ export function FAQSection({ colleges }: FAQSectionProps) {
                     ))}
                   </ul>
                   <p className="text-muted-foreground mt-3">
-                    We regularly add support for more universities. If you
-                    don't see your school,{" "}
+                    We regularly add support for more universities. If you don't
+                    see your school,{" "}
                     <a
                       href="https://form.typeform.com/to/oPSf8iXX"
                       target="_blank"

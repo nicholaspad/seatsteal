@@ -1,18 +1,18 @@
-import { createClient } from '@supabase/supabase-js'
-import { config } from './config'
+import { createClient } from "@supabase/supabase-js";
+import { config } from "./config";
 
 if (!config.supabase.url) {
-  throw new Error('VITE_SUPABASE_URL environment variable is required')
+  throw new Error("VITE_SUPABASE_URL environment variable is required");
 }
 
 if (!config.supabase.anonKey) {
-  throw new Error('VITE_SUPABASE_ANON_KEY environment variable is required')
+  throw new Error("VITE_SUPABASE_ANON_KEY environment variable is required");
 }
 
 export const supabase = createClient(
   config.supabase.url,
-  config.supabase.anonKey
-)
+  config.supabase.anonKey,
+);
 
 // Helper function to sign in with magic link
 export const signInWithMagicLink = async (email: string) => {
@@ -23,31 +23,31 @@ export const signInWithMagicLink = async (email: string) => {
       // This can be configured in your Capacitor app
       emailRedirectTo: window.location.origin,
     },
-  })
-}
+  });
+};
 
 // Helper function to sign in with admin magic link
 export const signInWithAdminMagicLink = async (email: string) => {
   return await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: window.location.origin + '/admin',
+      emailRedirectTo: window.location.origin + "/admin",
     },
-  })
-}
+  });
+};
 
 // Helper function to sign out
 export const signOut = async () => {
-  return await supabase.auth.signOut()
-}
+  return await supabase.auth.signOut();
+};
 
 // Helper function to get current user
 export const getCurrentUser = async () => {
   const {
     data: { user },
-  } = await supabase.auth.getUser()
-  return user
-}
+  } = await supabase.auth.getUser();
+  return user;
+};
 
 // Helper function to get current user with secure validation
 export const getCurrentSession = async () => {
@@ -55,8 +55,8 @@ export const getCurrentSession = async () => {
   const {
     data: { user },
     error: userError,
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
   // Return only validated user data, no session metadata
-  return userError || !user ? null : user
-}
+  return userError || !user ? null : user;
+};

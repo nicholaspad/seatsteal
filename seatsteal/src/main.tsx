@@ -1,5 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+// @ts-expect-error - Font package doesn't have types
+import "@fontsource/inter";
 import "./index.css";
 import { IonApp, IonRouterOutlet, setupIonicReact } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
@@ -67,7 +69,11 @@ createRoot(document.getElementById("root")!).render(
                   {/* Auth routes */}
                   <Route exact path="/login" component={Login} />
                   <Route exact path="/login-admin" component={LoginAdmin} />
-                  <Route exact path="/verify-request" component={VerifyRequest} />
+                  <Route
+                    exact
+                    path="/verify-request"
+                    component={VerifyRequest}
+                  />
                   <Route exact path="/error" component={Error} />
 
                   {/* Protected routes */}

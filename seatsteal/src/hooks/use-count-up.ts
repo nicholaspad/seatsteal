@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface UseCountUpOptions {
-  start?: number
-  end: number
-  duration?: number // milliseconds
-  decimals?: number
-  startOnInView?: boolean
-  threshold?: number
+  start?: number;
+  end: number;
+  duration?: number; // milliseconds
+  decimals?: number;
+  startOnInView?: boolean;
+  threshold?: number;
 }
 
 /**
@@ -20,65 +20,68 @@ export function useCountUp({
   startOnInView = false,
   threshold = 0.3,
 }: UseCountUpOptions) {
-  const [count, setCount] = useState(start)
-  const [hasAnimated, setHasAnimated] = useState(false)
-  const elementRef = useRef<HTMLDivElement>(null)
-  const countRef = useRef(start)
-  const rafRef = useRef<number | undefined>(undefined)
-  const startTimeRef = useRef<number | undefined>(undefined)
+  const [count, setCount] = useState(start);
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const elementRef = useRef<HTMLDivElement>(null);
+  const countRef = useRef(start);
+  const rafRef = useRef<number | undefined>(undefined);
+  const startTimeRef = useRef<number | undefined>(undefined);
 
   const animate = useCallback(
     (timestamp: number = performance.now()) => {
       if (!startTimeRef.current) {
-        startTimeRef.current = timestamp
+        startTimeRef.current = timestamp;
       }
 
-      const progress = Math.min((timestamp - startTimeRef.current) / duration, 1)
-      const currentCount = start + (end - start) * progress
+      const progress = Math.min(
+        (timestamp - startTimeRef.current) / duration,
+        1,
+      );
+      const currentCount = start + (end - start) * progress;
 
-      countRef.current = currentCount
-      setCount(parseFloat(currentCount.toFixed(decimals)))
+      countRef.current = currentCount;
+      setCount(parseFloat(currentCount.toFixed(decimals)));
 
       if (progress < 1) {
-        rafRef.current = requestAnimationFrame(animate)
+        rafRef.current = requestAnimationFrame(animate);
       }
     },
-    [start, end, duration, decimals]
-  )
+    [start, end, duration, decimals],
+  );
 
   useEffect(() => {
     if (!startOnInView || hasAnimated) {
-      animate()
+      animate();
       return () => {
         if (rafRef.current) {
-          cancelAnimationFrame(rafRef.current)
+          cancelAnimationFrame(rafRef.current);
         }
-      }
+      };
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting && !hasAnimated) {
-            setHasAnimated(true)
-            animate()
+            setHasAnimated(true);
+            animate();
           }
-        })
+        });
       },
-      { threshold }
-    )
+      { threshold },
+    );
 
     if (elementRef.current) {
-      observer.observe(elementRef.current)
+      observer.observe(elementRef.current);
     }
 
     return () => {
       if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current)
+        cancelAnimationFrame(rafRef.current);
       }
-      observer.disconnect()
-    }
-  }, [animate, startOnInView, threshold, hasAnimated])
+      observer.disconnect();
+    };
+  }, [animate, startOnInView, threshold, hasAnimated]);
 
-  return { count, ref: elementRef }
+  return { count, ref: elementRef };
 }

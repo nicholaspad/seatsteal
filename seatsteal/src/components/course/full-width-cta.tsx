@@ -47,7 +47,11 @@ export function FullWidthCTA() {
 
             {/* CTA Button */}
             <div>
-              <Button asChild size="lg" className="text-lg px-8 py-3">
+              <Button
+                asChild
+                size="lg"
+                className="text-lg px-8 py-3 bg-white text-black hover:bg-white/90"
+              >
                 <Link to="/login">Get started for free</Link>
               </Button>
             </div>

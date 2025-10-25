@@ -15,9 +15,7 @@ export default function LoginAdmin() {
               <h1 className="text-3xl font-bold tracking-tight">
                 Admin Portal
               </h1>
-              <p className="text-muted-foreground">
-                Administrator access only
-              </p>
+              <p className="text-muted-foreground">Administrator access only</p>
             </div>
             <AdminLoginForm />
           </div>

@@ -58,7 +58,7 @@ export default function Home() {
   return (
     <IonPage>
       <IonContent>
-        <div className="space-y-20 bg-background text-foreground">
+        <div className="space-y-20 bg-black text-foreground">
           {/* Hero Section */}
           <section className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-black"></div>
@@ -80,7 +80,7 @@ export default function Home() {
                 <Button
                   asChild
                   size="lg"
-                  className="text-lg px-8 py-6 bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="text-lg px-8 py-6 bg-white text-black hover:bg-white/90"
                 >
                   <a
                     href="https://form.typeform.com/to/mi3IrgGR"

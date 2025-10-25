@@ -120,7 +120,23 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  a:not([class*="bg-white"]):not([class*="text-black"]),
+  a:visited:not([class*="bg-white"]):not([class*="text-black"]),
+  a:link:not([class*="bg-white"]):not([class*="text-black"]) {
+    color: white !important;
+  }
+
+  a:hover:not([class*="bg-white"]):not([class*="text-black"]) {
+    color: rgba(255, 255, 255, 0.8) !important;
+  }
+
+  /* Ensure button links respect their styling */
+  button a,
+  [role="button"] a {
+    color: inherit !important;
   }
 
   /* Ensure IonPage respects the flex layout */
@@ -132,7 +148,7 @@
 
   /* Ensure IonContent scrolls within the available space */
   ion-content {
-    --background: transparent;
+    --background: #000000;
     height: 100%;
   }
 

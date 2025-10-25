@@ -22,7 +22,7 @@ export default function VerifyRequest() {
               </p>
             </div>
 
-            <div className="bg-muted/50 p-4 rounded-lg">
+            <div className="border border-border p-4 rounded-lg">
               <p className="text-xs text-muted-foreground">
                 Click the link in your email to complete the sign-in process.
                 The link will expire in 24 hours.

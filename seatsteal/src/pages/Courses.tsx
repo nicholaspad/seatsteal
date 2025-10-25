@@ -232,7 +232,9 @@ export default function Courses() {
               {loading ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                  <p className="mt-4 text-muted-foreground">Loading courses...</p>
+                  <p className="mt-4 text-muted-foreground">
+                    Loading courses...
+                  </p>
                 </div>
               ) : courses.length === 0 ? (
                 <Card>
@@ -287,17 +289,19 @@ export default function Courses() {
                         currentPage={currentPage}
                         totalPages={totalPages}
                         basePath="/courses"
-                        searchParams={new URLSearchParams({
-                          ...(searchParams.get("q") && {
-                            q: searchParams.get("q")!,
-                          }),
-                          ...(searchParams.get("college") && {
-                            college: searchParams.get("college")!,
-                          }),
-                          ...(searchParams.get("sort") && {
-                            sort: searchParams.get("sort")!,
-                          }),
-                        })}
+                        searchParams={
+                          new URLSearchParams({
+                            ...(searchParams.get("q") && {
+                              q: searchParams.get("q")!,
+                            }),
+                            ...(searchParams.get("college") && {
+                              college: searchParams.get("college")!,
+                            }),
+                            ...(searchParams.get("sort") && {
+                              sort: searchParams.get("sort")!,
+                            }),
+                          })
+                        }
                         showFirstLast={true}
                       />
                     </div>

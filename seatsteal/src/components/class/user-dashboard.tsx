@@ -100,12 +100,16 @@ const UserDashboard = memo(function UserDashboard({
         ...sub,
         lastNotified:
           index % 2 === 0
-            ? new Date(Date.now() - Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString()
+            ? new Date(
+                Date.now() - Math.random() * 3 * 24 * 60 * 60 * 1000,
+              ).toISOString()
             : null,
         notificationCount: Math.floor(Math.random() * 5),
         createdAt:
           sub.createdAt ||
-          new Date(Date.now() - (index + 1) * 2 * 24 * 60 * 60 * 1000).toISOString(),
+          new Date(
+            Date.now() - (index + 1) * 2 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
       }));
 
       setSubscriptions(mockSubscriptions);
@@ -629,7 +633,8 @@ const UserDashboard = memo(function UserDashboard({
                             className="h-5 px-1 text-xs text-muted-foreground hover:text-foreground"
                             asChild
                           >
-                            <Link to={`/courses/${subscription.class.course.id}`}
+                            <Link
+                              to={`/courses/${subscription.class.course.id}`}
                             >
                               <ExternalLink className="h-3 w-3" />
                             </Link>

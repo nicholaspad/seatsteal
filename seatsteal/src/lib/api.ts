@@ -1,6 +1,6 @@
-import { config } from './config'
-import { supabase } from './supabase'
-import { toast } from 'sonner'
+import { config } from "./config";
+import { supabase } from "./supabase";
+import { toast } from "sonner";
 
 /**
  * Custom error class for server errors that have already shown a toast.
@@ -8,8 +8,8 @@ import { toast } from 'sonner'
  */
 export class ServerErrorWithToast extends Error {
   constructor(message: string) {
-    super(message)
-    this.name = 'ServerErrorWithToast'
+    super(message);
+    this.name = "ServerErrorWithToast";
   }
 }
 
@@ -22,28 +22,28 @@ export async function fetchWithToasts(
   url: string,
   options?: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(url, options)
+  const response = await fetch(url, options);
 
   // Handle rate limiting specifically
   if (response.status === 429) {
-    toast.error('Too many requests. Try again later.')
-    throw new ServerErrorWithToast('Rate limited')
+    toast.error("Too many requests. Try again later.");
+    throw new ServerErrorWithToast("Rate limited");
   }
 
   // Handle server errors (5xx)
   if (response.status >= 500) {
-    toast.error('An error has occurred. Please try again later.')
-    throw new ServerErrorWithToast('Server error')
+    toast.error("An error has occurred. Please try again later.");
+    throw new ServerErrorWithToast("Server error");
   }
 
-  return response
+  return response;
 }
 
 /**
  * @deprecated Use fetchWithToasts instead
  * Legacy function for backwards compatibility
  */
-export const fetchWithRateLimit = fetchWithToasts
+export const fetchWithRateLimit = fetchWithToasts;
 
 /**
  * Alternative fetch wrapper that handles rate limiting silently
@@ -53,101 +53,103 @@ export async function fetchWithRateLimitSilent(
   url: string,
   options?: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(url, options)
+  const response = await fetch(url, options);
 
   // Handle rate limiting without toast (for custom error handling)
   if (response.status === 429) {
-    throw new Error('Rate limited')
+    throw new Error("Rate limited");
   }
 
-  return response
+  return response;
 }
 
 class ApiClient {
-  private baseUrl: string
+  private baseUrl: string;
 
   constructor() {
-    this.baseUrl = config.api.baseUrl
+    this.baseUrl = config.api.baseUrl;
   }
 
   private async getHeaders(): Promise<HeadersInit> {
-    const { data: { session } } = await supabase.auth.getSession()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
     return {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(session?.access_token && {
         Authorization: `Bearer ${session.access_token}`,
       }),
-    }
+    };
   }
 
   async get<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'GET',
+      method: "GET",
       headers: await this.getHeaders(),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
+      throw new Error(`API Error: ${response.statusText}`);
     }
 
-    return response.json()
+    return response.json();
   }
 
   async post<T>(endpoint: string, data: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'POST',
+      method: "POST",
       headers: await this.getHeaders(),
       body: JSON.stringify(data),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
+      throw new Error(`API Error: ${response.statusText}`);
     }
 
-    return response.json()
+    return response.json();
   }
 
   async put<T>(endpoint: string, data: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'PUT',
+      method: "PUT",
       headers: await this.getHeaders(),
       body: JSON.stringify(data),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
+      throw new Error(`API Error: ${response.statusText}`);
     }
 
-    return response.json()
+    return response.json();
   }
 
   async delete<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: await this.getHeaders(),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
+      throw new Error(`API Error: ${response.statusText}`);
     }
 
-    return response.json()
+    return response.json();
   }
 
   async patch<T>(endpoint: string, data: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'PATCH',
+      method: "PATCH",
       headers: await this.getHeaders(),
       body: JSON.stringify(data),
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
+      throw new Error(`API Error: ${response.statusText}`);
     }
 
-    return response.json()
+    return response.json();
   }
 }
 
-export const api = new ApiClient()
+export const api = new ApiClient();

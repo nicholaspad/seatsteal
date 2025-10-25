@@ -41,13 +41,16 @@ export function LoginForm() {
 
     try {
       // Check early access before sending magic link
-      const earlyAccessResponse = await fetchWithToasts("/api/auth/check-early-access", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const earlyAccessResponse = await fetchWithToasts(
+        "/api/auth/check-early-access",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
         },
-        body: JSON.stringify({ email }),
-      });
+      );
 
       const earlyAccessData = await earlyAccessResponse.json();
 

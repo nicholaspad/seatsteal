@@ -147,8 +147,7 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
               toast.error(
                 <div className="space-y-2">
                   <p className="font-medium text-sm">
-                    You've reached your subscription limit.{" "}
-                    {upgradeMessage}
+                    You've reached your subscription limit. {upgradeMessage}
                   </p>
                   {showUpgradeButton && (
                     <Button
