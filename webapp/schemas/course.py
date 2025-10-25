@@ -16,7 +16,7 @@ class CourseBase(BaseModel):
 class CourseCreate(CourseBase):
     """Schema for creating a course"""
 
-    college_id: int
+    college_id: int = Field(..., alias="collegeId")
 
 
 class CourseResponse(CourseBase):
@@ -85,7 +85,9 @@ class PaginationMetadata(BaseModel):
     page: int
     limit: int
     total: int
-    total_pages: int
+    total_pages: int = Field(..., alias="totalPages")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
