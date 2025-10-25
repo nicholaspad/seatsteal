@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional
 
@@ -7,12 +7,12 @@ class CollegeBase(BaseModel):
     """Base college schema"""
 
     name: str
-    short_name: str
+    short_name: str = Field(..., alias="shortName")
     domain: Optional[str] = None
-    term_code: Optional[str] = None
-    term_name: Optional[str] = None
-    email_enabled: bool = True
-    sms_enabled: bool = False
+    term_code: Optional[str] = Field(None, alias="termCode")
+    term_name: Optional[str] = Field(None, alias="termName")
+    email_enabled: bool = Field(True, alias="emailEnabled")
+    sms_enabled: bool = Field(False, alias="smsEnabled")
 
 
 class CollegeCreate(CollegeBase):
@@ -25,7 +25,7 @@ class CollegeResponse(CollegeBase):
     """Schema for college responses"""
 
     id: int
-    created_at: datetime
-    is_active: bool
+    created_at: datetime = Field(..., alias="createdAt")
+    is_active: bool = Field(..., alias="isActive")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

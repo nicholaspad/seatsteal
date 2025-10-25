@@ -62,7 +62,7 @@ class TestGetCourses:
         assert response_json["success"] is True
         data = response_json["data"]
         # Should find the course
-        assert any(c["course_code"] == test_course.course_code for c in data["data"])
+        assert any(c["courseCode"] == test_course.course_code for c in data["data"])
 
     @pytest.mark.unit
     async def test_get_courses_with_college_filter(
@@ -79,7 +79,7 @@ class TestGetCourses:
         assert response_json["success"] is True
         data = response_json["data"]
         # All courses should be from the test college
-        assert all(c["college_id"] == test_college.id for c in data["data"])
+        assert all(c["collegeId"] == test_college.id for c in data["data"])
 
     @pytest.mark.unit
     async def test_get_courses_empty(
@@ -116,7 +116,7 @@ class TestGetCourse:
         assert response_json["success"] is True
         data = response_json["data"]
         assert data["id"] == test_course.id
-        assert data["course_code"] == test_course.course_code
+        assert data["courseCode"] == test_course.course_code
         assert data["title"] == test_course.title
         assert "classes" in data
         assert "college" in data

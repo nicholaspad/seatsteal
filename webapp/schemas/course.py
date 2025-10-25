@@ -9,7 +9,7 @@ T = TypeVar("T")
 class CourseBase(BaseModel):
     """Base course schema"""
 
-    course_code: str
+    course_code: str = Field(..., alias="courseCode")
     title: str
 
 
@@ -23,34 +23,38 @@ class CourseResponse(CourseBase):
     """Schema for course responses"""
 
     id: int
-    college_id: int
-    created_at: datetime
-    updated_at: datetime
-    is_active: bool
+    college_id: int = Field(..., alias="collegeId")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+    is_active: bool = Field(..., alias="isActive")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class EnrollmentStatus(BaseModel):
     """Current enrollment status for a class"""
 
-    enrollment_status: str
-    scraped_at: str
+    enrollment_status: str = Field(..., alias="enrollmentStatus")
+    scraped_at: str = Field(..., alias="scrapedAt")
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class ClassInCourse(BaseModel):
     """Class details within a course"""
 
-    class_id: int
-    course_id: int
-    class_number: str
-    section_code: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
-    is_active: bool
-    current_enrollment: Optional[EnrollmentStatus] = None
+    class_id: int = Field(..., alias="classId")
+    course_id: int = Field(..., alias="courseId")
+    class_number: str = Field(..., alias="classNumber")
+    section_code: Optional[str] = Field(None, alias="sectionCode")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+    is_active: bool = Field(..., alias="isActive")
+    current_enrollment: Optional[EnrollmentStatus] = Field(
+        None, alias="currentEnrollment"
+    )
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class CourseWithCollege(CourseResponse):

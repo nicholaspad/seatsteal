@@ -45,7 +45,7 @@ async function getCoursesData(
     });
 
     if (searchParams.get("q")) params.set("q", searchParams.get("q")!);
-    if (searchParams.get("college"))
+    if (searchParams.get("college") && searchParams.get("college") !== "all")
       params.set("collegeId", searchParams.get("college")!);
     if (searchParams.get("sort")) params.set("sort", searchParams.get("sort")!);
 

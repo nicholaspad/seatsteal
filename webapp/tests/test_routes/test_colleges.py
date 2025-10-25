@@ -50,7 +50,7 @@ class TestGetColleges:
         response_json = response.json()
         assert response_json["success"] is True
         data = response_json["data"]
-        assert all(c["is_active"] is True for c in data)
+        assert all(c["isActive"] is True for c in data)
         assert not any(c["name"] == "Inactive University" for c in data)
 
     @pytest.mark.unit
@@ -114,8 +114,8 @@ class TestGetCollege:
         data = response_json["data"]
         assert data["id"] == test_college.id
         assert data["name"] == test_college.name
-        assert data["short_name"] == test_college.short_name
-        assert data["is_active"] is True
+        assert data["shortName"] == test_college.short_name
+        assert data["isActive"] is True
 
     @pytest.mark.unit
     async def test_get_college_not_found(
@@ -150,4 +150,4 @@ class TestGetCollege:
         response_json = response.json()
         assert response_json["success"] is True
         data = response_json["data"]
-        assert data["is_active"] is False
+        assert data["isActive"] is False
