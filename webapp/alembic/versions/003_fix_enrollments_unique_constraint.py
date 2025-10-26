@@ -1,4 +1,4 @@
-"""fix enrollments unique constraint
+"""Fix enrollments table - placeholder migration for future use
 
 Revision ID: 003
 Revises: 002
@@ -19,22 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Drop and recreate enrollments_class_id_idx without unique constraint."""
-    # Drop the existing unique index
-    op.drop_index("enrollments_class_id_idx", table_name="enrollments")
-
-    # Recreate as non-unique index
-    op.create_index(
-        "enrollments_class_id_idx", "enrollments", ["class_id"], unique=False
-    )
+    """Placeholder - no changes needed. Keeping non-unique index for historical enrollment data."""
+    pass
 
 
 def downgrade() -> None:
-    """Revert to unique constraint (not recommended)."""
-    # Drop the non-unique index
-    op.drop_index("enrollments_class_id_idx", table_name="enrollments")
-
-    # Recreate as unique index (this may fail if there are duplicate class_ids)
-    op.create_index(
-        "enrollments_class_id_idx", "enrollments", ["class_id"], unique=True
-    )
+    """Placeholder - no changes to revert."""
+    pass

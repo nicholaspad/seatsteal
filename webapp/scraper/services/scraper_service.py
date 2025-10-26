@@ -111,7 +111,7 @@ class ScraperService:
             # Save to database
             courses_saved = 0
             classes_saved = 0
-            enrollments_saved = 0
+            enrollment_data_list = []  # Collect enrollment data for batch upsert
 
             for course_data in courses_data:
                 try:
@@ -121,22 +121,25 @@ class ScraperService:
                     )
                     courses_saved += 1
 
-                    # Upsert classes
+                    # Upsert classes and collect enrollment data
                     for class_data in course_data.get("classes", []):
                         class_obj = await self._upsert_class(course.id, class_data)
                         classes_saved += 1
 
-                        # Create enrollment snapshot
-                        await self._create_enrollment_snapshot(
+                        # Collect enrollment data for batch insert
+                        enrollment_data = self._create_enrollment_data(
                             class_obj.class_id, college.id, class_data
                         )
-                        enrollments_saved += 1
+                        enrollment_data_list.append(enrollment_data)
 
                 except Exception as e:
                     logger.error(
                         f"Failed to save course {course_data.get('course_code')}: {e}"
                     )
                     continue
+
+            # Batch insert all enrollments
+            enrollments_saved = self._batch_insert_enrollments(enrollment_data_list)
 
             self.db.commit()
 
@@ -287,16 +290,19 @@ class ScraperService:
         else:
             return "unknown"
 
-    async def _create_enrollment_snapshot(
+    def _create_enrollment_data(
         self, class_id: int, college_id: int, class_data: Dict
-    ):
+    ) -> Dict[str, Any]:
         """
-        Create an enrollment snapshot for tracking.
+        Create enrollment data dictionary for batch insertion.
 
         Args:
             class_id: Class ID
             college_id: College ID
             class_data: Class data with enrollment information
+
+        Returns:
+            Dictionary with enrollment data ready for batch insert
         """
         import json
 
@@ -319,11 +325,49 @@ class ScraperService:
             }
         )
 
-        enrollment = Enrollment(
-            class_id=class_id,
-            college_id=college_id,
-            enrollment_status=enrollment_status,
-            raw_text=raw_text,
-        )
-        self.db.add(enrollment)
-        self.db.flush()
+        return {
+            "class_id": class_id,
+            "college_id": college_id,
+            "enrollment_status": enrollment_status,
+            "raw_text": raw_text,
+        }
+
+    def _batch_insert_enrollments(
+        self, enrollment_data_list: List[Dict[str, Any]], batch_size: int = 500
+    ) -> int:
+        """
+        Batch insert enrollments for performance optimization.
+
+        Args:
+            enrollment_data_list: List of enrollment data dictionaries
+            batch_size: Number of records to insert per batch (default: 500)
+
+        Returns:
+            Number of enrollments inserted
+        """
+        from datetime import datetime
+
+        if not enrollment_data_list:
+            return 0
+
+        total_inserted = 0
+
+        # Add scraped_at timestamp to all records
+        scraped_at = datetime.now()
+        for record in enrollment_data_list:
+            record["scraped_at"] = scraped_at
+
+        # Process in batches using bulk_insert_mappings
+        for i in range(0, len(enrollment_data_list), batch_size):
+            batch = enrollment_data_list[i : i + batch_size]
+
+            # Use SQLAlchemy's bulk_insert_mappings for efficient batch insert
+            self.db.bulk_insert_mappings(Enrollment, batch)
+            total_inserted += len(batch)
+
+            logger.debug(
+                f"Inserted batch {i // batch_size + 1}: {len(batch)} enrollments"
+            )
+
+        logger.info(f"Batch insert complete: {total_inserted} enrollments processed")
+        return total_inserted
