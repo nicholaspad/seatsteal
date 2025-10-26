@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: seatsteal-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  notifs:
+    build:
+      context: .
+      dockerfile: notifs.Dockerfile
+    container_name: seatsteal-notifs
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+    command: celery -A notifications.daemon.tasks:celery_app worker --beat --loglevel=info --concurrency=2
+
+  scraper:
+    build:
+      context: .
+      dockerfile: scraper.Dockerfile
+    container_name: seatsteal-scraper
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+    command: celery -A scraper.daemon.tasks:celery_app worker --beat --loglevel=info --concurrency=1
+
+volumes:
+  redis_data:

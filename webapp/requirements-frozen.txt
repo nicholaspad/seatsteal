@@ -49,7 +49,6 @@ packaging==25.0
 pathspec==0.12.1
 pip==25.2
 platformdirs==4.4.0
-playwright==1.41.2
 pluggy==1.6.0
 postgrest==0.17.0
 prompt_toolkit==3.0.52
