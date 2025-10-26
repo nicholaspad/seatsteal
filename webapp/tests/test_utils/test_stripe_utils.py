@@ -4,7 +4,7 @@ import pytest
 import stripe
 from unittest.mock import patch, MagicMock
 
-from webapp.utils.stripe_utils import (
+from utils.stripe_utils import (
     get_price_id_for_tier,
     get_tier_from_price_id,
     verify_webhook_signature,
@@ -17,7 +17,7 @@ class TestGetPriceIdForTier:
     @pytest.mark.unit
     def test_plus_tier_returns_correct_price_id(self):
         """Test that Plus tier returns the correct Stripe price ID."""
-        with patch("webapp.utils.stripe_utils.settings") as mock_settings:
+        with patch("utils.stripe_utils.settings") as mock_settings:
             mock_settings.STRIPE_PLUS_PRICE_ID = "price_plus_123"
 
             price_id = get_price_id_for_tier("plus")
@@ -26,7 +26,7 @@ class TestGetPriceIdForTier:
     @pytest.mark.unit
     def test_pro_tier_returns_correct_price_id(self):
         """Test that Pro tier returns the correct Stripe price ID."""
-        with patch("webapp.utils.stripe_utils.settings") as mock_settings:
+        with patch("utils.stripe_utils.settings") as mock_settings:
             mock_settings.STRIPE_PRO_PRICE_ID = "price_pro_456"
 
             price_id = get_price_id_for_tier("pro")
@@ -47,7 +47,7 @@ class TestGetTierFromPriceId:
     @pytest.mark.unit
     def test_plus_price_id_returns_plus(self):
         """Test that Plus price ID returns plus tier."""
-        with patch("webapp.utils.stripe_utils.settings") as mock_settings:
+        with patch("utils.stripe_utils.settings") as mock_settings:
             mock_settings.STRIPE_PLUS_PRICE_ID = "price_plus_123"
             mock_settings.STRIPE_PRO_PRICE_ID = "price_pro_456"
 
@@ -57,7 +57,7 @@ class TestGetTierFromPriceId:
     @pytest.mark.unit
     def test_pro_price_id_returns_pro(self):
         """Test that Pro price ID returns pro tier."""
-        with patch("webapp.utils.stripe_utils.settings") as mock_settings:
+        with patch("utils.stripe_utils.settings") as mock_settings:
             mock_settings.STRIPE_PLUS_PRICE_ID = "price_plus_123"
             mock_settings.STRIPE_PRO_PRICE_ID = "price_pro_456"
 
@@ -67,7 +67,7 @@ class TestGetTierFromPriceId:
     @pytest.mark.unit
     def test_unknown_price_id_returns_none(self):
         """Test that unknown price ID returns None."""
-        with patch("webapp.utils.stripe_utils.settings") as mock_settings:
+        with patch("utils.stripe_utils.settings") as mock_settings:
             mock_settings.STRIPE_PLUS_PRICE_ID = "price_plus_123"
             mock_settings.STRIPE_PRO_PRICE_ID = "price_pro_456"
 
@@ -77,7 +77,7 @@ class TestGetTierFromPriceId:
     @pytest.mark.unit
     def test_empty_price_id_returns_none(self):
         """Test that empty price ID returns None."""
-        with patch("webapp.utils.stripe_utils.settings") as mock_settings:
+        with patch("utils.stripe_utils.settings") as mock_settings:
             mock_settings.STRIPE_PLUS_PRICE_ID = "price_plus_123"
             mock_settings.STRIPE_PRO_PRICE_ID = "price_pro_456"
 

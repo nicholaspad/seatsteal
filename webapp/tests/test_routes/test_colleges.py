@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
 
-from webapp.models.college import College
+from models.college import College
 
 
 class TestGetColleges:

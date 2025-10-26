@@ -5,8 +5,8 @@ from httpx import AsyncClient
 from sqlalchemy.orm import Session
 from unittest.mock import AsyncMock, patch
 
-from webapp.models.user import Profile
-from webapp.models.college import College
+from models.user import Profile
+from models.college import College
 
 
 class TestGetUserSettings:
@@ -188,9 +188,7 @@ class TestGetSubscriptionTier:
         test_user: Profile,
     ):
         """Test getting subscription tier for free user."""
-        with patch(
-            "webapp.api.routes.user.get_user_subscription_tier"
-        ) as mock_get_tier:
+        with patch("api.routes.user.get_user_subscription_tier") as mock_get_tier:
             mock_get_tier.return_value = "free"
 
             response = await authenticated_client.get("/api/user/subscription-tier")
@@ -208,9 +206,7 @@ class TestGetSubscriptionTier:
         test_user: Profile,
     ):
         """Test getting subscription tier for plus user."""
-        with patch(
-            "webapp.api.routes.user.get_user_subscription_tier"
-        ) as mock_get_tier:
+        with patch("api.routes.user.get_user_subscription_tier") as mock_get_tier:
             mock_get_tier.return_value = "plus"
 
             response = await authenticated_client.get("/api/user/subscription-tier")
@@ -228,9 +224,7 @@ class TestGetSubscriptionTier:
         test_user: Profile,
     ):
         """Test getting subscription tier for pro user."""
-        with patch(
-            "webapp.api.routes.user.get_user_subscription_tier"
-        ) as mock_get_tier:
+        with patch("api.routes.user.get_user_subscription_tier") as mock_get_tier:
             mock_get_tier.return_value = "pro"
 
             response = await authenticated_client.get("/api/user/subscription-tier")

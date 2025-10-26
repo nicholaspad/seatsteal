@@ -5,10 +5,10 @@ from httpx import AsyncClient
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from webapp.models.user import Profile
-from webapp.models.class_model import Class
-from webapp.models.subscription import Subscription
-from webapp.models.college import College
+from models.user import Profile
+from models.class_model import Class
+from models.subscription import Subscription
+from models.college import College
 
 
 class TestGetSubscriptions:
@@ -236,7 +236,7 @@ class TestDeleteSubscription:
         test_db.commit()
 
         # Create class
-        from webapp.models.course import Course
+        from models.course import Course
 
         course = Course(
             college_id=test_college.id,

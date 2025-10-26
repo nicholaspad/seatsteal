@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 from unittest.mock import MagicMock, patch
 from sqlalchemy import select
 
-from webapp.models.user import Profile
-from webapp.models.stripe_customer import StripeCustomer
-from webapp.models.stripe_subscription import StripeSubscription
+from models.user import Profile
+from models.stripe_customer import StripeCustomer
+from models.stripe_subscription import StripeSubscription
 
 
 class TestCreateCheckoutSession:
@@ -23,12 +23,10 @@ class TestCreateCheckoutSession:
         mock_stripe,
     ):
         """Test creating checkout session for new customer."""
-        with patch(
-            "webapp.api.routes.stripe.create_stripe_customer"
-        ) as mock_create, patch(
-            "webapp.api.routes.stripe.create_checkout_session"
+        with patch("api.routes.stripe.create_stripe_customer") as mock_create, patch(
+            "api.routes.stripe.create_checkout_session"
         ) as mock_checkout, patch(
-            "webapp.api.routes.stripe.get_price_id_for_tier"
+            "api.routes.stripe.get_price_id_for_tier"
         ) as mock_price:
 
             # Mock Stripe customer creation
@@ -82,10 +80,8 @@ class TestCreateCheckoutSession:
         test_db.add(existing_customer)
         test_db.commit()
 
-        with patch(
-            "webapp.api.routes.stripe.create_checkout_session"
-        ) as mock_checkout, patch(
-            "webapp.api.routes.stripe.get_price_id_for_tier"
+        with patch("api.routes.stripe.create_checkout_session") as mock_checkout, patch(
+            "api.routes.stripe.get_price_id_for_tier"
         ) as mock_price:
 
             # Mock checkout session
@@ -153,7 +149,7 @@ class TestCreatePortalSession:
         test_db.add(customer)
         test_db.commit()
 
-        with patch("webapp.api.routes.stripe.create_portal_session") as mock_portal:
+        with patch("api.routes.stripe.create_portal_session") as mock_portal:
             # Mock portal session
             mock_session = MagicMock()
             mock_session.url = "https://billing.stripe.com/test"
@@ -203,7 +199,7 @@ class TestStripeWebhooks:
         test_user: Profile,
     ):
         """Test handling customer.created webhook."""
-        with patch("webapp.api.routes.stripe.verify_webhook_signature") as mock_verify:
+        with patch("api.routes.stripe.verify_webhook_signature") as mock_verify:
             # Mock webhook event
             mock_event = MagicMock()
             mock_event.type = "customer.created"
@@ -241,10 +237,8 @@ class TestStripeWebhooks:
         test_db.add(customer)
         test_db.commit()
 
-        with patch(
-            "webapp.api.routes.stripe.verify_webhook_signature"
-        ) as mock_verify, patch(
-            "webapp.api.routes.stripe.get_tier_from_price_id"
+        with patch("api.routes.stripe.verify_webhook_signature") as mock_verify, patch(
+            "api.routes.stripe.get_tier_from_price_id"
         ) as mock_tier:
 
             # Mock webhook event
@@ -309,10 +303,8 @@ class TestStripeWebhooks:
         test_db.add(subscription)
         test_db.commit()
 
-        with patch(
-            "webapp.api.routes.stripe.verify_webhook_signature"
-        ) as mock_verify, patch(
-            "webapp.api.routes.stripe.get_tier_from_price_id"
+        with patch("api.routes.stripe.verify_webhook_signature") as mock_verify, patch(
+            "api.routes.stripe.get_tier_from_price_id"
         ) as mock_tier:
 
             mock_event = MagicMock()
@@ -370,7 +362,7 @@ class TestStripeWebhooks:
         test_db.add(subscription)
         test_db.commit()
 
-        with patch("webapp.api.routes.stripe.verify_webhook_signature") as mock_verify:
+        with patch("api.routes.stripe.verify_webhook_signature") as mock_verify:
             mock_event = MagicMock()
             mock_event.type = "customer.subscription.deleted"
             mock_subscription = MagicMock()
@@ -409,7 +401,7 @@ class TestStripeWebhooks:
         client: AsyncClient,
     ):
         """Test webhook with invalid signature."""
-        with patch("webapp.api.routes.stripe.verify_webhook_signature") as mock_verify:
+        with patch("api.routes.stripe.verify_webhook_signature") as mock_verify:
             mock_verify.side_effect = ValueError("Invalid signature")
 
             response = await client.post(

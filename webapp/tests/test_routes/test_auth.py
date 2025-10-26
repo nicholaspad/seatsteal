@@ -5,9 +5,9 @@ from httpx import AsyncClient
 from sqlalchemy.orm import Session
 from unittest.mock import MagicMock
 
-from webapp.models.college import College
-from webapp.models.user import Profile
-from webapp.models.early_access_email import EarlyAccessEmail
+from models.college import College
+from models.user import Profile
+from models.early_access_email import EarlyAccessEmail
 
 
 class TestUpdateCollege:

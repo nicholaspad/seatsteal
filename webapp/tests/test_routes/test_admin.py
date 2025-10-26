@@ -5,12 +5,12 @@ from httpx import AsyncClient
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from webapp.models.user import Profile
-from webapp.models.subscription import Subscription
-from webapp.models.notification_log import NotificationLog
-from webapp.models.query_performance_metric import QueryPerformanceMetric
-from webapp.models.scraper import Scraper
-from webapp.models.scraper_log import ScraperLog
+from models.user import Profile
+from models.subscription import Subscription
+from models.notification_log import NotificationLog
+from models.query_performance_metric import QueryPerformanceMetric
+from models.scraper import Scraper
+from models.scraper_log import ScraperLog
 
 
 class TestGetAnalytics:
@@ -346,7 +346,7 @@ class TestUpdateUser:
         test_user: Profile,
     ):
         """Test successfully updating user college."""
-        from webapp.models.college import College
+        from models.college import College
 
         new_college = College(
             name="New Admin University",

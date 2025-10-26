@@ -24,23 +24,23 @@ os.environ["STRIPE_SECRET_KEY"] = "sk_test_123"
 os.environ["STRIPE_WEBHOOK_SECRET"] = "whsec_test_123"
 os.environ["PYTHON_ENV"] = "test"
 
-# Add parent of webapp to path so we can import webapp as a package
-webapp_parent = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(webapp_parent))
+# Add webapp directory to path so we can use relative imports
+webapp_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(webapp_dir))
 
-# Now import from webapp package
-from webapp.app import app
-from webapp.db.session import get_db
-from webapp.models.base import Base
-from webapp.models.user import Profile
-from webapp.models.college import College
-from webapp.models.course import Course
-from webapp.models.class_model import Class
-from webapp.models.enrollment import Enrollment
-from webapp.models.subscription import Subscription
-from webapp.models.stripe_customer import StripeCustomer
-from webapp.models.stripe_subscription import StripeSubscription
-from webapp.config import settings
+# Now import using relative imports (matching webapp codebase style)
+from app import app
+from db.session import get_db
+from models.base import Base
+from models.user import Profile
+from models.college import College
+from models.course import Course
+from models.class_model import Class
+from models.enrollment import Enrollment
+from models.subscription import Subscription
+from models.stripe_customer import StripeCustomer
+from models.stripe_subscription import StripeSubscription
+from config import settings
 
 
 # Test database URL - Use PostgreSQL test database
@@ -246,8 +246,8 @@ def test_subscription(
 @pytest.fixture
 def mock_supabase():
     """Mock Supabase client."""
-    with patch("webapp.api.middleware.auth.supabase") as mock1, patch(
-        "webapp.api.routes.auth.supabase"
+    with patch("api.middleware.auth.supabase") as mock1, patch(
+        "api.routes.auth.supabase"
     ) as mock2:
         mock_auth = MagicMock()
         mock1.auth = mock_auth
@@ -259,7 +259,7 @@ def mock_supabase():
 @pytest.fixture
 def mock_stripe():
     """Mock Stripe client."""
-    with patch("webapp.utils.stripe_utils.stripe") as mock:
+    with patch("utils.stripe_utils.stripe") as mock:
         yield mock
 
 

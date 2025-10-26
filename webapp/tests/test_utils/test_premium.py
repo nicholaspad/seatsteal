@@ -6,18 +6,18 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from uuid import uuid4
 
-from webapp.utils.premium import (
+from utils.premium import (
     get_user_subscription_tier,
     get_user_active_subscription_count,
     get_subscription_features,
     require_premium_access,
     check_subscription_limit,
 )
-from webapp.models.user import Profile
-from webapp.models.stripe_subscription import StripeSubscription
-from webapp.models.stripe_customer import StripeCustomer
-from webapp.models.subscription import Subscription
-from webapp.models.class_model import Class
+from models.user import Profile
+from models.stripe_subscription import StripeSubscription
+from models.stripe_customer import StripeCustomer
+from models.subscription import Subscription
+from models.class_model import Class
 
 
 class TestGetUserSubscriptionTier:

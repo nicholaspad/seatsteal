@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 from unittest.mock import patch, AsyncMock
 from datetime import datetime, timedelta
 
-from webapp.models.class_model import Class
-from webapp.models.course import Course
-from webapp.models.enrollment import Enrollment
+from models.class_model import Class
+from models.course import Course
+from models.enrollment import Enrollment
 
 
 class TestGetClass:
@@ -101,7 +101,7 @@ class TestGetEnrollmentAnalysis:
     ):
         """Test successfully getting enrollment analysis (premium)."""
         with patch(
-            "webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock
+            "api.routes.classes.require_premium_access", new_callable=AsyncMock
         ) as mock_premium:
             mock_premium.return_value = None  # User has premium access
 
@@ -140,7 +140,7 @@ class TestGetEnrollmentAnalysis:
     ):
         """Test that competition level is calculated correctly."""
         with patch(
-            "webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock
+            "api.routes.classes.require_premium_access", new_callable=AsyncMock
         ) as mock_premium:
             mock_premium.return_value = None
 
@@ -176,7 +176,7 @@ class TestGetEnrollmentAnalysis:
         from fastapi import HTTPException
         from unittest.mock import MagicMock
 
-        with patch("webapp.api.routes.classes.require_premium_access") as mock_premium:
+        with patch("api.routes.classes.require_premium_access") as mock_premium:
             mock_premium.side_effect = HTTPException(
                 status_code=403, detail="Premium access required"
             )
@@ -195,7 +195,7 @@ class TestGetEnrollmentAnalysis:
     ):
         """Test getting enrollment analysis with no enrollment history."""
         with patch(
-            "webapp.api.routes.classes.require_premium_access", new_callable=AsyncMock
+            "api.routes.classes.require_premium_access", new_callable=AsyncMock
         ) as mock_premium:
             mock_premium.return_value = None
 

@@ -5,8 +5,8 @@ from httpx import AsyncClient
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
-from webapp.models.notification_log import NotificationLog
-from webapp.models.subscription import Subscription
+from models.notification_log import NotificationLog
+from models.subscription import Subscription
 
 
 class TestGetNotificationTrends:

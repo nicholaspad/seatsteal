@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from webapp.api.middleware.auth import (
+from api.middleware.auth import (
     get_current_user,
     get_optional_user,
     require_admin,
 )
-from webapp.models.user import Profile
-from webapp.models.college import College
+from models.user import Profile
+from models.college import College
 
 
 class TestGetCurrentUser:
@@ -24,7 +24,7 @@ class TestGetCurrentUser:
         test_db: Session,
     ):
         """Test with malformed JWT token."""
-        with patch("webapp.api.middleware.auth.supabase") as mock_supabase:
+        with patch("api.middleware.auth.supabase") as mock_supabase:
             # Mock Supabase returning invalid response
             mock_supabase.auth.get_user.return_value = None
 
@@ -44,7 +44,7 @@ class TestGetCurrentUser:
         test_db: Session,
     ):
         """Test with expired JWT token."""
-        with patch("webapp.api.middleware.auth.supabase") as mock_supabase:
+        with patch("api.middleware.auth.supabase") as mock_supabase:
             # Mock Supabase returning error for expired token
             mock_response = MagicMock()
             mock_response.user = None
@@ -65,7 +65,7 @@ class TestGetCurrentUser:
         test_db: Session,
     ):
         """Test with valid JWT but user profile doesn't exist in database."""
-        with patch("webapp.api.middleware.auth.supabase") as mock_supabase:
+        with patch("api.middleware.auth.supabase") as mock_supabase:
             # Mock Supabase returning valid user
             non_existent_user_id = str(uuid4())
             mock_user = MagicMock()
@@ -92,7 +92,7 @@ class TestGetCurrentUser:
         test_db: Session,
     ):
         """Test with user ID that's not a valid UUID."""
-        with patch("webapp.api.middleware.auth.supabase") as mock_supabase:
+        with patch("api.middleware.auth.supabase") as mock_supabase:
             # Mock Supabase returning invalid user ID format
             mock_user = MagicMock()
             mock_user.id = "not-a-valid-uuid"
@@ -116,7 +116,7 @@ class TestGetCurrentUser:
         test_db: Session,
     ):
         """Test handling of Supabase connection errors."""
-        with patch("webapp.api.middleware.auth.supabase") as mock_supabase:
+        with patch("api.middleware.auth.supabase") as mock_supabase:
             # Mock Supabase raising an exception
             mock_supabase.auth.get_user.side_effect = Exception("Connection timeout")
 
@@ -149,7 +149,7 @@ class TestGetOptionalUser:
         test_db: Session,
     ):
         """Test that invalid token returns None instead of raising."""
-        with patch("webapp.api.middleware.auth.supabase") as mock_supabase:
+        with patch("api.middleware.auth.supabase") as mock_supabase:
             mock_supabase.auth.get_user.return_value = None
 
             mock_credentials = MagicMock()
@@ -165,7 +165,7 @@ class TestGetOptionalUser:
         test_user: Profile,
     ):
         """Test that valid credentials return the user."""
-        with patch("webapp.api.middleware.auth.supabase") as mock_supabase:
+        with patch("api.middleware.auth.supabase") as mock_supabase:
             # Mock Supabase returning valid user
             mock_user = MagicMock()
             mock_user.id = str(test_user.id)
