@@ -82,8 +82,12 @@ class ScraperService:
         if not college.is_active:
             raise ValueError(f"College '{college_short_name}' is not active")
 
-        # Start scraper log
-        log_id = await self.log_service.start_log(college.id)
+        # Get scraper_id and start scraper log
+        scraper_id = await self.log_service.get_scraper_id_from_college(college.id)
+        if not scraper_id:
+            raise ValueError(f"No scraper found for college '{college_short_name}'")
+
+        log_id = await self.log_service.start_log(scraper_id)
 
         try:
             # Get appropriate scraper
@@ -143,9 +147,9 @@ class ScraperService:
             # Complete scraper log
             await self.log_service.complete_log(
                 log_id,
-                status="success",
-                courses_scraped=courses_saved,
-                classes_scraped=classes_saved,
+                outcome="success",
+                courses_created=courses_saved,
+                classes_created=classes_saved,
             )
 
             logger.info(
@@ -167,7 +171,7 @@ class ScraperService:
         except Exception as e:
             # Log error
             await self.log_service.complete_log(
-                log_id, status="failed", error_message=str(e)
+                log_id, outcome="error", error_message=str(e)
             )
 
             logger.error(f"Scrape failed for {college_short_name} {department}: {e}")

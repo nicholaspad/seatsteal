@@ -17,7 +17,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SSH_KEY="$REPO_ROOT/seatsteal.pem"
 
 # Menu options
-options=("notifs" "scraper" "redis" "all (stop docker-compose)")
+options=("notifs" "scraper" "all (stop docker-compose)")
 selected=0
 
 # Function to display menu
@@ -90,10 +90,6 @@ case $choice in
         CONTAINER_NAME="seatsteal-scraper"
         ;;
     3)
-        SERVICE="redis"
-        CONTAINER_NAME="seatsteal-redis"
-        ;;
-    4)
         SERVICE="all"
         CONTAINER_NAME=""
         ;;

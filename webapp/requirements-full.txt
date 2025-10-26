@@ -9,10 +9,6 @@ alembic==1.13.1
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
 
-# Background Tasks
-celery==5.3.6
-redis==5.0.1
-
 # Scraping
 beautifulsoup4==4.12.3
 requests==2.31.0

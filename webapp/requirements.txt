@@ -1,5 +1,5 @@
 # Vercel-optimized requirements
-# Excludes scraper-specific (celery, beautifulsoup4) and dev dependencies
+# Excludes scraper-specific (beautifulsoup4, requests, lxml) and dev dependencies
 # for faster builds and smaller deployment size
 
 # Web Framework

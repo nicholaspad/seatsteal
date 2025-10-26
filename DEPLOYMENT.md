@@ -105,9 +105,6 @@ Go to your project settings > Environment Variables and add:
 - `VITE_API_BASE_URL` - Your backend API URL (same as deployment URL)
 - `FRONTEND_URL` - Your frontend URL (from step 1)
 
-**Redis (if needed for future features):**
-- `REDIS_URL` - Redis connection URL (optional for API-only deployment)
-
 **Stripe (Payments):**
 - `STRIPE_SECRET_KEY` - Stripe secret API key
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret

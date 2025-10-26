@@ -21,6 +21,5 @@ COPY . .
 # Set Python path
 ENV PYTHONPATH=/app
 
-# Run Celery worker and Beat together
-# Worker processes scraper tasks, Beat schedules them
-CMD celery -A scraper.daemon.tasks:celery_app worker --beat --loglevel=info --concurrency=1
+# Run the scraper script in loop mode (runs every 10 minutes)
+CMD ["python", "scraper/run_scraper.py", "--loop"]

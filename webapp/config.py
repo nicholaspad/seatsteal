@@ -53,10 +53,6 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "https://seatsteal.app"
     """Base URL for the frontend application"""
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
-    """Redis connection URL for Celery message broker"""
-
     # Scraper
     SCRAPER_CONCURRENT_LIMIT: int = 5
     """Maximum number of concurrent scraping tasks"""
@@ -117,14 +113,6 @@ class Settings(BaseSettings):
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         return v.rstrip("/")
-
-    @field_validator("REDIS_URL")
-    @classmethod
-    def validate_redis_url(cls, v: str) -> str:
-        """Validate Redis URL format"""
-        if not v.startswith(("redis://", "rediss://")):
-            raise ValueError("REDIS_URL must start with redis:// or rediss://")
-        return v
 
     @field_validator("AWS_SES_FROM_EMAIL")
     @classmethod

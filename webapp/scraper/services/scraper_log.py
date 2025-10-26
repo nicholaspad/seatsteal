@@ -5,6 +5,7 @@ from datetime import datetime
 from loguru import logger
 
 from models.scraper_log import ScraperLog
+from models.scraper import Scraper
 
 
 class ScraperLogService:
@@ -19,36 +20,52 @@ class ScraperLogService:
         """
         self.db = db
 
-    async def start_log(self, college_id: int) -> int:
+    async def get_scraper_id_from_college(self, college_id: int) -> Optional[int]:
+        """
+        Get scraper ID for a given college ID.
+
+        Args:
+            college_id: College ID
+
+        Returns:
+            Scraper ID or None if not found
+        """
+        result = await self.db.execute(
+            select(Scraper.id).where(Scraper.college_id == college_id)
+        )
+        scraper_id = result.scalar_one_or_none()
+        return scraper_id
+
+    async def start_log(self, scraper_id: int) -> int:
         """
         Create a new scraper log entry for a scraping run.
 
         Args:
-            college_id: ID of the college being scraped
+            scraper_id: ID of the scraper being run
 
         Returns:
             ID of the created log entry
         """
         log = ScraperLog(
-            college_id=college_id,
-            status="running",
-            courses_scraped=0,
-            classes_scraped=0,
+            scraper_id=scraper_id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
             started_at=datetime.now(),
         )
 
         self.db.add(log)
         await self.db.flush()
 
-        logger.debug(f"Started scraper log {log.id} for college {college_id}")
+        logger.debug(f"Started scraper log {log.id} for scraper {scraper_id}")
         return log.id
 
     async def complete_log(
         self,
         log_id: int,
-        status: str,
-        courses_scraped: int = 0,
-        classes_scraped: int = 0,
+        outcome: str,
+        courses_created: int = 0,
+        classes_created: int = 0,
         error_message: Optional[str] = None,
     ):
         """
@@ -56,9 +73,9 @@ class ScraperLogService:
 
         Args:
             log_id: ID of the log entry
-            status: Final status ('success', 'failed', etc.)
-            courses_scraped: Number of courses scraped
-            classes_scraped: Number of classes scraped
+            outcome: Final outcome ('success', 'error', 'partial', 'timeout')
+            courses_created: Number of courses created
+            classes_created: Number of classes created
             error_message: Optional error message if failed
         """
         result = await self.db.execute(
@@ -70,14 +87,14 @@ class ScraperLogService:
             logger.error(f"Scraper log {log_id} not found")
             return
 
-        log.status = status
-        log.courses_scraped = courses_scraped
-        log.classes_scraped = classes_scraped
+        log.outcome = outcome
+        log.courses_created = courses_created
+        log.classes_created = classes_created
         log.completed_at = datetime.now()
 
         if log.started_at:
             duration = (log.completed_at - log.started_at).total_seconds()
-            log.duration_seconds = int(duration)
+            log.duration_ms = int(duration * 1000)
 
         if error_message:
             log.error_message = error_message
@@ -85,8 +102,8 @@ class ScraperLogService:
         await self.db.commit()
 
         logger.debug(
-            f"Completed scraper log {log_id}: status={status}, "
-            f"courses={courses_scraped}, classes={classes_scraped}"
+            f"Completed scraper log {log_id}: outcome={outcome}, "
+            f"courses={courses_created}, classes={classes_created}"
         )
 
     async def get_recent_logs(
@@ -105,7 +122,10 @@ class ScraperLogService:
         query = select(ScraperLog).order_by(ScraperLog.started_at.desc()).limit(limit)
 
         if college_id:
-            query = query.where(ScraperLog.college_id == college_id)
+            # Join with scrapers to filter by college_id
+            query = query.join(Scraper, ScraperLog.scraper_id == Scraper.id).where(
+                Scraper.college_id == college_id
+            )
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
@@ -137,7 +157,8 @@ class ScraperLogService:
         """
         result = await self.db.execute(
             select(ScraperLog)
-            .where(ScraperLog.college_id == college_id, ScraperLog.status == "success")
+            .join(Scraper, ScraperLog.scraper_id == Scraper.id)
+            .where(Scraper.college_id == college_id, ScraperLog.outcome == "success")
             .order_by(ScraperLog.completed_at.desc())
             .limit(1)
         )

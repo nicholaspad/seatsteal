@@ -41,7 +41,7 @@ echo -e "${GREEN}✅ Local dependencies satisfied${NC}"
 echo ""
 
 # Menu options
-options=("notifs" "scraper" "all (notifs + scraper + redis)")
+options=("notifs" "scraper" "all (notifs + scraper)")
 selected=0
 
 # Function to display menu
@@ -286,7 +286,7 @@ if [[ "$SERVICE" == "all" ]]; then
     echo "🐳 Stopping all containers..."
     docker-compose down || true
 
-    echo "🏗️  Building and starting all services (redis, notifs, scraper)..."
+    echo "🏗️  Building and starting all services (notifs, scraper)..."
     docker-compose up --build -d
 
     echo "⏳ Waiting for services to start..."
@@ -299,13 +299,6 @@ if [[ "$SERVICE" == "all" ]]; then
     echo "📋 Recent logs:"
     docker-compose logs --tail=20
 else
-    echo "🐳 Checking if Redis is running..."
-    if ! docker ps | grep -q "seatsteal-redis"; then
-        echo "🚀 Starting Redis container..."
-        docker-compose up -d redis
-        sleep 3
-    fi
-
     echo "🐳 Stopping $SERVICE container if running..."
     docker stop seatsteal-$SERVICE || true
     docker rm seatsteal-$SERVICE || true
@@ -313,15 +306,10 @@ else
     echo "🏗️  Building $SERVICE Docker image..."
     docker build --tag "seatsteal-$SERVICE" -f "$DOCKERFILE" .
 
-    # Get the docker-compose network name (typically webapp_default)
-    COMPOSE_NETWORK=\$(docker inspect seatsteal-redis -f '{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}}{{end}}')
-
     echo "🚀 Starting $SERVICE container..."
     docker run -d \\
         --name "seatsteal-$SERVICE" \\
         --env-file .env \\
-        --env REDIS_URL=redis://redis:6379 \\
-        --network "\$COMPOSE_NETWORK" \\
         "seatsteal-$SERVICE"
 
     echo "✅ Deployment completed successfully!"

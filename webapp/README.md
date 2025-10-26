@@ -39,17 +39,37 @@ The API will be available at `http://localhost:5000`
 - API docs: `http://localhost:5000/docs`
 - Health check: `http://localhost:5000/health`
 
-### Scraper Workers
+### Scraper Worker
 
-**Terminal 1 - Scraper Worker:**
+**Terminal 2 - Scraper Script:**
 ```bash
-celery -A scraper.daemon.tasks worker --loglevel=info --pool=solo
+# Make sure you're in the webapp directory
+cd webapp
+
+# Run once for a specific college
+python scraper/run_scraper.py run --college princeton
+
+# Run for all active colleges
+python scraper/run_scraper.py run-all
+
+# Run in loop mode (scrapes every 10 minutes)
+python scraper/run_scraper.py --loop
+
+# Run with options
+python scraper/run_scraper.py run --college brown --subject CS --limit 50
+
+# View scraper status
+python scraper/run_scraper.py status
+
+# With debug logging
+python scraper/run_scraper.py run-all --debug
 ```
 
-**Terminal 2 - Scraper Beat (Scheduler):**
-```bash
-celery -A scraper.daemon.scheduler beat --loglevel=info
-```
+The scraper system:
+- Uses database-based locking to prevent concurrent scrapes
+- Includes retry logic with exponential backoff (3 attempts)
+- Logs all runs to `scraper_logs` table
+- No Redis dependency (unlike old Celery version)
 
 ### Notification Worker
 
@@ -142,7 +162,9 @@ webapp/
 ├── scraper/              # Course scraping system
 │   ├── scrapers/         # College-specific scrapers
 │   ├── services/         # Scraper logic
-│   ├── daemon/           # Celery tasks
+│   ├── run_scraper.py   # Scraper CLI script
+│   ├── scraper_job.py   # Job orchestration
+│   ├── scraper_lock.py  # Database-based locking
 │   └── utils/            # Utilities
 ├── notifications/        # Notification system
 │   ├── templates/        # Email templates
@@ -172,15 +194,17 @@ alembic history
 
 ## Task Management
 
-### Scraper (Celery)
+### Scraper (Python Script)
 
 ```bash
-# Trigger manual scrape
-celery -A scraper.daemon.tasks call scraper.scrape_college --args='["princeton", "CS"]'
+# Run scraper for a specific college
+python scraper/run_scraper.py run --college princeton
 
-# Monitor tasks
-celery -A scraper.daemon.tasks inspect active
-celery -A scraper.daemon.tasks inspect scheduled
+# Run scraper for all colleges
+python scraper/run_scraper.py run-all
+
+# View scraper status
+python scraper/run_scraper.py status
 ```
 
 ### Notifications (Python Script)
@@ -216,8 +240,9 @@ pytest
 
 ## Notes
 
-- Redis must be running for scraper Celery tasks to work
+- **No Redis/Celery required** - Both scraper and notifications use simple Python scripts
 - AWS SES credentials required for email notifications
-- Notification system runs independently (no Redis/Celery required)
+- Scraper uses database-based locking to prevent concurrent runs
+- Notification system uses tier-based cadence (pro=1min, plus=5min, free=30min)
 - Database migrations are in `alembic/versions/`
 - All scrapers implement the `BaseScraper` interface
