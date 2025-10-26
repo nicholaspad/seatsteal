@@ -32,16 +32,73 @@ if ! command -v scp &> /dev/null; then
 fi
 
 echo -e "${GREEN}✅ Local dependencies satisfied${NC}"
+echo ""
 
-# Prompt for service
-echo "Select service to deploy:"
-echo "1) notifs"
-echo "2) scraper"
-echo "3) all (notifs + scraper + redis)"
-echo -n "Enter choice (1-3): "
-read -r SERVICE_CHOICE
+# Menu options
+options=("notifs" "scraper" "all (notifs + scraper + redis)")
+selected=0
 
-case $SERVICE_CHOICE in
+# Function to display menu
+display_menu() {
+  echo "Select service to deploy:"
+  echo "(Use ↑/↓ arrows to navigate, Enter to select)"
+  echo ""
+
+  for i in "${!options[@]}"; do
+    if [ $i -eq $selected ]; then
+      echo "  → ${options[$i]}"
+    else
+      echo "    ${options[$i]}"
+    fi
+  done
+}
+
+# Clear screen and show menu
+clear
+echo -e "${YELLOW}🚀 EC2 Deployment Script for seatsteal/webapp${NC}"
+echo "========================================"
+echo ""
+display_menu
+
+# Read arrow keys
+while true; do
+  read -rsn1 key
+
+  if [[ $key == $'\x1b' ]]; then
+    read -rsn2 key
+    case $key in
+      '[A')  # Up arrow
+        ((selected--))
+        if [ $selected -lt 0 ]; then
+          selected=$((${#options[@]} - 1))
+        fi
+        clear
+        echo -e "${YELLOW}🚀 EC2 Deployment Script for seatsteal/webapp${NC}"
+        echo "========================================"
+        echo ""
+        display_menu
+        ;;
+      '[B')  # Down arrow
+        ((selected++))
+        if [ $selected -ge ${#options[@]} ]; then
+          selected=0
+        fi
+        clear
+        echo -e "${YELLOW}🚀 EC2 Deployment Script for seatsteal/webapp${NC}"
+        echo "========================================"
+        echo ""
+        display_menu
+        ;;
+    esac
+  elif [[ $key == "" ]]; then
+    break
+  fi
+done
+
+# Set SERVICE and DOCKERFILE based on selection
+choice=$((selected + 1))
+
+case $choice in
     1)
         SERVICE="notifs"
         DOCKERFILE="notifs.Dockerfile"
@@ -54,12 +111,12 @@ case $SERVICE_CHOICE in
         SERVICE="all"
         DOCKERFILE=""
         ;;
-    *)
-        echo -e "${RED}❌ Error: Invalid choice. Please select 1-3${NC}"
-        exit 1
-        ;;
 esac
 
+clear
+echo -e "${YELLOW}🚀 EC2 Deployment Script for seatsteal/webapp${NC}"
+echo "========================================"
+echo ""
 echo -e "${GREEN}📦 Selected service: $SERVICE${NC}"
 
 # Check if SSH key exists
@@ -74,16 +131,17 @@ if [[ "$(stat -f %A "$SSH_KEY")" != "400" ]]; then
     chmod 400 "$SSH_KEY"
 fi
 
-# Read EC2 host from file
-EC2_HOST_FILE="$SCRIPT_DIR/ec2-host"
+# Read EC2 host from JSON file
+EC2_HOST_FILE="$SCRIPT_DIR/ec2-host.json"
 if [[ ! -f "$EC2_HOST_FILE" ]]; then
     echo -e "${RED}❌ Error: EC2 host file not found at $EC2_HOST_FILE${NC}"
+    echo "Run './service.sh → Spin up instance' first."
     exit 1
 fi
 
-EC2_HOST=$(cat "$EC2_HOST_FILE" | tr -d '\n\r')
+EC2_HOST=$(cat "$EC2_HOST_FILE" | grep -o '"public_dns":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
 if [[ -z "$EC2_HOST" ]]; then
-    echo -e "${RED}❌ Error: EC2 host file is empty${NC}"
+    echo -e "${RED}❌ Error: Could not read public DNS from $EC2_HOST_FILE${NC}"
     exit 1
 fi
 
@@ -150,11 +208,9 @@ setup_dependencies() {
     # Check and install docker-compose
     if ! command -v docker-compose &> /dev/null; then
         echo "📦 Installing docker-compose..."
-        # Install pip if not available
-        if ! command -v pip3 &> /dev/null; then
-            \$PKG_MGR install -y python3-pip
-        fi
-        sudo pip3 install docker-compose
+        # Download docker-compose binary from GitHub
+        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
     else
         echo "✅ docker-compose is already installed"
     fi

@@ -31,16 +31,17 @@ if [[ "$(stat -f %A "$SSH_KEY")" != "400" ]]; then
     chmod 400 "$SSH_KEY"
 fi
 
-# Read EC2 host from file
-EC2_HOST_FILE="$SCRIPT_DIR/ec2-host"
+# Read EC2 host from JSON file
+EC2_HOST_FILE="$SCRIPT_DIR/ec2-host.json"
 if [[ ! -f "$EC2_HOST_FILE" ]]; then
     echo -e "${RED}❌ Error: EC2 host file not found at $EC2_HOST_FILE${NC}"
+    echo "Run './service.sh → Spin up instance' first."
     exit 1
 fi
 
-EC2_HOST=$(cat "$EC2_HOST_FILE" | tr -d '\n\r')
+EC2_HOST=$(cat "$EC2_HOST_FILE" | grep -o '"public_dns":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
 if [[ -z "$EC2_HOST" ]]; then
-    echo -e "${RED}❌ Error: EC2 host file is empty${NC}"
+    echo -e "${RED}❌ Error: Could not read public DNS from $EC2_HOST_FILE${NC}"
     exit 1
 fi
 

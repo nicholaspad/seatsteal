@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Menu options
-options=("Deploy services" "View service logs" "Kill services" "SSH into instance")
+options=("Deploy services" "View service logs" "Kill services" "SSH into instance" "Spin up instance (t4g.nano)" "Terminate instance")
 selected=0  # Default to "Deploy services" (index 0)
 
 # Function to display menu
@@ -98,6 +98,18 @@ case $choice in
     echo "🔑 SSHing into EC2 instance..."
     echo ""
     ./utils/login-ec2.sh
+    ;;
+  5)
+    echo ""
+    echo "🚀 Spinning up new EC2 instance (t4g.nano)..."
+    echo ""
+    ./utils/spin-up-ec2.sh
+    ;;
+  6)
+    echo ""
+    echo "🛑 Terminating EC2 instance..."
+    echo ""
+    ./utils/terminate-ec2.sh
     ;;
 esac
 
