@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, ArrowRight, Loader2 } from "lucide-react";
 import { getSubscriptionFeatures } from "@/lib/subscription-constants";
 import { supabase } from "@/lib/supabase";
+import { fetchWithToasts } from "@/lib/api";
 import { toast } from "sonner";
 
 export function PricingTiers() {
@@ -78,13 +79,16 @@ export function PricingTiers() {
       }
 
       // Create checkout session
-      const response = await fetch("/api/stripe/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetchWithToasts(
+        "/api/stripe/create-checkout-session",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ tier: tierId }),
         },
-        body: JSON.stringify({ tier: tierId }),
-      });
+      );
 
       const data = await response.json();
 

@@ -21,10 +21,10 @@ class Settings(BaseSettings):
     """PostgreSQL database URL. Will be converted to async format for asyncpg."""
 
     # Supabase
-    SUPABASE_URL: str
+    VITE_SUPABASE_URL: str
     """Supabase project URL (e.g., https://your-project.supabase.co)"""
 
-    SUPABASE_ANON_KEY: str
+    VITE_SUPABASE_ANON_KEY: str
     """Supabase anonymous/public API key"""
 
     SUPABASE_SERVICE_ROLE_KEY: str
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     PYTHON_ENV: Literal["development", "production", "test"] = "development"
     """Environment mode: development, production, or test"""
 
-    API_BASE_URL: str = "http://localhost:5000"
+    VITE_API_BASE_URL: str = "http://localhost:5000"
     """Base URL for the API server"""
 
     FRONTEND_URL: str = "http://localhost:5173"
@@ -102,15 +102,15 @@ class Settings(BaseSettings):
             # If it's already async or unknown format, return as-is
             return self.DATABASE_URL
 
-    @field_validator("SUPABASE_URL")
+    @field_validator("VITE_SUPABASE_URL")
     @classmethod
     def validate_supabase_url(cls, v: str) -> str:
         """Validate Supabase URL format"""
         if not v.startswith(("http://", "https://")):
-            raise ValueError("SUPABASE_URL must start with http:// or https://")
+            raise ValueError("VITE_SUPABASE_URL must start with http:// or https://")
         return v.rstrip("/")
 
-    @field_validator("API_BASE_URL", "FRONTEND_URL")
+    @field_validator("VITE_API_BASE_URL", "FRONTEND_URL")
     @classmethod
     def validate_url(cls, v: str) -> str:
         """Validate URL format"""

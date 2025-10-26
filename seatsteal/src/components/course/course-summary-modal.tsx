@@ -15,6 +15,7 @@ import {
   BookOpen,
   TrendingUp,
 } from "lucide-react";
+import { fetchWithToasts } from "@/lib/api";
 import type { CourseWithCollege } from "@/types/api";
 
 interface CourseSummaryData {
@@ -49,7 +50,9 @@ export function CourseSummaryModal({
     setError(null);
 
     try {
-      const response = await fetch(`/api/courses/${course.id}/summary`);
+      const response = await fetchWithToasts(
+        `/api/courses/${course.id}/summary`,
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch course summary data");

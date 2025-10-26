@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 
 # Set environment variables for testing BEFORE any imports
-os.environ["SUPABASE_URL"] = "https://test.supabase.co"
+os.environ["VITE_SUPABASE_URL"] = "https://test.supabase.co"
 os.environ["SUPABASE_SERVICE_ROLE_KEY"] = "test_key"
 os.environ["FRONTEND_URL"] = "http://localhost:3000"
 os.environ["STRIPE_SECRET_KEY"] = "sk_test_123"

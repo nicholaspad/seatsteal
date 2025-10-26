@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { fetchWithToasts } from "@/lib/api";
 import type { User } from "@supabase/supabase-js";
 import type { SubscriptionTier } from "@/lib/subscription-constants";
 
@@ -31,7 +32,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     try {
       setTierLoading(true);
-      const response = await fetch("/api/user/subscription-tier");
+      const response = await fetchWithToasts("/api/user/subscription-tier");
 
       if (response.ok) {
         const data = await response.json();

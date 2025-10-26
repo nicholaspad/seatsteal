@@ -14,15 +14,38 @@ export class ServerErrorWithToast extends Error {
 }
 
 /**
+ * Helper function to convert relative API URLs to absolute URLs.
+ * - Relative URLs starting with /api/ → prepend base URL
+ * - Absolute URLs (http://, https://) → return as-is
+ * - Other URLs → return as-is
+ */
+function resolveApiUrl(url: string): string {
+  // If already absolute, return as-is
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  // If relative API path, prepend base URL
+  if (url.startsWith("/api/")) {
+    return `${config.api.baseUrl}${url}`;
+  }
+
+  // Otherwise return as-is
+  return url;
+}
+
+/**
  * Enhanced fetch wrapper that handles rate limiting (429 responses)
  * and server errors (5xx responses) with automatic toast messages.
  * Throws ServerErrorWithToast for any error to prevent duplicate toasts.
+ * Automatically resolves relative /api/ URLs to the configured backend.
  */
 export async function fetchWithToasts(
   url: string,
   options?: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(url, options);
+  const resolvedUrl = resolveApiUrl(url);
+  const response = await fetch(resolvedUrl, options);
 
   // Handle rate limiting specifically
   if (response.status === 429) {
@@ -48,12 +71,14 @@ export const fetchWithRateLimit = fetchWithToasts;
 /**
  * Alternative fetch wrapper that handles rate limiting silently
  * for cases where you want to handle the error differently.
+ * Automatically resolves relative /api/ URLs to the configured backend.
  */
 export async function fetchWithRateLimitSilent(
   url: string,
   options?: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(url, options);
+  const resolvedUrl = resolveApiUrl(url);
+  const response = await fetch(resolvedUrl, options);
 
   // Handle rate limiting without toast (for custom error handling)
   if (response.status === 429) {

@@ -90,8 +90,8 @@ Go to your project settings > Environment Variables and add:
 - `DATABASE_URL` - PostgreSQL database URL from Supabase
 
 **Supabase:**
-- `SUPABASE_URL` - Your Supabase project URL
-- `SUPABASE_ANON_KEY` - Your Supabase anonymous key
+- `VITE_SUPABASE_URL` - Your Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Your Supabase anonymous key
 - `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key
 
 **AWS SES (Email):**
@@ -102,7 +102,7 @@ Go to your project settings > Environment Variables and add:
 
 **Application:**
 - `PYTHON_ENV` - Set to `production` (already configured in vercel.json)
-- `API_BASE_URL` - Your backend API URL (same as deployment URL)
+- `VITE_API_BASE_URL` - Your backend API URL (same as deployment URL)
 - `FRONTEND_URL` - Your frontend URL (from step 1)
 
 **Redis (if needed for future features):**
