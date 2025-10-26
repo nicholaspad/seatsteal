@@ -76,7 +76,6 @@ class EmailService:
         course_code: str,
         course_title: str,
         class_section: str,
-        spots_available: int,
         college_name: str,
         unsubscribe_url: Optional[str] = None,
     ) -> bool:
@@ -88,7 +87,6 @@ class EmailService:
             course_code: Course code (e.g., 'CS 101')
             course_title: Course title
             class_section: Section identifier
-            spots_available: Number of available spots
             college_name: Name of the college
             unsubscribe_url: Optional unsubscribe link
 
@@ -101,7 +99,6 @@ class EmailService:
                 course_code=course_code,
                 course_title=course_title,
                 class_section=class_section,
-                spots_available=spots_available,
                 college_name=college_name,
                 course_url=f"{settings.FRONTEND_URL}/courses/{course_code}",
                 unsubscribe_url=unsubscribe_url,
@@ -117,7 +114,6 @@ A seat is now available in your watched course!
 {course_code}: {course_title}
 Section: {class_section}
 College: {college_name}
-Spots available: {spots_available}
 
 Act fast before it fills up!
 
@@ -159,7 +155,6 @@ View course: {settings.FRONTEND_URL}/courses/{course_code}
                 - course_code
                 - course_title
                 - class_section
-                - spots_available
                 - college_name
 
         Returns:
@@ -174,7 +169,6 @@ View course: {settings.FRONTEND_URL}/courses/{course_code}
                 course_code=notification["course_code"],
                 course_title=notification["course_title"],
                 class_section=notification["class_section"],
-                spots_available=notification["spots_available"],
                 college_name=notification["college_name"],
                 unsubscribe_url=notification.get("unsubscribe_url"),
             )

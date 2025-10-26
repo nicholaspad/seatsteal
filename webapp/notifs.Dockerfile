@@ -21,6 +21,5 @@ COPY . .
 # Set Python path
 ENV PYTHONPATH=/app
 
-# Run Celery worker and Beat together
-# Worker processes notification tasks, Beat schedules them
-CMD celery -A notifications.daemon.tasks:celery_app worker --beat --loglevel=info --concurrency=2
+# Run the notification script in loop mode (runs every minute)
+CMD ["python", "notifications/send_notifs.py", "--loop"]

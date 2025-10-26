@@ -51,17 +51,30 @@ celery -A scraper.daemon.tasks worker --loglevel=info --pool=solo
 celery -A scraper.daemon.scheduler beat --loglevel=info
 ```
 
-### Notification Workers
+### Notification Worker
 
-**Terminal 3 - Notification Worker:**
+**Terminal 3 - Notification Script:**
 ```bash
-celery -A notifications.daemon.tasks worker --loglevel=info --pool=solo
+# Make sure you're in the webapp directory
+cd webapp
+
+# Run once
+python notifications/send_notifs.py
+
+# Run in loop mode (checks every minute)
+python notifications/send_notifs.py --loop
+
+# Dry run (no database changes)
+python notifications/send_notifs.py --dry-run
+
+# With debug logging
+python notifications/send_notifs.py --loop --debug
 ```
 
-**Terminal 4 - Notification Beat (Scheduler):**
-```bash
-celery -A notifications.daemon.scheduler beat --loglevel=info
-```
+The notification system runs every minute and sends notifications based on user tier:
+- **Pro users**: Every minute
+- **Plus users**: Every 5 minutes
+- **Free users**: Every 30 minutes
 
 ## Management Scripts
 
@@ -133,7 +146,9 @@ webapp/
 │   └── utils/            # Utilities
 ├── notifications/        # Notification system
 │   ├── templates/        # Email templates
-│   └── daemon/           # Celery tasks
+│   ├── send_notifs.py   # Notification job script
+│   ├── constants.py     # Tier cadence configuration
+│   └── email_service.py # Email sending service
 ├── db/                   # Database connection
 ├── scripts/              # Management scripts
 └── alembic/             # Database migrations
@@ -155,18 +170,27 @@ alembic downgrade -1
 alembic history
 ```
 
-## Celery Task Management
+## Task Management
+
+### Scraper (Celery)
 
 ```bash
 # Trigger manual scrape
 celery -A scraper.daemon.tasks call scraper.scrape_college --args='["princeton", "CS"]'
 
-# Trigger notification check
-celery -A notifications.daemon.tasks call notifications.check_and_send
-
 # Monitor tasks
 celery -A scraper.daemon.tasks inspect active
 celery -A scraper.daemon.tasks inspect scheduled
+```
+
+### Notifications (Python Script)
+
+```bash
+# Run notification check once
+python notifications/send_notifs.py
+
+# Dry run (no changes)
+python notifications/send_notifs.py --dry-run
 ```
 
 ## Development
@@ -192,7 +216,8 @@ pytest
 
 ## Notes
 
-- Redis must be running for Celery tasks to work
+- Redis must be running for scraper Celery tasks to work
 - AWS SES credentials required for email notifications
+- Notification system runs independently (no Redis/Celery required)
 - Database migrations are in `alembic/versions/`
 - All scrapers implement the `BaseScraper` interface

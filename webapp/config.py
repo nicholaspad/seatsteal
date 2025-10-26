@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     VITE_API_BASE_URL: str = "http://localhost:5000"
     """Base URL for the API server"""
 
-    FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_URL: str = "https://seatsteal.app"
     """Base URL for the frontend application"""
 
     # Redis
