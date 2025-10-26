@@ -13,9 +13,8 @@ NC='\033[0m' # No Color
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-REPO_ROOT="$(dirname "$PROJECT_ROOT")"
-SSH_KEY="$REPO_ROOT/course-watcher/seatsteal.pem"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+SSH_KEY="$REPO_ROOT/seatsteal.pem"
 
 echo -e "${YELLOW}📋 EC2 Container Logs${NC}"
 echo "================================"
