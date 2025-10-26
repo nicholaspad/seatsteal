@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime
 from loguru import logger
@@ -11,12 +11,12 @@ from models.scraper import Scraper
 class ScraperLogService:
     """Service for managing scraper execution logs"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: Session):
         """
         Initialize scraper log service.
 
         Args:
-            db: SQLAlchemy async database session
+            db: SQLAlchemy database session
         """
         self.db = db
 
@@ -30,7 +30,7 @@ class ScraperLogService:
         Returns:
             Scraper ID or None if not found
         """
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Scraper.id).where(Scraper.college_id == college_id)
         )
         scraper_id = result.scalar_one_or_none()
@@ -55,7 +55,7 @@ class ScraperLogService:
         )
 
         self.db.add(log)
-        await self.db.flush()
+        self.db.flush()
 
         logger.debug(f"Started scraper log {log.id} for scraper {scraper_id}")
         return log.id
@@ -78,9 +78,7 @@ class ScraperLogService:
             classes_created: Number of classes created
             error_message: Optional error message if failed
         """
-        result = await self.db.execute(
-            select(ScraperLog).where(ScraperLog.id == log_id)
-        )
+        result = self.db.execute(select(ScraperLog).where(ScraperLog.id == log_id))
         log = result.scalar_one_or_none()
 
         if not log:
@@ -99,7 +97,7 @@ class ScraperLogService:
         if error_message:
             log.error_message = error_message
 
-        await self.db.commit()
+        self.db.commit()
 
         logger.debug(
             f"Completed scraper log {log_id}: outcome={outcome}, "
@@ -127,7 +125,7 @@ class ScraperLogService:
                 Scraper.college_id == college_id
             )
 
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         return list(result.scalars().all())
 
     async def get_log(self, log_id: int) -> Optional[ScraperLog]:
@@ -140,9 +138,7 @@ class ScraperLogService:
         Returns:
             ScraperLog object or None if not found
         """
-        result = await self.db.execute(
-            select(ScraperLog).where(ScraperLog.id == log_id)
-        )
+        result = self.db.execute(select(ScraperLog).where(ScraperLog.id == log_id))
         return result.scalar_one_or_none()
 
     async def get_last_successful_scrape(self, college_id: int) -> Optional[ScraperLog]:
@@ -155,7 +151,7 @@ class ScraperLogService:
         Returns:
             ScraperLog object or None if no successful scrapes found
         """
-        result = await self.db.execute(
+        result = self.db.execute(
             select(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
             .where(Scraper.college_id == college_id, ScraperLog.outcome == "success")

@@ -191,7 +191,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_enrollments_id"), "enrollments", ["id"], unique=False)
     op.create_index(
-        "enrollments_class_id_idx", "enrollments", ["class_id"], unique=True
+        "enrollments_class_id_idx", "enrollments", ["class_id"], unique=False
     )
     op.create_index(
         "enrollments_scraped_at_idx", "enrollments", ["scraped_at"], unique=False

@@ -8,10 +8,7 @@ from typing import Dict, Optional
 from datetime import datetime
 from loguru import logger
 from sqlalchemy.orm import Session
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from uuid import uuid4
 
-from config import settings
 from models.college import College
 from scraper.scraper_lock import ScraperLock
 from scraper.services.scraper_log import ScraperLogService
@@ -71,18 +68,6 @@ class ScraperJob:
         self.config = config or JobConfig()
         self.lock = ScraperLock(college.id, db, self.config.lock_timeout_ms)
 
-        # Setup async database for ScraperService
-        # Note: ScraperService is still async, so we need async DB connection
-        self.async_engine = create_async_engine(
-            settings.async_database_url,
-            connect_args={
-                "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
-            },
-        )
-        self.AsyncSessionLocal = async_sessionmaker(
-            self.async_engine, class_=AsyncSession, expire_on_commit=False
-        )
-
     async def execute(self) -> JobResult:
         """
         Execute the scraping job.
@@ -102,9 +87,8 @@ class ScraperJob:
             return JobResult(success=False, error="No scraper found for college")
 
         try:
-            async with self.AsyncSessionLocal() as async_db:
-                log_service = ScraperLogService(async_db)
-                log_id = await log_service.start_log(scraper_id)
+            log_service = ScraperLogService(self.db)
+            log_id = await log_service.start_log(scraper_id)
         except Exception as e:
             logger.warning(
                 f"⚠️  Failed to create log entry for {self.college.name}: {e}"
@@ -120,14 +104,12 @@ class ScraperJob:
             # Update log with timeout outcome
             if log_id:
                 try:
-                    async with self.AsyncSessionLocal() as async_db:
-                        log_service = ScraperLogService(async_db)
-                        await log_service.complete_log(
-                            log_id,
-                            outcome="timeout",
-                            error_message=lock_result.reason
-                            or "Failed to acquire lock",
-                        )
+                    log_service = ScraperLogService(self.db)
+                    await log_service.complete_log(
+                        log_id,
+                        outcome="timeout",
+                        error_message=lock_result.reason or "Failed to acquire lock",
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to update log: {e}")
 
@@ -153,14 +135,13 @@ class ScraperJob:
                 # Update log with success outcome
                 if log_id:
                     try:
-                        async with self.AsyncSessionLocal() as async_db:
-                            log_service = ScraperLogService(async_db)
-                            await log_service.complete_log(
-                                log_id,
-                                outcome="success",
-                                courses_created=result.stats.get("courses_saved", 0),
-                                classes_created=result.stats.get("classes_saved", 0),
-                            )
+                        log_service = ScraperLogService(self.db)
+                        await log_service.complete_log(
+                            log_id,
+                            outcome="success",
+                            courses_created=result.stats.get("courses_saved", 0),
+                            classes_created=result.stats.get("classes_saved", 0),
+                        )
                     except Exception as e:
                         logger.warning(f"Failed to update log: {e}")
             else:
@@ -174,11 +155,10 @@ class ScraperJob:
                 # Update log with error outcome
                 if log_id:
                     try:
-                        async with self.AsyncSessionLocal() as async_db:
-                            log_service = ScraperLogService(async_db)
-                            await log_service.complete_log(
-                                log_id, outcome="error", error_message=result.error
-                            )
+                        log_service = ScraperLogService(self.db)
+                        await log_service.complete_log(
+                            log_id, outcome="error", error_message=result.error
+                        )
                     except Exception as e:
                         logger.warning(f"Failed to update log: {e}")
 
@@ -199,11 +179,10 @@ class ScraperJob:
             # Update log with error outcome
             if log_id:
                 try:
-                    async with self.AsyncSessionLocal() as async_db:
-                        log_service = ScraperLogService(async_db)
-                        await log_service.complete_log(
-                            log_id, outcome="error", error_message=error_message
-                        )
+                    log_service = ScraperLogService(self.db)
+                    await log_service.complete_log(
+                        log_id, outcome="error", error_message=error_message
+                    )
                 except Exception as ex:
                     logger.warning(f"Failed to update log: {ex}")
 
@@ -221,11 +200,10 @@ class ScraperJob:
                     f"🔄 Attempt {attempt}/{self.config.retry_attempts} for {self.college.name}"
                 )
 
-                async with self.AsyncSessionLocal() as async_db:
-                    service = ScraperService(async_db)
-                    stats = await service.scrape_college(
-                        self.college.short_name, self.config.subject, self.config.limit
-                    )
+                service = ScraperService(self.db)
+                stats = await service.scrape_college(
+                    self.college.short_name, self.config.subject, self.config.limit
+                )
 
                 return JobResult(success=True, stats=stats)
 
@@ -262,10 +240,9 @@ class ScraperJob:
         """Get job configuration"""
         return self.config
 
-    async def cleanup(self) -> None:
+    def cleanup(self) -> None:
         """Clean up resources"""
         self.lock.cleanup()
-        await self.async_engine.dispose()
 
     def get_lock(self) -> ScraperLock:
         """Get the lock instance (for testing/debugging)"""

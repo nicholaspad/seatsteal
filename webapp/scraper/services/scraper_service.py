@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime
 from loguru import logger
@@ -31,12 +31,12 @@ SCRAPER_MAP = {
 class ScraperService:
     """Service for managing course scraping operations"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: Session):
         """
         Initialize scraper service.
 
         Args:
-            db: SQLAlchemy async database session
+            db: SQLAlchemy database session
         """
         self.db = db
         self.log_service = ScraperLogService(db)
@@ -71,7 +71,7 @@ class ScraperService:
         start_time = datetime.now()
 
         # Get college from database
-        result = await self.db.execute(
+        result = self.db.execute(
             select(College).where(College.short_name == college_short_name)
         )
         college = result.scalar_one_or_none()
@@ -128,7 +128,7 @@ class ScraperService:
 
                         # Create enrollment snapshot
                         await self._create_enrollment_snapshot(
-                            class_obj.class_id, class_data
+                            class_obj.class_id, college.id, class_data
                         )
                         enrollments_saved += 1
 
@@ -138,7 +138,7 @@ class ScraperService:
                     )
                     continue
 
-            await self.db.commit()
+            self.db.commit()
 
             # Calculate duration
             end_time = datetime.now()
@@ -204,7 +204,7 @@ class ScraperService:
             Course object
         """
         # Check if course exists
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Course).where(
                 Course.college_id == college_id, Course.course_code == course_code
             )
@@ -226,7 +226,7 @@ class ScraperService:
             )
             self.db.add(course)
 
-        await self.db.flush()
+        self.db.flush()
         return course
 
     async def _upsert_class(self, course_id: int, class_data: Dict) -> Class:
@@ -243,7 +243,7 @@ class ScraperService:
         class_number = class_data.get("class_number", "")
 
         # Check if class exists
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Class).where(
                 Class.course_id == course_id, Class.class_number == class_number
             )
@@ -265,26 +265,65 @@ class ScraperService:
             )
             self.db.add(class_obj)
 
-        await self.db.flush()
+        self.db.flush()
         return class_obj
 
-    async def _create_enrollment_snapshot(self, class_id: int, class_data: Dict):
+    def _normalize_enrollment_status(self, status: str) -> str:
+        """
+        Normalize enrollment status to standard values.
+
+        Args:
+            status: Raw status string from scraper
+
+        Returns:
+            Normalized status: 'open', 'closed', or 'unknown'
+        """
+        status_lower = status.lower().strip()
+
+        if status_lower in ["open", "available"]:
+            return "open"
+        elif status_lower in ["closed", "full", "filled", "waitlist"]:
+            return "closed"
+        else:
+            return "unknown"
+
+    async def _create_enrollment_snapshot(
+        self, class_id: int, college_id: int, class_data: Dict
+    ):
         """
         Create an enrollment snapshot for tracking.
 
         Args:
             class_id: Class ID
+            college_id: College ID
             class_data: Class data with enrollment information
         """
+        import json
+
+        # Normalize status
+        raw_status = class_data.get("status", "Unknown")
+        enrollment_status = self._normalize_enrollment_status(raw_status)
+
+        # Create raw_text with useful debugging info
+        raw_text = json.dumps(
+            {
+                "class_number": class_data.get("class_number"),
+                "section": class_data.get("section"),
+                "enrolled": class_data.get("enrolled"),
+                "capacity": class_data.get("capacity"),
+                "waitlist": class_data.get("waitlist"),
+                "raw_status": raw_status,
+                "instructor": class_data.get("instructor"),
+                "schedule": class_data.get("schedule"),
+                "location": class_data.get("location"),
+            }
+        )
+
         enrollment = Enrollment(
             class_id=class_id,
-            enrolled=class_data.get("enrolled", 0),
-            capacity=class_data.get("capacity", 0),
-            waitlist=class_data.get("waitlist", 0),
-            status=class_data.get("status", "Unknown"),
-            instructor=class_data.get("instructor", ""),
-            schedule=class_data.get("schedule", ""),
-            location=class_data.get("location", ""),
+            college_id=college_id,
+            enrollment_status=enrollment_status,
+            raw_text=raw_text,
         )
         self.db.add(enrollment)
-        await self.db.flush()
+        self.db.flush()

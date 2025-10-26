@@ -33,6 +33,38 @@ class ScraperCLI:
     def __init__(self):
         self.loop_interval_seconds = 600  # 10 minutes
 
+    async def _run_single_job(
+        self,
+        college: College,
+        subject: str = "ALL",
+        limit: Optional[int] = None,
+    ) -> bool:
+        """
+        Run scraper job for a single college with its own database session.
+
+        Args:
+            college: College object to scrape
+            subject: Subject filter (default: 'ALL')
+            limit: Optional limit on courses
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Each job gets its own database session for thread safety
+        with SessionLocal() as db:
+            try:
+                config = JobConfig(subject=subject, limit=limit)
+                job = ScraperJob(college, db, config)
+
+                result = await job.execute()
+                job.cleanup()
+
+                return result.success
+
+            except Exception as e:
+                logger.error(f"❌ Failed to scrape {college.short_name}: {e}")
+                return False
+
     async def run_job(
         self,
         college_short_name: str,
@@ -81,18 +113,18 @@ class ScraperCLI:
                     )
                 logger.info(f"   Duration: {result.duration_ms}ms")
 
-                await job.cleanup()
+                job.cleanup()
                 return True
             else:
                 logger.error(f"❌ Job failed for {college_short_name}: {result.error}")
-                await job.cleanup()
+                job.cleanup()
                 return False
 
     async def run_all_jobs(
         self, subject: str = "ALL", limit: Optional[int] = None
     ) -> Dict[str, int]:
         """
-        Run scraper jobs for all active colleges.
+        Run scraper jobs for all active colleges concurrently.
 
         Args:
             subject: Subject filter (default: 'ALL')
@@ -101,48 +133,38 @@ class ScraperCLI:
         Returns:
             Dict with success/failure counts
         """
-        logger.info("🎯 Running all scraper jobs...")
+        logger.info("🎯 Running all scraper jobs concurrently...")
 
+        # Get all active colleges (using separate session)
         with SessionLocal() as db:
-            # Get all active colleges
             colleges = (
                 db.execute(select(College).where(College.is_active == True))
                 .scalars()
                 .all()
             )
 
-            if not colleges:
-                logger.warning("⚠️  No active colleges found")
-                return {"total": 0, "successful": 0, "failed": 0}
+        if not colleges:
+            logger.warning("⚠️  No active colleges found")
+            return {"total": 0, "successful": 0, "failed": 0}
 
-            logger.info(f"Found {len(colleges)} active colleges to scrape")
+        logger.info(f"Found {len(colleges)} active colleges to scrape concurrently")
 
-            successful = 0
-            failed = 0
+        # Create tasks for all colleges
+        tasks = [
+            self._run_single_job(college, subject=subject, limit=limit)
+            for college in colleges
+        ]
 
-            for college in colleges:
-                try:
-                    config = JobConfig(subject=subject, limit=limit)
-                    job = ScraperJob(college, db, config)
+        # Run all jobs concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                    result = await job.execute()
+        # Count successes and failures
+        successful = sum(1 for r in results if r is True)
+        failed = len(results) - successful
 
-                    if result.success:
-                        successful += 1
-                    else:
-                        failed += 1
+        logger.info(f"✅ All jobs completed: {successful} successful, {failed} failed")
 
-                    await job.cleanup()
-
-                except Exception as e:
-                    logger.error(f"❌ Failed to scrape {college.short_name}: {e}")
-                    failed += 1
-
-            logger.info(
-                f"✅ All jobs completed: {successful} successful, {failed} failed"
-            )
-
-            return {"total": len(colleges), "successful": successful, "failed": failed}
+        return {"total": len(colleges), "successful": successful, "failed": failed}
 
     async def show_status(self) -> None:
         """Show status of all scrapers"""
