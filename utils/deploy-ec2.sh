@@ -313,12 +313,15 @@ else
     echo "🏗️  Building $SERVICE Docker image..."
     docker build --tag "seatsteal-$SERVICE" -f "$DOCKERFILE" .
 
+    # Get the docker-compose network name (typically webapp_default)
+    COMPOSE_NETWORK=\$(docker inspect seatsteal-redis -f '{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}}{{end}}')
+
     echo "🚀 Starting $SERVICE container..."
     docker run -d \\
         --name "seatsteal-$SERVICE" \\
         --env-file .env \\
-        --env REDIS_URL=redis://\$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' seatsteal-redis):6379 \\
-        --network bridge \\
+        --env REDIS_URL=redis://redis:6379 \\
+        --network "\$COMPOSE_NETWORK" \\
         "seatsteal-$SERVICE"
 
     echo "✅ Deployment completed successfully!"
@@ -326,7 +329,7 @@ else
     docker ps --filter "name=seatsteal-$SERVICE"
 
     echo "📋 Recent container logs:"
-    docker logs --follow --tail 20 "seatsteal-$SERVICE"
+    docker logs --tail 20 "seatsteal-$SERVICE"
 fi
 EOF
 

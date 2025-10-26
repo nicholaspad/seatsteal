@@ -147,9 +147,26 @@ if [[ "$SERVICE" == "all" ]]; then
     ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@"$EC2_HOST" << 'EOF'
 set -e
 
-echo "🛑 Stopping all services via docker-compose..."
-cd ~/seatsteal/webapp
-docker-compose down
+echo "🛑 Stopping all seatsteal services..."
+
+# Stop docker-compose managed containers
+if [[ -d ~/seatsteal/webapp ]]; then
+    echo "📦 Stopping docker-compose services..."
+    cd ~/seatsteal/webapp
+    docker-compose down || true
+fi
+
+# Stop any individually-run seatsteal containers
+echo "🔍 Checking for individually-run seatsteal containers..."
+INDIVIDUAL_CONTAINERS=$(docker ps -q --filter "name=seatsteal-" 2>/dev/null || echo "")
+
+if [[ -n "$INDIVIDUAL_CONTAINERS" ]]; then
+    echo "🛑 Stopping and removing individual seatsteal containers..."
+    docker stop $INDIVIDUAL_CONTAINERS
+    docker rm $INDIVIDUAL_CONTAINERS
+else
+    echo "✅ No individual containers found"
+fi
 
 echo "✅ All services stopped"
 echo "📊 Current container status:"

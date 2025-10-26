@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# SeatSteal EC2 Service Management Script
-# Unified interface for managing EC2 services
+# SeatSteal Management Script
+# Main entry point for deployment and service management
 
 set -e  # Exit on error
 
 # Menu options
-options=("Deploy services" "View service logs" "Kill services" "SSH into instance" "Spin up instance (t4g.nano)" "Terminate instance")
-selected=0  # Default to "Deploy services" (index 0)
+options=("Deploy seatsteal (Vercel)" "Manage EC2 services")
+selected=0  # Default to "Deploy seatsteal" (index 0)
 
 # Function to display menu
 display_menu() {
   echo "=========================================="
-  echo "  SeatSteal EC2 Service Management"
+  echo "  SeatSteal Management"
   echo "=========================================="
   echo ""
   echo "What would you like to do?"
@@ -66,54 +66,15 @@ done
 
 # Clear screen before execution
 clear
-echo "=========================================="
-echo "  SeatSteal EC2 Service Management"
-echo "=========================================="
-echo ""
 
 # Execute based on selection
 choice=$((selected + 1))
 
 case $choice in
   1)
-    echo ""
-    echo "🚀 Deploying services to EC2..."
-    echo ""
-    ./utils/deploy-ec2.sh
+    ./utils/deploy.sh
     ;;
   2)
-    echo ""
-    echo "📋 Viewing service logs from EC2..."
-    echo ""
-    ./utils/logs-ec2.sh
-    ;;
-  3)
-    echo ""
-    echo "🛑 Killing services on EC2..."
-    echo ""
-    ./utils/kill-containers-ec2.sh
-    ;;
-  4)
-    echo ""
-    echo "🔑 SSHing into EC2 instance..."
-    echo ""
-    ./utils/login-ec2.sh
-    ;;
-  5)
-    echo ""
-    echo "🚀 Spinning up new EC2 instance (t4g.nano)..."
-    echo ""
-    ./utils/spin-up-ec2.sh
-    ;;
-  6)
-    echo ""
-    echo "🛑 Terminating EC2 instance..."
-    echo ""
-    ./utils/terminate-ec2.sh
+    ./utils/service.sh
     ;;
 esac
-
-echo ""
-echo "=========================================="
-echo "  Operation finished!"
-echo "=========================================="
