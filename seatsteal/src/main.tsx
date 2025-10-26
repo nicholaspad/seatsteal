@@ -5,7 +5,7 @@ import "@fontsource/inter";
 import "./index.css";
 import { IonApp, IonRouterOutlet, setupIonicReact } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
-import { SpeedInsights } from "@vercel/speed-insights/react"
+import { SpeedInsights } from "@vercel/speed-insights/vue";
 import { Route, Redirect } from "react-router-dom";
 import { Toaster } from "sonner";
 
