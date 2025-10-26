@@ -49,8 +49,15 @@ echo ""
 if [[ -f "$EC2_HOST_FILE" ]]; then
     echo -e "${YELLOW}🔍 Checking for existing instance...${NC}"
 
+    # Check if jq is installed for JSON parsing
+    if ! command -v jq &> /dev/null; then
+        echo -e "${RED}❌ Error: jq is not installed (required for JSON parsing).${NC}"
+        echo "Please install it: brew install jq (macOS) or apt install jq (Linux)"
+        exit 1
+    fi
+
     # Try to read existing instance ID from JSON
-    EXISTING_INSTANCE_ID=$(cat "$EC2_HOST_FILE" | grep -o '"instance_id":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+    EXISTING_INSTANCE_ID=$(jq -r '.instance_id // empty' "$EC2_HOST_FILE" 2>/dev/null || echo "")
 
     if [[ -n "$EXISTING_INSTANCE_ID" ]]; then
         # Check if instance still exists and its state
@@ -61,7 +68,7 @@ if [[ -f "$EC2_HOST_FILE" ]]; then
             --output text 2>/dev/null || echo "terminated")
 
         if [[ "$INSTANCE_STATE" != "terminated" && "$INSTANCE_STATE" != "None" ]]; then
-            EXISTING_DNS=$(cat "$EC2_HOST_FILE" | grep -o '"public_dns":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+            EXISTING_DNS=$(jq -r '.public_dns // empty' "$EC2_HOST_FILE" 2>/dev/null || echo "")
 
             echo ""
             echo "=========================================="

@@ -105,6 +105,13 @@ echo "================================"
 echo ""
 echo -e "${GREEN}📋 Selected service: $SERVICE${NC}"
 
+# Check if jq is installed for JSON parsing
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}❌ Error: jq is not installed (required for JSON parsing).${NC}"
+    echo "Please install it: brew install jq (macOS) or apt install jq (Linux)"
+    exit 1
+fi
+
 # Check if SSH key exists
 if [[ ! -f "$SSH_KEY" ]]; then
     echo -e "${RED}❌ Error: SSH key not found at $SSH_KEY${NC}"
@@ -125,7 +132,7 @@ if [[ ! -f "$EC2_HOST_FILE" ]]; then
     exit 1
 fi
 
-EC2_HOST=$(cat "$EC2_HOST_FILE" | grep -o '"public_dns":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+EC2_HOST=$(jq -r '.public_dns // empty' "$EC2_HOST_FILE" 2>/dev/null || echo "")
 if [[ -z "$EC2_HOST" ]]; then
     echo -e "${RED}❌ Error: Could not read public DNS from $EC2_HOST_FILE${NC}"
     exit 1

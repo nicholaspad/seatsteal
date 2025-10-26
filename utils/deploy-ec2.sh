@@ -31,6 +31,12 @@ if ! command -v scp &> /dev/null; then
     exit 1
 fi
 
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}❌ Error: jq is not installed (required for JSON parsing).${NC}"
+    echo "Please install it: brew install jq (macOS) or apt install jq (Linux)"
+    exit 1
+fi
+
 echo -e "${GREEN}✅ Local dependencies satisfied${NC}"
 echo ""
 
@@ -139,7 +145,7 @@ if [[ ! -f "$EC2_HOST_FILE" ]]; then
     exit 1
 fi
 
-EC2_HOST=$(cat "$EC2_HOST_FILE" | grep -o '"public_dns":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+EC2_HOST=$(jq -r '.public_dns // empty' "$EC2_HOST_FILE" 2>/dev/null || echo "")
 if [[ -z "$EC2_HOST" ]]; then
     echo -e "${RED}❌ Error: Could not read public DNS from $EC2_HOST_FILE${NC}"
     exit 1
@@ -160,6 +166,23 @@ echo -e "${GREEN}📡 Connecting to ec2-user@$EC2_HOST...${NC}"
 # Execute deployment commands on remote server
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@"$EC2_HOST" << EOF
 set -e
+
+# Load environment variables from .env
+if [[ -f ~/seatsteal/.env ]]; then
+    set -a
+    source ~/seatsteal/.env
+    set +a
+fi
+
+# Check if GITHUB_TOKEN is set
+if [[ -z "\$GITHUB_TOKEN" ]]; then
+    echo "❌ Error: GITHUB_TOKEN not found in .env file"
+    echo "Please create a GitHub Personal Access Token and add it to your .env file:"
+    echo "  1. Go to https://github.com/settings/tokens"
+    echo "  2. Generate a new token with 'repo' scope"
+    echo "  3. Add to .env: GITHUB_TOKEN=ghp_xxxxxxxxxxxxx"
+    exit 1
+fi
 
 # Function to check and install dependencies
 setup_dependencies() {
@@ -216,9 +239,30 @@ setup_dependencies() {
     fi
 
     # Clone repository if it doesn't exist
-    if [[ ! -d ~/seatsteal ]]; then
+    if [[ ! -d ~/seatsteal/.git ]]; then
+        # Back up .env if it exists
+        if [[ -f ~/seatsteal/.env ]]; then
+            cp ~/seatsteal/.env /tmp/seatsteal.env.backup
+        fi
+
+        # Remove directory if it exists but isn't a git repo
+        if [[ -d ~/seatsteal ]]; then
+            rm -rf ~/seatsteal
+        fi
+
         echo "📥 Cloning seatsteal repository..."
-        git clone https://github.com/nicholaspad/seatsteal.git ~/seatsteal
+        git clone https://\$GITHUB_TOKEN@github.com/nicholaspad/seatsteal.git ~/seatsteal
+
+        # Restore .env if we backed it up
+        if [[ -f /tmp/seatsteal.env.backup ]]; then
+            cp /tmp/seatsteal.env.backup ~/seatsteal/.env
+            rm /tmp/seatsteal.env.backup
+        fi
+    else
+        echo "✅ Repository already exists, configuring git credentials..."
+        cd ~/seatsteal
+        git remote set-url origin https://\$GITHUB_TOKEN@github.com/nicholaspad/seatsteal.git
+        cd ~
     fi
 
     echo "✅ All dependencies satisfied"

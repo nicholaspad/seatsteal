@@ -38,6 +38,13 @@ if ! aws sts get-caller-identity &> /dev/null; then
     exit 1
 fi
 
+# Check if jq is installed for JSON parsing
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}❌ Error: jq is not installed (required for JSON parsing).${NC}"
+    echo "Please install it: brew install jq (macOS) or apt install jq (Linux)"
+    exit 1
+fi
+
 # Check if ec2-host.json file exists
 if [[ ! -f "$EC2_HOST_FILE" ]]; then
     echo -e "${RED}❌ Error: EC2 host file not found at $EC2_HOST_FILE${NC}"
@@ -46,8 +53,8 @@ if [[ ! -f "$EC2_HOST_FILE" ]]; then
 fi
 
 # Read instance info from JSON file
-INSTANCE_ID=$(cat "$EC2_HOST_FILE" | grep -o '"instance_id":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
-PUBLIC_DNS=$(cat "$EC2_HOST_FILE" | grep -o '"public_dns":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+INSTANCE_ID=$(jq -r '.instance_id // empty' "$EC2_HOST_FILE" 2>/dev/null || echo "")
+PUBLIC_DNS=$(jq -r '.public_dns // empty' "$EC2_HOST_FILE" 2>/dev/null || echo "")
 
 if [[ -z "$INSTANCE_ID" ]]; then
     echo -e "${RED}❌ Error: Could not read instance ID from $EC2_HOST_FILE${NC}"
