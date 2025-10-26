@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -66,6 +66,10 @@ app = FastAPI(
     description="Course enrollment tracking and notification system",
     lifespan=lifespan,
     default_response_class=PydanticJSONResponse,
+    # Disable documentation endpoints in production
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
 )
 
 # CORS middleware
@@ -106,7 +110,9 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
+    """Root endpoint - disabled in production"""
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Not found")
     return {
         "message": "Welcome to SeatSteal API",
         "docs": "/docs",
