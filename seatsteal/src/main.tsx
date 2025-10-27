@@ -35,6 +35,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 /* Guards */
 import ProtectedRoute from "@/components/guards/ProtectedRoute";
+import AdminRoute from "@/components/guards/AdminRoute";
 
 /* Pages */
 import Home from "@/pages/Home";
@@ -48,6 +49,13 @@ import Courses from "@/pages/Courses";
 import Dashboard from "@/pages/Dashboard";
 import Settings from "@/pages/Settings";
 import Offline from "@/pages/Offline";
+
+/* Admin Pages */
+import Admin from "@/pages/admin/Admin";
+import AdminPerformance from "@/pages/admin/AdminPerformance";
+import AdminScrapers from "@/pages/admin/AdminScrapers";
+import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminNotifications from "@/pages/admin/AdminNotifications";
 
 /* Layout */
 import { ConditionalLayout } from "@/components/layout/ConditionalLayout";
@@ -105,6 +113,53 @@ createRoot(document.getElementById("root")!).render(
                       <ProtectedRoute>
                         <Settings />
                       </ProtectedRoute>
+                    )}
+                  />
+
+                  {/* Admin routes */}
+                  <Route
+                    exact
+                    path="/admin"
+                    render={() => (
+                      <AdminRoute>
+                        <Admin />
+                      </AdminRoute>
+                    )}
+                  />
+                  <Route
+                    exact
+                    path="/admin/performance"
+                    render={() => (
+                      <AdminRoute>
+                        <AdminPerformance />
+                      </AdminRoute>
+                    )}
+                  />
+                  <Route
+                    exact
+                    path="/admin/scrapers"
+                    render={() => (
+                      <AdminRoute>
+                        <AdminScrapers />
+                      </AdminRoute>
+                    )}
+                  />
+                  <Route
+                    exact
+                    path="/admin/users"
+                    render={() => (
+                      <AdminRoute>
+                        <AdminUsers />
+                      </AdminRoute>
+                    )}
+                  />
+                  <Route
+                    exact
+                    path="/admin/notifications"
+                    render={() => (
+                      <AdminRoute>
+                        <AdminNotifications />
+                      </AdminRoute>
                     )}
                   />
 
