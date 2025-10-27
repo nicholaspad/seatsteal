@@ -173,12 +173,42 @@ class CornellScraper(BaseScraper):
                     else aria_label
                 )
 
+            # Extract enrollment section to get status indicators
+            enrollment_section = course_elem.select_one(".sections")
+            status_indicators = []
+
+            if enrollment_section:
+                # Look for all status indicator elements
+                indicators = enrollment_section.select(
+                    ".open-status-open, .open-status-closed, .open-status-archive, "
+                    ".fa-circle.open-status-open, .fa-circle.open-status-closed, .fa-circle.open-status-archive"
+                )
+
+                for indicator in indicators:
+                    # Map CSS classes to status values
+                    if "open-status-open" in indicator.get("class", []):
+                        status_indicators.append("open")
+                    elif "open-status-archive" in indicator.get("class", []):
+                        status_indicators.append(
+                            "open"
+                        )  # Archived courses are still open
+                    elif "open-status-closed" in indicator.get("class", []):
+                        status_indicators.append("closed")
+                    else:
+                        status_indicators.append("unknown")
+
             # Extract classes from class-numbers sections
             classes = []
             class_sections = course_elem.select(".class-numbers")
 
-            for class_section in class_sections:
-                class_data = self._parse_class(class_section)
+            for idx, class_section in enumerate(class_sections):
+                # Get status for this class by index, default to "unknown" if not found
+                status = (
+                    status_indicators[idx]
+                    if idx < len(status_indicators)
+                    else "unknown"
+                )
+                class_data = self._parse_class(class_section, status)
                 if class_data:
                     classes.append(class_data)
 
@@ -189,8 +219,19 @@ class CornellScraper(BaseScraper):
             logger.error(f"Error parsing course element: {e}")
             return None
 
-    def _parse_class(self, section_elem) -> Optional[Dict[str, Any]]:
-        """Parse a single class/section element from .class-numbers structure"""
+    def _parse_class(
+        self, section_elem, status: str = "unknown"
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Parse a single class/section element from .class-numbers structure.
+
+        Args:
+            section_elem: BeautifulSoup element containing class information
+            status: Enrollment status ('open', 'closed', or 'unknown')
+
+        Returns:
+            Dictionary with class data or None if parsing fails
+        """
         try:
             # Extract class number from <strong> element
             strong_elem = section_elem.select_one('strong[title="Class Number"]')
@@ -237,7 +278,7 @@ class CornellScraper(BaseScraper):
                 "enrolled": 0,  # Would need to extract from enrollment section
                 "capacity": 0,  # Would need to extract from enrollment section
                 "waitlist": 0,  # Would need to extract from enrollment section
-                "status": "Unknown",  # Would need to extract from status indicators
+                "status": status,  # Status extracted from enrollment indicators
             }
 
         except Exception as e:
