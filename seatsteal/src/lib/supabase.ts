@@ -19,9 +19,7 @@ export const signInWithMagicLink = async (email: string) => {
   return await supabase.auth.signInWithOtp({
     email,
     options: {
-      // Mobile apps typically use deep links or universal links for redirect
-      // This can be configured in your Capacitor app
-      emailRedirectTo: window.location.origin,
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
     },
   });
 };
@@ -31,7 +29,7 @@ export const signInWithAdminMagicLink = async (email: string) => {
   return await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: window.location.origin + "/admin",
+      emailRedirectTo: `${window.location.origin}/auth/callback?admin=true`,
     },
   });
 };

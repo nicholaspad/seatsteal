@@ -47,10 +47,11 @@ export async function fetchWithToasts(
   const resolvedUrl = resolveApiUrl(url);
   const response = await fetch(resolvedUrl, options);
 
-  // Handle rate limiting specifically
+  // Handle rate limiting (429) - return response without throwing
+  // This allows calling code to read the detailed error message and show
+  // user-friendly messages like "Please try again in 59 seconds"
   if (response.status === 429) {
-    toast.error("Too many requests. Try again later.");
-    throw new ServerErrorWithToast("Rate limited");
+    return response;
   }
 
   // Handle server errors (5xx)

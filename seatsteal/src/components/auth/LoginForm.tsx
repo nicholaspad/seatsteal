@@ -82,7 +82,28 @@ export function LoginForm() {
       const { error } = await signInWithMagicLink(email);
 
       if (error) {
-        setError("Failed to send magic link. Please try again.");
+        // Parse Supabase error message for rate limiting
+        const errorMsg = error.message || "";
+        if (
+          errorMsg.toLowerCase().includes("security purposes") ||
+          errorMsg.toLowerCase().includes("rate limit")
+        ) {
+          // Extract retry time if present (e.g., "59 seconds")
+          const timeMatch = errorMsg.match(/(\d+)\s+(second|minute)/i);
+          if (timeMatch) {
+            const time = timeMatch[1];
+            const unit = timeMatch[2];
+            setError(
+              `Too many login attempts. Please try again in ${time} ${unit}${parseInt(time) > 1 ? "s" : ""}.`,
+            );
+          } else {
+            setError(
+              "Too many login attempts. Please wait a few minutes and try again.",
+            );
+          }
+        } else {
+          setError("Failed to send magic link. Please try again.");
+        }
       } else {
         setIsSubmitted(true);
       }

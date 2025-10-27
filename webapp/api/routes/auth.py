@@ -92,17 +92,39 @@ async def admin_signin(
             )
 
         # Send magic link using Supabase
-        auth_response = supabase.auth.sign_in_with_otp(
-            {
-                "email": request.email,
-                "options": {
-                    "email_redirect_to": f"{settings.FRONTEND_URL}/auth/admin-callback"
-                },
-            }
-        )
+        # Supabase can raise exceptions OR return errors, so we handle both
+        try:
+            auth_response = supabase.auth.sign_in_with_otp(
+                {
+                    "email": request.email,
+                    "options": {
+                        "email_redirect_to": f"{settings.FRONTEND_URL}/auth/callback?admin=true"
+                    },
+                }
+            )
+        except Exception as supabase_error:
+            error_msg = str(supabase_error)
+            # Check if it's a rate limit error from Supabase exception
+            if (
+                "rate limit" in error_msg.lower()
+                or "security purposes" in error_msg.lower()
+            ):
+                raise HTTPException(status_code=429, detail=error_msg)
+            # Re-raise other Supabase exceptions to be caught by outer handler
+            raise
 
+        # Also check auth_response.error in case error is returned instead of raised
         if auth_response.error:
-            raise HTTPException(status_code=500, detail="Failed to send magic link")
+            error_msg = str(auth_response.error)
+            # Check if it's a rate limit error
+            if (
+                "security purposes" in error_msg.lower()
+                or "rate limit" in error_msg.lower()
+            ):
+                raise HTTPException(status_code=429, detail=error_msg)
+            raise HTTPException(
+                status_code=500, detail=f"Failed to send magic link: {error_msg}"
+            )
 
         return {
             "success": True,

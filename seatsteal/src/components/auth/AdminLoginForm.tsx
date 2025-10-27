@@ -50,7 +50,28 @@ export function AdminLoginForm() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Failed to send admin magic link");
+        const errorMsg = data.detail || data.error || "";
+        // Parse error message for rate limiting
+        if (
+          errorMsg.toLowerCase().includes("security purposes") ||
+          errorMsg.toLowerCase().includes("rate limit")
+        ) {
+          // Extract retry time if present (e.g., "59 seconds")
+          const timeMatch = errorMsg.match(/(\d+)\s+(second|minute)/i);
+          if (timeMatch) {
+            const time = timeMatch[1];
+            const unit = timeMatch[2];
+            setError(
+              `Too many login attempts. Please try again in ${time} ${unit}${parseInt(time) > 1 ? "s" : ""}.`,
+            );
+          } else {
+            setError(
+              "Too many login attempts. Please wait a few minutes and try again.",
+            );
+          }
+        } else {
+          setError(errorMsg || "Failed to send admin magic link");
+        }
       } else {
         setIsSubmitted(true);
       }

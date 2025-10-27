@@ -40,6 +40,7 @@ import ProtectedRoute from "@/components/guards/ProtectedRoute";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import LoginAdmin from "@/pages/LoginAdmin";
+import AuthCallback from "@/pages/AuthCallback";
 import VerifyRequest from "@/pages/VerifyRequest";
 import SelectCollege from "@/pages/SelectCollege";
 import Error from "@/pages/Error";
@@ -70,6 +71,7 @@ createRoot(document.getElementById("root")!).render(
                   {/* Auth routes */}
                   <Route exact path="/login" component={Login} />
                   <Route exact path="/login-admin" component={LoginAdmin} />
+                  <Route exact path="/auth/callback" component={AuthCallback} />
                   <Route
                     exact
                     path="/verify-request"

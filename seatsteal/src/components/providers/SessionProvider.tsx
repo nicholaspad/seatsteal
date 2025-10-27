@@ -93,6 +93,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+
       if (event === "SIGNED_OUT" || !session?.user) {
         setUser(null);
         setSubscriptionTier("free");
@@ -122,7 +123,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             error: userError,
           } = await supabase.auth.getUser();
 
-          if (userError || !user) {
+          if (userError) {
+            setUser(null);
+            setSubscriptionTier("free");
+            setTierLoading(false);
+          } else if (!user) {
             setUser(null);
             setSubscriptionTier("free");
             setTierLoading(false);
@@ -131,7 +136,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             fetchSubscriptionTier(user.id);
           }
           setLoading(false);
-        } catch {
+        } catch (error) {
           setUser(null);
           setSubscriptionTier("free");
           setTierLoading(false);
