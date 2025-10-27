@@ -108,37 +108,79 @@ class ScraperService:
                 f"Scraped {len(courses_data)} courses from {college_short_name} {department}"
             )
 
-            # Save to database
-            courses_saved = 0
-            classes_saved = 0
-            enrollment_data_list = []  # Collect enrollment data for batch upsert
+            # Step 1: Collect all course data
+            course_list = []
+            for course_data in courses_data:
+                course_list.append(
+                    {
+                        "course_code": course_data["course_code"],
+                        "title": course_data["title"],
+                    }
+                )
+
+            # Step 2: Batch upsert all courses
+            logger.info(f"Batch upserting {len(course_list)} courses")
+            course_mapping = self._batch_upsert_courses(college.id, course_list)
+            courses_saved = len(course_mapping)
+
+            # Step 3: Collect all class data with course_ids
+            class_list = []
+            class_to_enrollment_map = (
+                []
+            )  # Track which class data belongs to which enrollment
 
             for course_data in courses_data:
-                try:
-                    # Upsert course
-                    course = await self._upsert_course(
-                        college.id, course_data["course_code"], course_data["title"]
-                    )
-                    courses_saved += 1
+                course_code = course_data["course_code"]
+                course_id = course_mapping.get(course_code)
 
-                    # Upsert classes and collect enrollment data
-                    for class_data in course_data.get("classes", []):
-                        class_obj = await self._upsert_class(course.id, class_data)
-                        classes_saved += 1
-
-                        # Collect enrollment data for batch insert
-                        enrollment_data = self._create_enrollment_data(
-                            class_obj.class_id, college.id, class_data
-                        )
-                        enrollment_data_list.append(enrollment_data)
-
-                except Exception as e:
-                    logger.error(
-                        f"Failed to save course {course_data.get('course_code')}: {e}"
+                if not course_id:
+                    logger.warning(
+                        f"Course {course_code} not found in mapping, skipping classes"
                     )
                     continue
 
-            # Batch insert all enrollments
+                for class_data in course_data.get("classes", []):
+                    class_number = class_data.get("class_number", "")
+                    class_list.append(
+                        {
+                            "course_id": course_id,
+                            "class_number": class_number,
+                            "section_code": class_data.get("section", ""),
+                        }
+                    )
+                    # Store mapping for enrollment data creation later
+                    class_to_enrollment_map.append(
+                        {
+                            "course_id": course_id,
+                            "class_number": class_number,
+                            "class_data": class_data,
+                        }
+                    )
+
+            # Step 4: Batch upsert all classes
+            logger.info(f"Batch upserting {len(class_list)} classes")
+            class_mapping = self._batch_upsert_classes(class_list)
+            classes_saved = len(class_mapping)
+
+            # Step 5: Collect all enrollment data with class_ids
+            enrollment_data_list = []
+            for item in class_to_enrollment_map:
+                class_key = (item["course_id"], item["class_number"])
+                class_id = class_mapping.get(class_key)
+
+                if not class_id:
+                    logger.warning(
+                        f"Class {class_key} not found in mapping, skipping enrollment"
+                    )
+                    continue
+
+                enrollment_data = self._create_enrollment_data(
+                    class_id, college.id, item["class_data"]
+                )
+                enrollment_data_list.append(enrollment_data)
+
+            # Step 6: Batch insert all enrollments
+            logger.info(f"Batch inserting {len(enrollment_data_list)} enrollments")
             enrollments_saved = self._batch_insert_enrollments(enrollment_data_list)
 
             self.db.commit()
@@ -331,6 +373,142 @@ class ScraperService:
             "enrollment_status": enrollment_status,
             "raw_text": raw_text,
         }
+
+    def _batch_upsert_courses(
+        self,
+        college_id: int,
+        course_data_list: List[Dict[str, str]],
+        batch_size: int = 500,
+    ) -> Dict[str, int]:
+        """
+        Batch upsert courses using PostgreSQL's ON CONFLICT.
+
+        Args:
+            college_id: College ID for all courses
+            course_data_list: List of dicts with 'course_code' and 'title'
+            batch_size: Number of records to upsert per batch (default: 500)
+
+        Returns:
+            Dictionary mapping course_code to course.id
+        """
+        from sqlalchemy import text
+        from datetime import datetime
+
+        if not course_data_list:
+            return {}
+
+        course_mapping = {}
+        now = datetime.now()
+
+        # Process in batches
+        for i in range(0, len(course_data_list), batch_size):
+            batch = course_data_list[i : i + batch_size]
+
+            # Build the INSERT ... ON CONFLICT query with RETURNING
+            query = text(
+                """
+                INSERT INTO courses (college_id, course_code, title, is_active, created_at, updated_at)
+                VALUES (:college_id, :course_code, :title, :is_active, :created_at, :updated_at)
+                ON CONFLICT (college_id, course_code)
+                DO UPDATE SET
+                    title = EXCLUDED.title,
+                    is_active = EXCLUDED.is_active,
+                    updated_at = EXCLUDED.updated_at
+                RETURNING id, course_code
+            """
+            )
+
+            # Prepare batch data
+            batch_params = [
+                {
+                    "college_id": college_id,
+                    "course_code": course["course_code"],
+                    "title": course["title"],
+                    "is_active": True,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                for course in batch
+            ]
+
+            # Execute batch and collect results
+            for params in batch_params:
+                result = self.db.execute(query, params)
+                row = result.fetchone()
+                if row:
+                    course_mapping[row[1]] = row[0]  # course_code -> id
+
+            logger.debug(f"Upserted batch {i // batch_size + 1}: {len(batch)} courses")
+
+        logger.info(f"Batch upsert complete: {len(course_mapping)} courses processed")
+        return course_mapping
+
+    def _batch_upsert_classes(
+        self, class_data_list: List[Dict[str, Any]], batch_size: int = 500
+    ) -> Dict[tuple, int]:
+        """
+        Batch upsert classes using PostgreSQL's ON CONFLICT.
+
+        Args:
+            class_data_list: List of dicts with 'course_id', 'class_number', 'section_code'
+            batch_size: Number of records to upsert per batch (default: 500)
+
+        Returns:
+            Dictionary mapping (course_id, class_number) to class_id
+        """
+        from sqlalchemy import text
+        from datetime import datetime
+
+        if not class_data_list:
+            return {}
+
+        class_mapping = {}
+        now = datetime.now()
+
+        # Process in batches
+        for i in range(0, len(class_data_list), batch_size):
+            batch = class_data_list[i : i + batch_size]
+
+            # Build the INSERT ... ON CONFLICT query with RETURNING
+            query = text(
+                """
+                INSERT INTO classes (course_id, class_number, section_code, is_active, created_at, updated_at)
+                VALUES (:course_id, :class_number, :section_code, :is_active, :created_at, :updated_at)
+                ON CONFLICT (course_id, class_number)
+                DO UPDATE SET
+                    section_code = EXCLUDED.section_code,
+                    is_active = EXCLUDED.is_active,
+                    updated_at = EXCLUDED.updated_at
+                RETURNING class_id, course_id, class_number
+            """
+            )
+
+            # Prepare batch data
+            batch_params = [
+                {
+                    "course_id": cls["course_id"],
+                    "class_number": cls["class_number"],
+                    "section_code": cls["section_code"],
+                    "is_active": True,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                for cls in batch
+            ]
+
+            # Execute batch and collect results
+            for params in batch_params:
+                result = self.db.execute(query, params)
+                row = result.fetchone()
+                if row:
+                    class_mapping[(row[1], row[2])] = row[
+                        0
+                    ]  # (course_id, class_number) -> class_id
+
+            logger.debug(f"Upserted batch {i // batch_size + 1}: {len(batch)} classes")
+
+        logger.info(f"Batch upsert complete: {len(class_mapping)} classes processed")
+        return class_mapping
 
     def _batch_insert_enrollments(
         self, enrollment_data_list: List[Dict[str, Any]], batch_size: int = 500
