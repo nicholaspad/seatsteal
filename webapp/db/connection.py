@@ -4,7 +4,7 @@ from config import settings
 # Create sync database engine with psycopg2 (works with PgBouncer)
 engine: Engine = create_engine(
     settings.DATABASE_URL,
-    echo=settings.is_development,
+    echo=False,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
