@@ -106,9 +106,8 @@ class TestAdminSignIn:
         mock_supabase,
     ):
         """Test successful admin sign-in."""
-        # Mock Supabase sign_in_with_otp
+        # Mock Supabase sign_in_with_otp to return successfully
         mock_auth_response = MagicMock()
-        mock_auth_response.error = None
         mock_supabase.auth.sign_in_with_otp.return_value = mock_auth_response
 
         response = await client.post(
@@ -161,10 +160,8 @@ class TestAdminSignIn:
         mock_supabase,
     ):
         """Test admin sign-in with Supabase error."""
-        # Mock Supabase error
-        mock_auth_response = MagicMock()
-        mock_auth_response.error = "Supabase error"
-        mock_supabase.auth.sign_in_with_otp.return_value = mock_auth_response
+        # Mock Supabase to raise an exception (Python SDK behavior)
+        mock_supabase.auth.sign_in_with_otp.side_effect = Exception("Supabase error")
 
         response = await client.post(
             "/api/auth/admin-signin",
@@ -172,7 +169,7 @@ class TestAdminSignIn:
         )
 
         assert response.status_code == 500
-        assert "Failed to send magic link" in response.json()["detail"]
+        assert "Internal server error" in response.json()["detail"]
 
 
 class TestCheckEarlyAccess:
