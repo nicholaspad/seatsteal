@@ -375,7 +375,7 @@ class ScraperService:
         batch_size: int = 500,
     ) -> Dict[str, int]:
         """
-        Batch upsert courses using PostgreSQL's ON CONFLICT.
+        Batch upsert courses using PostgreSQL's ON CONFLICT with true multi-row INSERT.
 
         Args:
             college_id: College ID for all courses
@@ -398,41 +398,46 @@ class ScraperService:
         for i in range(0, len(course_data_list), batch_size):
             batch = course_data_list[i : i + batch_size]
 
-            # Build the INSERT ... ON CONFLICT query with RETURNING
+            # Build multi-row VALUES clause with unique parameter names
+            placeholders = []
+            params = {}
+
+            for idx, course in enumerate(batch):
+                placeholders.append(
+                    f"(:college_id_{idx}, :course_code_{idx}, :title_{idx}, "
+                    f":is_active_{idx}, :created_at_{idx}, :updated_at_{idx})"
+                )
+                params[f"college_id_{idx}"] = college_id
+                params[f"course_code_{idx}"] = course["course_code"]
+                params[f"title_{idx}"] = course["title"]
+                params[f"is_active_{idx}"] = True
+                params[f"created_at_{idx}"] = now
+                params[f"updated_at_{idx}"] = now
+
+            values_clause = ", ".join(placeholders)
+
+            # Build the multi-row INSERT ... ON CONFLICT query with RETURNING
             query = text(
-                """
+                f"""
                 INSERT INTO courses (college_id, course_code, title, is_active, created_at, updated_at)
-                VALUES (:college_id, :course_code, :title, :is_active, :created_at, :updated_at)
+                VALUES {values_clause}
                 ON CONFLICT (college_id, course_code)
                 DO UPDATE SET
                     title = EXCLUDED.title,
                     is_active = EXCLUDED.is_active,
                     updated_at = EXCLUDED.updated_at
                 RETURNING id, course_code
-            """
+                """
             )
 
-            # Prepare batch data
-            batch_params = [
-                {
-                    "college_id": college_id,
-                    "course_code": course["course_code"],
-                    "title": course["title"],
-                    "is_active": True,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                for course in batch
-            ]
+            # Execute single query for entire batch and collect results
+            result = self.db.execute(query, params)
+            for row in result:
+                course_mapping[row[1]] = row[0]  # course_code -> id
 
-            # Execute batch and collect results
-            for params in batch_params:
-                result = self.db.execute(query, params)
-                row = result.fetchone()
-                if row:
-                    course_mapping[row[1]] = row[0]  # course_code -> id
-
-            logger.debug(f"Upserted batch {i // batch_size + 1}: {len(batch)} courses")
+            logger.debug(
+                f"Upserted batch {i // batch_size + 1}: {len(batch)} courses in single query"
+            )
 
         logger.info(f"Batch upsert complete: {len(course_mapping)} courses processed")
         return course_mapping
@@ -441,7 +446,7 @@ class ScraperService:
         self, class_data_list: List[Dict[str, Any]], batch_size: int = 500
     ) -> Dict[tuple, int]:
         """
-        Batch upsert classes using PostgreSQL's ON CONFLICT.
+        Batch upsert classes using PostgreSQL's ON CONFLICT with true multi-row INSERT.
 
         Args:
             class_data_list: List of dicts with 'course_id', 'class_number', 'section_code'
@@ -463,43 +468,48 @@ class ScraperService:
         for i in range(0, len(class_data_list), batch_size):
             batch = class_data_list[i : i + batch_size]
 
-            # Build the INSERT ... ON CONFLICT query with RETURNING
+            # Build multi-row VALUES clause with unique parameter names
+            placeholders = []
+            params = {}
+
+            for idx, cls in enumerate(batch):
+                placeholders.append(
+                    f"(:course_id_{idx}, :class_number_{idx}, :section_code_{idx}, "
+                    f":is_active_{idx}, :created_at_{idx}, :updated_at_{idx})"
+                )
+                params[f"course_id_{idx}"] = cls["course_id"]
+                params[f"class_number_{idx}"] = cls["class_number"]
+                params[f"section_code_{idx}"] = cls["section_code"]
+                params[f"is_active_{idx}"] = True
+                params[f"created_at_{idx}"] = now
+                params[f"updated_at_{idx}"] = now
+
+            values_clause = ", ".join(placeholders)
+
+            # Build the multi-row INSERT ... ON CONFLICT query with RETURNING
             query = text(
-                """
+                f"""
                 INSERT INTO classes (course_id, class_number, section_code, is_active, created_at, updated_at)
-                VALUES (:course_id, :class_number, :section_code, :is_active, :created_at, :updated_at)
+                VALUES {values_clause}
                 ON CONFLICT (course_id, class_number)
                 DO UPDATE SET
                     section_code = EXCLUDED.section_code,
                     is_active = EXCLUDED.is_active,
                     updated_at = EXCLUDED.updated_at
                 RETURNING class_id, course_id, class_number
-            """
+                """
             )
 
-            # Prepare batch data
-            batch_params = [
-                {
-                    "course_id": cls["course_id"],
-                    "class_number": cls["class_number"],
-                    "section_code": cls["section_code"],
-                    "is_active": True,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                for cls in batch
-            ]
+            # Execute single query for entire batch and collect results
+            result = self.db.execute(query, params)
+            for row in result:
+                class_mapping[(row[1], row[2])] = row[
+                    0
+                ]  # (course_id, class_number) -> class_id
 
-            # Execute batch and collect results
-            for params in batch_params:
-                result = self.db.execute(query, params)
-                row = result.fetchone()
-                if row:
-                    class_mapping[(row[1], row[2])] = row[
-                        0
-                    ]  # (course_id, class_number) -> class_id
-
-            logger.debug(f"Upserted batch {i // batch_size + 1}: {len(batch)} classes")
+            logger.debug(
+                f"Upserted batch {i // batch_size + 1}: {len(batch)} classes in single query"
+            )
 
         logger.info(f"Batch upsert complete: {len(class_mapping)} classes processed")
         return class_mapping
