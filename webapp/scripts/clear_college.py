@@ -2,19 +2,18 @@
 """
 Script to clear course/class data for a college.
 
-This removes all courses, classes, and enrollments for a specific college,
-but keeps the college record itself. Useful for re-scraping or cleaning up bad data.
+This removes all courses, classes, enrollments, notification_logs, and optionally
+subscriptions for a specific college, but keeps the college record itself.
+Useful for re-scraping or cleaning up bad data.
 
 Usage:
     python clear_college.py --college princeton --confirm
+    python clear_college.py --college cornell --keep-subscriptions --confirm
 """
 
-import asyncio
 import argparse
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select, delete
-from uuid import uuid4
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 import sys
 from pathlib import Path
@@ -24,125 +23,125 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import settings
 from models.college import College
-from models.course import Course
-from models.class_model import Class
-from models.enrollment import Enrollment
-from models.subscription import Subscription
 
 
-async def clear_college_data(college_short_name: str, keep_subscriptions: bool = False):
+def clear_college_data(college_short_name: str, keep_subscriptions: bool = False):
     """
-    Clear all course data for a college.
+    Clear all course data for a college using raw SQL in correct dependency order.
 
     Args:
         college_short_name: College short name identifier
-        keep_subscriptions: If True, keep subscription records (just deactivate)
+        keep_subscriptions: If True, keep notification_logs and subscription records
 
     Returns:
-        Dict with counts of deleted records
+        Dict with counts of deleted records or None if college not found
     """
-    engine = create_async_engine(
-        settings.async_database_url,
-        connect_args={"prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__"},
-    )
-    AsyncSessionLocal = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
+    # Create sync engine
+    engine = create_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
     )
 
-    async with AsyncSessionLocal() as db:
+    with Session(engine) as db:
         # Find college
-        result = await db.execute(
-            select(College).where(College.short_name == college_short_name)
+        college = (
+            db.query(College).filter(College.short_name == college_short_name).first()
         )
-        college = result.scalar_one_or_none()
 
         if not college:
             print(f"❌ College '{college_short_name}' not found!")
             return None
 
         print(f"🔍 Clearing data for: {college.name} ({college.short_name})")
+        college_id = college.id
 
-        # Get course IDs for this college
-        course_result = await db.execute(
-            select(Course.id).where(Course.college_id == college.id)
+        # Check if college has any courses
+        result = db.execute(
+            text("SELECT COUNT(*) FROM courses WHERE college_id = :college_id"),
+            {"college_id": college_id},
         )
-        course_ids = [row[0] for row in course_result.all()]
+        course_count = result.scalar()
 
-        print(f"   Found {len(course_ids)} courses")
-
-        if not course_ids:
+        if course_count == 0:
             print("   No data to clear.")
-            return {"courses": 0, "classes": 0, "enrollments": 0, "subscriptions": 0}
+            return {
+                "courses": 0,
+                "classes": 0,
+                "enrollments": 0,
+                "subscriptions": 0,
+                "notification_logs": 0,
+            }
 
-        # Get class IDs
-        class_result = await db.execute(
-            select(Class.class_id).where(Class.course_id.in_(course_ids))
-        )
-        class_ids = [row[0] for row in class_result.all()]
+        print(f"   Found {course_count} courses")
 
-        print(f"   Found {len(class_ids)} classes")
+        # Manual CASCADE deletion in correct dependency order:
+        # 1. notification_logs -> 2. subscriptions -> 3. enrollments -> 4. classes -> 5. courses
 
-        # Delete enrollments
-        if class_ids:
-            enrollment_delete = delete(Enrollment).where(
-                Enrollment.class_id.in_(class_ids)
+        counts = {
+            "notification_logs": 0,
+            "subscriptions": 0,
+            "enrollments": 0,
+            "classes": 0,
+            "courses": 0,
+        }
+
+        if not keep_subscriptions:
+            # Delete notification_logs (references subscriptions + college)
+            result = db.execute(
+                text("DELETE FROM notification_logs WHERE college_id = :college_id"),
+                {"college_id": college_id},
             )
-            enrollment_result = await db.execute(enrollment_delete)
-            enrollments_deleted = enrollment_result.rowcount
-            print(f"   Deleted {enrollments_deleted} enrollment records")
+            counts["notification_logs"] = result.rowcount
+            print(f"   Deleted {counts['notification_logs']} notification_logs")
+
+            # Delete subscriptions (references classes + college)
+            result = db.execute(
+                text("DELETE FROM subscriptions WHERE college_id = :college_id"),
+                {"college_id": college_id},
+            )
+            counts["subscriptions"] = result.rowcount
+            print(f"   Deleted {counts['subscriptions']} subscriptions")
         else:
-            enrollments_deleted = 0
+            print(
+                f"   Keeping notification_logs and subscriptions (--keep-subscriptions)"
+            )
 
-        # Handle subscriptions
-        subscriptions_affected = 0
-        if class_ids:
-            if keep_subscriptions:
-                # Deactivate instead of delete
-                subscription_result = await db.execute(
-                    select(Subscription).where(Subscription.class_id.in_(class_ids))
-                )
-                subscriptions = subscription_result.scalars().all()
-                for sub in subscriptions:
-                    sub.is_active = False
-                subscriptions_affected = len(subscriptions)
-                print(f"   Deactivated {subscriptions_affected} subscriptions")
-            else:
-                # Delete subscriptions
-                subscription_delete = delete(Subscription).where(
-                    Subscription.class_id.in_(class_ids)
-                )
-                subscription_result = await db.execute(subscription_delete)
-                subscriptions_affected = subscription_result.rowcount
-                print(f"   Deleted {subscriptions_affected} subscriptions")
+        # Delete enrollments (references classes + college)
+        result = db.execute(
+            text("DELETE FROM enrollments WHERE college_id = :college_id"),
+            {"college_id": college_id},
+        )
+        counts["enrollments"] = result.rowcount
+        print(f"   Deleted {counts['enrollments']} enrollments")
 
-        # Delete classes
-        if class_ids:
-            class_delete = delete(Class).where(Class.course_id.in_(course_ids))
-            class_result = await db.execute(class_delete)
-            classes_deleted = class_result.rowcount
-            print(f"   Deleted {classes_deleted} classes")
-        else:
-            classes_deleted = 0
+        # Delete classes (references courses)
+        result = db.execute(
+            text(
+                "DELETE FROM classes WHERE course_id IN "
+                "(SELECT id FROM courses WHERE college_id = :college_id)"
+            ),
+            {"college_id": college_id},
+        )
+        counts["classes"] = result.rowcount
+        print(f"   Deleted {counts['classes']} classes")
 
-        # Delete courses
-        course_delete = delete(Course).where(Course.college_id == college.id)
-        course_result = await db.execute(course_delete)
-        courses_deleted = course_result.rowcount
-        print(f"   Deleted {courses_deleted} courses")
+        # Delete courses (references college)
+        result = db.execute(
+            text("DELETE FROM courses WHERE college_id = :college_id"),
+            {"college_id": college_id},
+        )
+        counts["courses"] = result.rowcount
+        print(f"   Deleted {counts['courses']} courses")
 
         # Commit all deletions
-        await db.commit()
+        db.commit()
 
         print(f"\n✅ Data cleared successfully for {college.name}")
 
-        return {
-            "courses": courses_deleted,
-            "classes": classes_deleted,
-            "enrollments": enrollments_deleted,
-            "subscriptions": subscriptions_affected,
-        }
+        return counts
 
-    await engine.dispose()
+    engine.dispose()
 
 
 def main():
@@ -160,7 +159,7 @@ def main():
     parser.add_argument(
         "--keep-subscriptions",
         action="store_true",
-        help="Keep subscription records (deactivate instead of delete)",
+        help="Keep notification_logs and subscription records (useful for testing)",
     )
 
     parser.add_argument(
@@ -170,16 +169,12 @@ def main():
     args = parser.parse_args()
 
     if not args.confirm:
-        print(
-            "⚠️  WARNING: This will delete all course data for the specified college!"
-        )
+        print("⚠️  WARNING: This will delete all course data for the specified college!")
         print("   Use --confirm flag to proceed")
         return
 
-    result = asyncio.run(
-        clear_college_data(
-            args.college.lower(), keep_subscriptions=args.keep_subscriptions
-        )
+    result = clear_college_data(
+        args.college.lower(), keep_subscriptions=args.keep_subscriptions
     )
 
     if result:
@@ -188,8 +183,10 @@ def main():
         print(f"  Classes deleted: {result['classes']}")
         print(f"  Enrollments deleted: {result['enrollments']}")
         if args.keep_subscriptions:
-            print(f"  Subscriptions deactivated: {result['subscriptions']}")
+            print(f"  Notification logs kept: (not deleted)")
+            print(f"  Subscriptions kept: (not deleted)")
         else:
+            print(f"  Notification logs deleted: {result['notification_logs']}")
             print(f"  Subscriptions deleted: {result['subscriptions']}")
 
 
