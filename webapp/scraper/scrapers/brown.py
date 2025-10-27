@@ -112,48 +112,16 @@ class BrownScraper(BaseScraper):
             section_elem_code = section_elem.select_one(".section-code, .section-num")
             section_code = section_elem_code.text.strip() if section_elem_code else ""
 
-            # Extract instructor
-            instructor_elem = section_elem.select_one(".instructor, .faculty")
-            instructor = instructor_elem.text.strip() if instructor_elem else ""
-
-            # Extract meeting times
-            time_elem = section_elem.select_one(".time, .meeting-time")
-            schedule = time_elem.text.strip() if time_elem else ""
-
-            # Extract location
-            location_elem = section_elem.select_one(".location, .building-room")
-            location = location_elem.text.strip() if location_elem else ""
-
-            # Extract enrollment
-            enrolled_elem = section_elem.select_one(".enrolled, .seats-taken")
-            capacity_elem = section_elem.select_one(".capacity, .seats-total")
-
-            enrolled_text = enrolled_elem.text if enrolled_elem else "0"
-            capacity_text = capacity_elem.text if capacity_elem else "0"
-            enrolled, capacity = self.parse_enrollment(enrolled_text, capacity_text)
-
-            # Extract waitlist
-            waitlist_elem = section_elem.select_one(".waitlist")
-            waitlist = self.parse_waitlist(waitlist_elem.text) if waitlist_elem else 0
-
             # Determine status
             status_elem = section_elem.select_one(".status, .availability")
             if status_elem:
                 status = self.normalize_status(status_elem.text)
-            elif enrolled >= capacity:
-                status = "Closed"
             else:
-                status = "Open"
+                status = "Unknown"
 
             return {
                 "class_number": class_number,
                 "section": section_code,
-                "instructor": instructor,
-                "schedule": schedule,
-                "location": location,
-                "enrolled": enrolled,
-                "capacity": capacity,
-                "waitlist": waitlist,
                 "status": status,
             }
 

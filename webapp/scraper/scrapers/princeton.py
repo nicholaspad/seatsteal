@@ -112,33 +112,6 @@ class PrincetonScraper(BaseScraper):
             section_code_elem = section_elem.select_one(".section-code, .section")
             section_code = section_code_elem.text.strip() if section_code_elem else ""
 
-            # Extract instructor
-            instructor_elem = section_elem.select_one(".instructor, .instructors")
-            instructor = instructor_elem.text.strip() if instructor_elem else ""
-
-            # Extract schedule
-            schedule_elem = section_elem.select_one(".schedule, .meeting-times")
-            schedule = schedule_elem.text.strip() if schedule_elem else ""
-
-            # Extract location
-            location_elem = section_elem.select_one(".location, .room")
-            location = location_elem.text.strip() if location_elem else ""
-
-            # Extract enrollment data
-            enrolled_elem = section_elem.select_one(".enrolled, [data-enrolled]")
-            capacity_elem = section_elem.select_one(".capacity, [data-capacity]")
-            waitlist_elem = section_elem.select_one(".waitlist, [data-waitlist]")
-
-            enrolled = int(
-                enrolled_elem.get("data-enrolled", "0") if enrolled_elem else "0"
-            )
-            capacity = int(
-                capacity_elem.get("data-capacity", "0") if capacity_elem else "0"
-            )
-            waitlist = int(
-                waitlist_elem.get("data-waitlist", "0") if waitlist_elem else "0"
-            )
-
             # Extract status
             status_elem = section_elem.select_one(".status, .enrollment-status")
             status_text = status_elem.text.strip() if status_elem else "Unknown"
@@ -147,12 +120,6 @@ class PrincetonScraper(BaseScraper):
             return {
                 "class_number": class_number,
                 "section": section_code,
-                "instructor": instructor,
-                "schedule": schedule,
-                "location": location,
-                "enrolled": enrolled,
-                "capacity": capacity,
-                "waitlist": waitlist,
                 "status": status,
             }
 

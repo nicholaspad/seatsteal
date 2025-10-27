@@ -111,75 +111,16 @@ class USCScraper(BaseScraper):
             type_elem = section_elem.select_one(".section-type")
             section_code = type_elem.text.strip() if type_elem else ""
 
-            # Instructor
-            instructor_elem = section_elem.select_one(".instructor, .instructor-name")
-            instructor = instructor_elem.text.strip() if instructor_elem else ""
-
-            # Schedule/Days and Times
-            days_elem = section_elem.select_one(".days")
-            time_elem = section_elem.select_one(".time, .meeting-time")
-            days = days_elem.text.strip() if days_elem else ""
-            times = time_elem.text.strip() if time_elem else ""
-            schedule = f"{days} {times}".strip() if days or times else ""
-
-            # Location
-            location_elem = section_elem.select_one(".location, .building-room")
-            location = location_elem.text.strip() if location_elem else ""
-
-            # Enrollment information
-            registered_elem = section_elem.select_one(".registered, .enrolled")
-            spaces_elem = section_elem.select_one(".spaces, .capacity")
-
-            if registered_elem and spaces_elem:
-                enrolled_text = registered_elem.text.strip()
-                capacity_text = spaces_elem.text.strip()
-                enrolled, capacity = self.parse_enrollment(enrolled_text, capacity_text)
-            else:
-                # Sometimes USC shows it as "X of Y"
-                enrollment_elem = section_elem.select_one(".enrollment")
-                if enrollment_elem:
-                    enrollment_text = enrollment_elem.text.strip()
-                    if " of " in enrollment_text:
-                        parts = enrollment_text.split(" of ")
-                        enrolled, capacity = self.parse_enrollment(parts[0], parts[1])
-                    else:
-                        enrolled, capacity = 0, 0
-                else:
-                    enrolled, capacity = 0, 0
-
-            # Waitlist
-            waitlist_elem = section_elem.select_one(".waitlist")
-            waitlist = self.parse_waitlist(waitlist_elem.text) if waitlist_elem else 0
-
             # Status
             status_elem = section_elem.select_one(".status, .section-status")
             if status_elem:
-                status_text = status_elem.text.strip()
-                # USC uses specific status indicators
-                if "open" in status_text.lower() or "available" in status_text.lower():
-                    status = "Open"
-                elif "closed" in status_text.lower() or "full" in status_text.lower():
-                    status = "Closed"
-                elif "waitlist" in status_text.lower():
-                    status = "Waitlist"
-                else:
-                    status = self.normalize_status(status_text)
-            elif enrolled >= capacity and capacity > 0:
-                status = "Closed"
-            elif waitlist > 0:
-                status = "Waitlist"
+                status = self.normalize_status(status_elem.text)
             else:
-                status = "Open"
+                status = "Unknown"
 
             return {
                 "class_number": class_number,
                 "section": section_code,
-                "instructor": instructor,
-                "schedule": schedule,
-                "location": location,
-                "enrolled": enrolled,
-                "capacity": capacity,
-                "waitlist": waitlist,
                 "status": status,
             }
 

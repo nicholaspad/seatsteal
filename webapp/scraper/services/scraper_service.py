@@ -357,13 +357,7 @@ class ScraperService:
             {
                 "class_number": class_data.get("class_number"),
                 "section": class_data.get("section"),
-                "enrolled": class_data.get("enrolled"),
-                "capacity": class_data.get("capacity"),
-                "waitlist": class_data.get("waitlist"),
                 "raw_status": raw_status,
-                "instructor": class_data.get("instructor"),
-                "schedule": class_data.get("schedule"),
-                "location": class_data.get("location"),
             }
         )
 

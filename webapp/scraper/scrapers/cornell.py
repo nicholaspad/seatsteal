@@ -266,19 +266,10 @@ class CornellScraper(BaseScraper):
                     else:
                         section_code = section_type
 
-            # For Cornell, we get minimal data from .class-numbers
-            # Additional details would need to be extracted from other parts of the page
-            # Set defaults for now
             return {
                 "class_number": class_number,
                 "section": section_code,
-                "instructor": "",  # Would need to extract from different section
-                "schedule": "",  # Would need to extract from different section
-                "location": "",  # Would need to extract from different section
-                "enrolled": 0,  # Would need to extract from enrollment section
-                "capacity": 0,  # Would need to extract from enrollment section
-                "waitlist": 0,  # Would need to extract from enrollment section
-                "status": status,  # Status extracted from enrollment indicators
+                "status": status,
             }
 
         except Exception as e:

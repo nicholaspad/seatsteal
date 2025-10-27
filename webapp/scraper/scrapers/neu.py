@@ -91,21 +91,6 @@ class NEUScraper(BaseScraper):
                     class_info = {
                         "class_number": section.get("courseReferenceNumber", ""),
                         "section": section.get("sequenceNumber", ""),
-                        "instructor": ", ".join(
-                            [
-                                i.get("displayName", "")
-                                for i in section.get("faculty", [])
-                            ]
-                        ),
-                        "schedule": self._format_meeting_times(
-                            section.get("meetingsFaculty", [])
-                        ),
-                        "location": self._format_location(
-                            section.get("meetingsFaculty", [])
-                        ),
-                        "enrolled": int(section.get("enrollment", 0)),
-                        "capacity": int(section.get("maximumEnrollment", 0)),
-                        "waitlist": int(section.get("waitCount", 0)),
                         "status": self.normalize_status(
                             section.get("openSection", "N") == "Y"
                             and "Open"
@@ -185,22 +170,6 @@ class NEUScraper(BaseScraper):
             section_elem_code = section_elem.select_one(".section-number")
             section_code = section_elem_code.text.strip() if section_elem_code else ""
 
-            instructor_elem = section_elem.select_one(".instructor")
-            instructor = instructor_elem.text.strip() if instructor_elem else ""
-
-            schedule_elem = section_elem.select_one(".meeting-time")
-            schedule = schedule_elem.text.strip() if schedule_elem else ""
-
-            location_elem = section_elem.select_one(".location")
-            location = location_elem.text.strip() if location_elem else ""
-
-            enrolled_elem = section_elem.select_one(".enrolled")
-            capacity_elem = section_elem.select_one(".capacity")
-            enrolled, capacity = self.parse_enrollment(
-                enrolled_elem.text if enrolled_elem else "0",
-                capacity_elem.text if capacity_elem else "0",
-            )
-
             status_elem = section_elem.select_one(".status")
             status = (
                 self.normalize_status(status_elem.text) if status_elem else "Unknown"
@@ -209,45 +178,9 @@ class NEUScraper(BaseScraper):
             return {
                 "class_number": class_number,
                 "section": section_code,
-                "instructor": instructor,
-                "schedule": schedule,
-                "location": location,
-                "enrolled": enrolled,
-                "capacity": capacity,
-                "waitlist": 0,
                 "status": status,
             }
 
         except Exception as e:
             logger.error(f"Error parsing class HTML: {e}")
             return None
-
-    def _format_meeting_times(self, meetings: List[Dict]) -> str:
-        """Format meeting times from API data"""
-        if not meetings:
-            return ""
-
-        times = []
-        for meeting in meetings:
-            meeting_time = meeting.get("meetingTime", {})
-            days = meeting_time.get("meetingDays", "")
-            start_time = meeting_time.get("beginTime", "")
-            end_time = meeting_time.get("endTime", "")
-            if days and start_time and end_time:
-                times.append(f"{days} {start_time}-{end_time}")
-
-        return ", ".join(times)
-
-    def _format_location(self, meetings: List[Dict]) -> str:
-        """Format location from API data"""
-        if not meetings:
-            return ""
-
-        locations = []
-        for meeting in meetings:
-            building = meeting.get("building", "")
-            room = meeting.get("room", "")
-            if building or room:
-                locations.append(f"{building} {room}".strip())
-
-        return ", ".join(locations)

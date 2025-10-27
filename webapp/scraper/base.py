@@ -49,12 +49,6 @@ class BaseScraper(ABC):
                         {
                             'class_number': '12345',
                             'section': 'LEC 001',
-                            'instructor': 'John Doe',
-                            'schedule': 'MWF 10:00-11:00',
-                            'location': 'Building 123',
-                            'enrolled': 50,
-                            'capacity': 100,
-                            'waitlist': 5,
                             'status': 'Open'
                         },
                         ...
@@ -130,51 +124,6 @@ class BaseScraper(ABC):
         except requests.RequestException as e:
             logger.error(f"Failed to fetch JSON from {url}: {e}")
             raise
-
-    def parse_enrollment(
-        self, enrolled_text: str, capacity_text: str
-    ) -> tuple[int, int]:
-        """
-        Parse enrollment numbers from text strings.
-
-        Args:
-            enrolled_text: Text containing enrolled count
-            capacity_text: Text containing capacity
-
-        Returns:
-            Tuple of (enrolled, capacity) as integers
-        """
-        try:
-            # Remove common non-numeric characters
-            enrolled_clean = "".join(filter(str.isdigit, enrolled_text.strip()))
-            capacity_clean = "".join(filter(str.isdigit, capacity_text.strip()))
-
-            enrolled = int(enrolled_clean) if enrolled_clean else 0
-            capacity = int(capacity_clean) if capacity_clean else 0
-
-            return enrolled, capacity
-
-        except (ValueError, AttributeError) as e:
-            logger.warning(
-                f"Failed to parse enrollment: enrolled='{enrolled_text}', capacity='{capacity_text}': {e}"
-            )
-            return 0, 0
-
-    def parse_waitlist(self, waitlist_text: str) -> int:
-        """
-        Parse waitlist number from text.
-
-        Args:
-            waitlist_text: Text containing waitlist count
-
-        Returns:
-            Waitlist count as integer
-        """
-        try:
-            waitlist_clean = "".join(filter(str.isdigit, waitlist_text.strip()))
-            return int(waitlist_clean) if waitlist_clean else 0
-        except (ValueError, AttributeError):
-            return 0
 
     def normalize_status(self, status_text: str) -> str:
         """
