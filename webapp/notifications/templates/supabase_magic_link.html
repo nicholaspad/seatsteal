@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <title>Sign in to SeatSteal</title>
+    <style>
+        /* Light mode (default) */
+        :root {
+            color-scheme: light dark;
+            supported-color-schemes: light dark;
+        }
+
+        /* Dark mode styles */
+        @media (prefers-color-scheme: dark) {
+            .email-wrapper {
+                background-color: #1a1a1a !important;
+            }
+            .email-container {
+                background-color: #2d2d2d !important;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+            }
+            .header-title {
+                color: #ffffff !important;
+            }
+            .content-heading {
+                color: #ffffff !important;
+            }
+            .content-text {
+                color: #b3b3b3 !important;
+            }
+            .email-label {
+                color: #808080 !important;
+            }
+            .email-value {
+                color: #b3b3b3 !important;
+            }
+            .security-text {
+                color: #808080 !important;
+            }
+            .footer-border {
+                border-top: 1px solid #404040 !important;
+            }
+            .footer-text {
+                color: #808080 !important;
+            }
+            .footer-muted {
+                color: #666666 !important;
+            }
+            .alt-link-text {
+                color: #808080 !important;
+            }
+            .alt-link {
+                color: #4d9fff !important;
+            }
+            /* Keep button bright in dark mode */
+            .cta-button {
+                background-color: #007bff !important;
+                color: #ffffff !important;
+            }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" class="email-wrapper" style="background-color: #f5f5f5; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" border="0" class="email-container" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header with Icon -->
+                    <tr>
+                        <td style="padding: 40px 40px 30px 40px; text-align: center;">
+                            <div style="font-size: 48px; margin-bottom: 10px;">🔐</div>
+                            <h1 class="header-title" style="margin: 0; font-size: 28px; color: #333333; font-weight: 600;">
+                                Sign in to SeatSteal
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 0 40px 30px 40px;">
+                            <h2 class="content-heading" style="margin: 0 0 20px 0; font-size: 20px; color: #333333; font-weight: 500; text-align: center;">
+                                Your secure login link
+                            </h2>
+
+                            <p class="content-text" style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #666666; text-align: center;">
+                                Click the button below to sign in to your SeatSteal account. This link will expire in 1 hour for security.
+                            </p>
+
+                            <p style="margin: 0 0 30px 0; font-size: 14px; text-align: center;">
+                                <span class="email-label" style="color: #999999;">Email:</span>
+                                <strong class="email-value" style="color: #666666; margin-left: 5px;">{{ .Email }}</strong>
+                            </p>
+
+                            <!-- Call to Action Button -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td align="center" style="padding: 10px 0 20px 0;">
+                                        <a href="{{ .ConfirmationURL }}" class="cta-button"
+                                           style="display: inline-block; padding: 14px 40px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500;">
+                                            Sign In to SeatSteal
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Security Notice -->
+                    <tr>
+                        <td style="padding: 0 40px 30px 40px;">
+                            <div style="background-color: #f8f9fa; border-left: 4px solid #17a2b8; padding: 15px; border-radius: 6px;">
+                                <p class="security-text" style="margin: 0; font-size: 14px; color: #666666; line-height: 1.6;">
+                                    <strong>🛡️ Security Note:</strong> If you didn't request this email, you can safely ignore it. The link will expire automatically and no action is required.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td class="footer-border" style="padding: 30px 40px; text-align: center; border-top: 1px solid #e5e5e5;">
+                            <p class="footer-text" style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
+                                You're receiving this because you requested to sign in to SeatSteal.
+                            </p>
+
+                            <p class="footer-text" style="margin: 20px 0 0 0; font-size: 12px; color: #999999;">
+                                SeatSteal - Never miss a course opening
+                            </p>
+                            <p class="footer-muted" style="margin: 10px 0 0 0; font-size: 12px; color: #cccccc;">
+                                This is an automated email. Please do not reply.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Alternative Link -->
+                <table width="600" cellpadding="0" cellspacing="0" border="0" style="margin-top: 20px;">
+                    <tr>
+                        <td style="padding: 20px; text-align: center;">
+                            <p class="alt-link-text" style="margin: 0 0 10px 0; font-size: 12px; color: #999999;">
+                                If the button doesn't work, copy and paste this link into your browser:
+                            </p>
+                            <p style="margin: 0;">
+                                <a href="{{ .ConfirmationURL }}" class="alt-link" style="font-size: 12px; color: #007bff; word-break: break-all; text-decoration: underline;">
+                                    {{ .ConfirmationURL }}
+                                </a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
