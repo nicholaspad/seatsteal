@@ -7,9 +7,10 @@ interface AdminRouteProps {
 }
 
 export default function AdminRoute({ children }: AdminRouteProps) {
-  const { user, loading } = useSession();
+  const { user, profile, loading, profileLoading } = useSession();
 
-  if (loading) {
+  // Wait for both user and profile to load
+  if (loading || profileLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-lg">Loading...</div>
@@ -17,11 +18,13 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     );
   }
 
+  // Redirect to login if no user
   if (!user) {
-    return <Redirect to="/login" />;
+    return <Redirect to="/login-admin" />;
   }
 
-  if (user.role !== "admin") {
+  // Redirect to home if not admin (UX only, backend enforces real authorization)
+  if (!profile || profile.role !== "admin") {
     return <Redirect to="/" />;
   }
 

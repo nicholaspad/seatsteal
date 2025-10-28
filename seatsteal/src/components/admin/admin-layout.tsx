@@ -1,15 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Users,
-  Settings,
-  Home,
-  Shield,
-  LogOut,
-  Bell,
-  Activity,
-  Zap,
-} from "lucide-react";
+import { Users, Home, Shield, LogOut, Bell, Activity, Zap } from "lucide-react";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -40,11 +31,6 @@ const navigation = [
     name: "Notifications",
     href: "/admin/notifications",
     icon: Bell,
-  },
-  {
-    name: "Settings",
-    href: "/admin/settings",
-    icon: Settings,
   },
 ];
 

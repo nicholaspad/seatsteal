@@ -44,6 +44,7 @@ async def get_user_settings(
             "data": {
                 "email": user.email,
                 "phone": user.phone or "",
+                "role": user.role,
                 "collegeId": user.college_id or 0,
                 "collegeName": college.name if college else "",
             },

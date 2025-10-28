@@ -39,13 +39,31 @@ function resolveApiUrl(url: string): string {
  * and server errors (5xx responses) with automatic toast messages.
  * Throws ServerErrorWithToast for any error to prevent duplicate toasts.
  * Automatically resolves relative /api/ URLs to the configured backend.
+ * Automatically adds Authorization header with Supabase access token.
  */
 export async function fetchWithToasts(
   url: string,
   options?: RequestInit,
 ): Promise<Response> {
   const resolvedUrl = resolveApiUrl(url);
-  const response = await fetch(resolvedUrl, options);
+
+  // Get auth token from Supabase session
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  // Merge headers with auth token
+  const headers: HeadersInit = {
+    ...options?.headers,
+    ...(session?.access_token && {
+      Authorization: `Bearer ${session.access_token}`,
+    }),
+  };
+
+  const response = await fetch(resolvedUrl, {
+    ...options,
+    headers,
+  });
 
   // Handle rate limiting (429) - return response without throwing
   // This allows calling code to read the detailed error message and show

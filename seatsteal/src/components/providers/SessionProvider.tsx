@@ -4,9 +4,19 @@ import { fetchWithToasts } from "@/lib/api";
 import type { User } from "@supabase/supabase-js";
 import type { SubscriptionTier } from "@/lib/subscription-constants";
 
+interface UserProfile {
+  email: string;
+  phone: string;
+  role: string;
+  collegeId: number;
+  collegeName: string;
+}
+
 interface SessionContextType {
   user: User | null;
+  profile: UserProfile | null;
   loading: boolean;
+  profileLoading: boolean;
   subscriptionTier: SubscriptionTier;
   tierLoading: boolean;
 }
@@ -15,13 +25,39 @@ const SessionContext = createContext<SessionContextType | null>(null);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [subscriptionTier, setSubscriptionTier] =
     useState<SubscriptionTier>("free");
   const [tierLoading, setTierLoading] = useState(true);
 
   // Prevent race conditions between initial auth and auth state changes
   const initializingRef = useRef(false);
+
+  // Function to fetch user's profile from backend
+  const fetchUserProfile = async () => {
+    try {
+      setProfileLoading(true);
+      const response = await fetchWithToasts("/api/user/settings");
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setProfile(data.data);
+        } else {
+          throw new Error(data.error || "Failed to fetch profile");
+        }
+      } else {
+        throw new Error("Failed to fetch user profile");
+      }
+    } catch {
+      // Clear profile on error
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   // Function to fetch user's subscription tier
   const fetchSubscriptionTier = async (userId: string) => {
@@ -70,17 +106,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
         if (userError || !user) {
           setUser(null);
+          setProfile(null);
           setLoading(false);
+          setProfileLoading(false);
           setTierLoading(false);
           return;
         }
 
         setUser(user);
         setLoading(false);
+        fetchUserProfile();
         fetchSubscriptionTier(user.id);
       } catch {
         setUser(null);
+        setProfile(null);
         setLoading(false);
+        setProfileLoading(false);
         setTierLoading(false);
       } finally {
         initializingRef.current = false;
@@ -95,7 +136,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_OUT" || !session?.user) {
         setUser(null);
+        setProfile(null);
         setSubscriptionTier("free");
+        setProfileLoading(false);
         setTierLoading(false);
         setLoading(false);
         return;
@@ -111,6 +154,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setUser(session.user);
           setLoading(false);
+          fetchUserProfile();
           fetchSubscriptionTier(session.user.id);
           return;
         }
@@ -124,20 +168,27 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
           if (userError) {
             setUser(null);
+            setProfile(null);
             setSubscriptionTier("free");
+            setProfileLoading(false);
             setTierLoading(false);
           } else if (!user) {
             setUser(null);
+            setProfile(null);
             setSubscriptionTier("free");
+            setProfileLoading(false);
             setTierLoading(false);
           } else {
             setUser(user);
+            fetchUserProfile();
             fetchSubscriptionTier(user.id);
           }
           setLoading(false);
         } catch (error) {
           setUser(null);
+          setProfile(null);
           setSubscriptionTier("free");
+          setProfileLoading(false);
           setTierLoading(false);
           setLoading(false);
         }
@@ -151,7 +202,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <SessionContext.Provider
-      value={{ user, loading, subscriptionTier, tierLoading }}
+      value={{
+        user,
+        profile,
+        loading,
+        profileLoading,
+        subscriptionTier,
+        tierLoading,
+      }}
     >
       {children}
     </SessionContext.Provider>

@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func, or_, desc, text
+from sqlalchemy import select, and_, func, or_, desc, text, case
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List, Literal
 from datetime import datetime, timedelta
@@ -197,7 +197,7 @@ async def get_analytics(
         # Recent enrollment changes
         recent_enrollment_query = (
             select(
-                Class.id.label("classId"),
+                Class.class_id.label("classId"),
                 Course.course_code.label("courseCode"),
                 Course.title,
                 College.name.label("collegeName"),
@@ -205,7 +205,7 @@ async def get_analytics(
                 Enrollment.scraped_at.label("scrapedAt"),
             )
             .select_from(Enrollment)
-            .join(Class, Enrollment.class_id == Class.id)
+            .join(Class, Enrollment.class_id == Class.class_id)
             .join(Course, Class.course_id == Course.id)
             .join(College, Course.college_id == College.id)
             .where(
@@ -301,25 +301,15 @@ async def get_notifications(
                 Course.course_code.label("courseCode"),
                 Course.title.label("courseTitle"),
                 College.name.label("collegeName"),
-                Enrollment.seats_remaining.label("seatsRemaining"),
-                Enrollment.enrollment_status.label("enrollmentStatus"),
+                NotificationLog.seats_remaining.label("seatsRemaining"),
+                NotificationLog.enrollment_status.label("enrollmentStatus"),
             )
             .select_from(NotificationLog)
             .join(Subscription, NotificationLog.subscription_id == Subscription.id)
             .join(Profile, Subscription.user_id == Profile.id)
-            .join(Class, Subscription.class_id == Class.id)
+            .join(Class, Subscription.class_id == Class.class_id)
             .join(Course, Class.course_id == Course.id)
             .join(College, Course.college_id == College.id)
-            .outerjoin(
-                Enrollment,
-                and_(
-                    Enrollment.class_id == Class.id,
-                    Enrollment.scraped_at
-                    == select(func.max(Enrollment.scraped_at))
-                    .where(Enrollment.class_id == Class.id)
-                    .scalar_subquery(),
-                ),
-            )
             .where(and_(*filters))
         )
 
@@ -594,9 +584,9 @@ async def get_scrapers(
         recent_runs_result = db.execute(
             select(
                 func.count().label("totalRuns"),
-                func.sum(
-                    func.case((ScraperLog.outcome == "success", 1), else_=0)
-                ).label("successfulRuns"),
+                func.sum(case((ScraperLog.outcome == "success", 1), else_=0)).label(
+                    "successfulRuns"
+                ),
                 func.avg(ScraperLog.duration_ms).label("avgDuration"),
             )
             .select_from(ScraperLog)
@@ -678,9 +668,9 @@ async def get_scrapers(
                 College.name.label("collegeName"),
                 College.short_name.label("shortName"),
                 func.count(ScraperLog.id).label("totalRuns"),
-                func.sum(
-                    func.case((ScraperLog.outcome == "success", 1), else_=0)
-                ).label("successfulRuns"),
+                func.sum(case((ScraperLog.outcome == "success", 1), else_=0)).label(
+                    "successfulRuns"
+                ),
             )
             .select_from(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
@@ -720,10 +710,10 @@ async def get_scrapers(
                 College.name.label("collegeName"),
                 College.short_name.label("shortName"),
                 func.avg(ScraperLog.duration_ms).label("avgDuration"),
-                func.sum(
-                    func.case((ScraperLog.outcome == "success", 1), else_=0)
-                ).label("successCount"),
-                func.sum(func.case((ScraperLog.outcome == "error", 1), else_=0)).label(
+                func.sum(case((ScraperLog.outcome == "success", 1), else_=0)).label(
+                    "successCount"
+                ),
+                func.sum(case((ScraperLog.outcome == "error", 1), else_=0)).label(
                     "errorCount"
                 ),
                 func.count(ScraperLog.id).label("totalRuns"),
