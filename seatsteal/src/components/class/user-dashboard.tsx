@@ -409,12 +409,6 @@ const UserDashboard = memo(function UserDashboard({
                 }
               </div>
 
-              <Button className="w-full" asChild>
-                <Link to="/courses">
-                  <BookOpen className="mr-2 h-4 w-4" />
-                  Browse Courses
-                </Link>
-              </Button>
               <Button variant="outline" className="w-full" asChild>
                 <Link to="/settings">
                   <Settings className="mr-2 h-4 w-4" />
@@ -588,7 +582,10 @@ const UserDashboard = memo(function UserDashboard({
                         courses and subscribe to closed classes to get notified
                         when seats become available.
                       </p>
-                      <Button asChild>
+                      <Button
+                        className="bg-white text-black hover:bg-white/90 px-6"
+                        asChild
+                      >
                         <Link to="/courses">
                           <BookOpen className="mr-2 h-4 w-4" />
                           Browse Courses
