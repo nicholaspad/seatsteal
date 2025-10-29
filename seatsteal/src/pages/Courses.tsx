@@ -129,7 +129,7 @@ function SearchSummary({
 
 export default function Courses() {
   const searchParams = useSearchParams();
-  const { user } = useSession();
+  const { user, profile, profileLoading } = useSession();
   const isLoggedOut = !user;
   const [data, setData] = useState<CoursesData>({
     courses: [],
@@ -156,6 +156,22 @@ export default function Courses() {
     courses.length > 0
       ? courses[0].college
       : null;
+
+  // Wait for profile to load before rendering to get correct initial college filter
+  if (user && profileLoading) {
+    return (
+      <IonPage>
+        <IonContent>
+          <div className="container mx-auto px-4 py-8">
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-4 text-muted-foreground">Loading...</p>
+            </div>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
 
   if (error) {
     return (
@@ -210,7 +226,10 @@ export default function Courses() {
                 <CourseFilters
                   initialValues={{
                     q: searchParams.get("q") || undefined,
-                    college: searchParams.get("college") || undefined,
+                    college:
+                      searchParams.get("college") ||
+                      profile?.collegeId?.toString() ||
+                      undefined,
                     sort: searchParams.get("sort") || undefined,
                   }}
                 />
