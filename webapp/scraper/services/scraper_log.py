@@ -97,8 +97,6 @@ class ScraperLogService:
         if error_message:
             log.error_message = error_message
 
-        self.db.commit()
-
         logger.debug(
             f"Completed scraper log {log_id}: outcome={outcome}, "
             f"courses={courses_created}, classes={classes_created}"

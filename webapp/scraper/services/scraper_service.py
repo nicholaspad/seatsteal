@@ -9,12 +9,14 @@ from models.course import Course
 from models.class_model import Class
 from models.enrollment import Enrollment
 from scraper.scrapers.cornell import CornellScraper
+from scraper.scrapers.brown import BrownScraper
 from scraper.services.scraper_log import ScraperLogService
 
 
 # Map college short names to scraper classes
 SCRAPER_MAP = {
     "cornell": CornellScraper,
+    "brown": BrownScraper,
 }
 
 
@@ -173,8 +175,6 @@ class ScraperService:
             logger.info(f"Batch inserting {len(enrollment_data_list)} enrollments")
             enrollments_saved = self._batch_insert_enrollments(enrollment_data_list)
 
-            self.db.commit()
-
             # Calculate duration
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
@@ -186,6 +186,9 @@ class ScraperService:
                 courses_created=courses_saved,
                 classes_created=classes_saved,
             )
+
+            # Commit all changes including the completed log
+            self.db.commit()
 
             logger.info(
                 f"Scrape complete: {courses_saved} courses, {classes_saved} classes, "
@@ -204,10 +207,16 @@ class ScraperService:
             }
 
         except Exception as e:
+            # Rollback any partial transaction
+            self.db.rollback()
+
             # Log error
             await self.log_service.complete_log(
                 log_id, outcome="error", error_message=str(e)
             )
+
+            # Commit the error log
+            self.db.commit()
 
             logger.error(f"Scrape failed for {college_short_name} {department}: {e}")
 
