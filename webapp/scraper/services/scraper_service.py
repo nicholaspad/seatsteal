@@ -10,7 +10,6 @@ from models.class_model import Class
 from models.enrollment import Enrollment
 from scraper.scrapers.cornell import CornellScraper
 from scraper.scrapers.brown import BrownScraper
-from scraper.services.scraper_log import ScraperLogService
 
 
 # Map college short names to scraper classes
@@ -31,7 +30,6 @@ class ScraperService:
             db: SQLAlchemy database session
         """
         self.db = db
-        self.log_service = ScraperLogService(db)
 
     async def scrape_college(
         self, college_short_name: str, department: str, limit: Optional[int] = None
@@ -73,13 +71,6 @@ class ScraperService:
 
         if not college.is_active:
             raise ValueError(f"College '{college_short_name}' is not active")
-
-        # Get scraper_id and start scraper log
-        scraper_id = await self.log_service.get_scraper_id_from_college(college.id)
-        if not scraper_id:
-            raise ValueError(f"No scraper found for college '{college_short_name}'")
-
-        log_id = await self.log_service.start_log(scraper_id)
 
         try:
             # Get appropriate scraper
@@ -179,15 +170,7 @@ class ScraperService:
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
 
-            # Complete scraper log
-            await self.log_service.complete_log(
-                log_id,
-                outcome="success",
-                courses_created=courses_saved,
-                classes_created=classes_saved,
-            )
-
-            # Commit all changes including the completed log
+            # Commit all data changes
             self.db.commit()
 
             logger.info(
@@ -207,16 +190,8 @@ class ScraperService:
             }
 
         except Exception as e:
-            # Rollback any partial transaction
+            # Rollback any partial data transaction
             self.db.rollback()
-
-            # Log error
-            await self.log_service.complete_log(
-                log_id, outcome="error", error_message=str(e)
-            )
-
-            # Commit the error log
-            self.db.commit()
 
             logger.error(f"Scrape failed for {college_short_name} {department}: {e}")
 

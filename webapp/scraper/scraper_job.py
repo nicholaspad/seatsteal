@@ -110,6 +110,7 @@ class ScraperJob:
                         outcome="timeout",
                         error_message=lock_result.reason or "Failed to acquire lock",
                     )
+                    self.db.commit()
                 except Exception as e:
                     logger.warning(f"Failed to update log: {e}")
 
@@ -142,6 +143,7 @@ class ScraperJob:
                             courses_created=result.stats.get("courses_saved", 0),
                             classes_created=result.stats.get("classes_saved", 0),
                         )
+                        self.db.commit()
                     except Exception as e:
                         logger.warning(f"Failed to update log: {e}")
             else:
@@ -159,6 +161,7 @@ class ScraperJob:
                         await log_service.complete_log(
                             log_id, outcome="error", error_message=result.error
                         )
+                        self.db.commit()
                     except Exception as e:
                         logger.warning(f"Failed to update log: {e}")
 
@@ -183,6 +186,7 @@ class ScraperJob:
                     await log_service.complete_log(
                         log_id, outcome="error", error_message=error_message
                     )
+                    self.db.commit()
                 except Exception as ex:
                     logger.warning(f"Failed to update log: {ex}")
 
