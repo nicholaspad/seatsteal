@@ -10,12 +10,14 @@ from models.class_model import Class
 from models.enrollment import Enrollment
 from scraper.scrapers.cornell import CornellScraper
 from scraper.scrapers.brown import BrownScraper
+from scraper.scrapers.bu import BuScraper
 
 
 # Map college short names to scraper classes
 SCRAPER_MAP = {
     "cornell": CornellScraper,
     "brown": BrownScraper,
+    "bu": BuScraper,
 }
 
 
@@ -80,7 +82,11 @@ class ScraperService:
                     f"No scraper implementation found for '{college_short_name}'"
                 )
 
-            scraper = scraper_class()
+            # BuScraper needs database session to get term code
+            if college_short_name == "bu":
+                scraper = scraper_class(self.db)
+            else:
+                scraper = scraper_class()
 
             # Scrape courses
             logger.info(
