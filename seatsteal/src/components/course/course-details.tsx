@@ -4,7 +4,6 @@ import { ClassList } from "@/components/class/class-list";
 import {
   ClassSectionsHeader,
   type FilterType,
-  type SortType,
 } from "@/components/class/class-sections-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,7 +66,6 @@ export function CourseDetails({
   const [localLoading, setLocalLoading] = useState(loading);
   const [localError, setLocalError] = useState<string | null>(error);
   const [filter, setFilter] = useState<FilterType>("all");
-  const [sort, setSort] = useState<SortType>("number");
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
 
   const { subscriptionTier: userTier, tierLoading } = useSubscriptionTier();
@@ -114,8 +112,8 @@ export function CourseDetails({
     }
   }, [courseId, course, fetchCourseData]);
 
-  // Filter and sort classes
-  const filteredAndSortedClasses = useMemo(() => {
+  // Filter classes
+  const filteredClasses = useMemo(() => {
     if (!localCourse?.classes) return [];
 
     let filtered = [...localCourse.classes];
@@ -131,21 +129,11 @@ export function CourseDetails({
       });
     }
 
-    // Apply sort
-    filtered.sort((a, b) => {
-      if (sort === "number") {
-        return a.classNumber.localeCompare(b.classNumber);
-      }
-      if (sort === "status") {
-        const statusA = a.currentEnrollment?.enrollmentStatus || "";
-        const statusB = b.currentEnrollment?.enrollmentStatus || "";
-        return statusA.localeCompare(statusB);
-      }
-      return 0;
-    });
+    // Sort by class number (default)
+    filtered.sort((a, b) => a.classNumber.localeCompare(b.classNumber));
 
     return filtered;
-  }, [localCourse?.classes, filter, sort]);
+  }, [localCourse?.classes, filter]);
 
   // Format the last scraper update time
   const lastScraperUpdate = localCourse?.lastScraperUpdate
@@ -255,95 +243,91 @@ export function CourseDetails({
         </Button>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Course Info Sidebar */}
         <div className="lg:col-span-1">
           <div className="sticky top-8">
             <Card>
-              <CardHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <h1 className="text-2xl font-bold break-words">
-                      {localCourse.courseCode}
-                    </h1>
+              <CardHeader className="space-y-4">
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-bold break-words">
+                    {localCourse.courseCode}
+                  </h1>
 
-                    <h2 className="text-lg text-muted-foreground font-medium line-clamp-2 break-all">
-                      {localCourse.title}
-                    </h2>
-                  </div>
+                  <h2 className="text-base text-muted-foreground font-medium line-clamp-2 break-all">
+                    {localCourse.title}
+                  </h2>
+                </div>
 
-                  {/* Premium Summary Button Section */}
-                  <div className="flex items-center justify-center pt-2">
-                    {/* Premium Summary Button with Gradient Border */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="w-full">
-                          <Button
-                            variant="outline"
-                            size="sm"
+                {/* Premium Summary Button Section */}
+                <div className="flex items-center justify-center">
+                  {/* Premium Summary Button with Gradient Border */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-full">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "justify-center w-full rounded-md",
+                            hasSummaryAccess
+                              ? "hover:bg-gray-50 dark:hover:bg-gray-800"
+                              : "cursor-not-allowed opacity-60",
+                          )}
+                          onClick={() =>
+                            hasSummaryAccess && setSummaryModalOpen(true)
+                          }
+                          disabled={!hasSummaryAccess || tierLoading}
+                        >
+                          <div
                             className={cn(
-                              "justify-center w-full rounded-md",
+                              "flex items-center",
                               hasSummaryAccess
-                                ? "hover:bg-gray-50 dark:hover:bg-gray-800"
-                                : "cursor-not-allowed opacity-60",
+                                ? "gradient-premium-combo"
+                                : "text-gray-500 dark:text-gray-400",
                             )}
-                            onClick={() =>
-                              hasSummaryAccess && setSummaryModalOpen(true)
-                            }
-                            disabled={!hasSummaryAccess || tierLoading}
                           >
-                            <div
-                              className={cn(
-                                "flex items-center",
-                                hasSummaryAccess
-                                  ? "gradient-premium-combo"
-                                  : "text-gray-500 dark:text-gray-400",
-                              )}
-                            >
-                              <Sparkles className="mr-2 h-4 w-4" />
-                              <span>Summary</span>
-                            </div>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            <span>Summary</span>
+                          </div>
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs">
+                      {hasSummaryAccess ? (
+                        "View subscriptions and notifications summary"
+                      ) : (
+                        <div className="space-y-1 text-center">
+                          <p className="font-medium">
+                            Course Summary is a premium feature. Subscribe to
+                            Plus/Pro to unlock!
+                          </p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto p-1 text-xs"
+                            onClick={() => window.open("/#pricing", "_blank")}
+                          >
+                            View pricing{" "}
+                            <ExternalLink className="ml-1 h-3 w-3" />
                           </Button>
                         </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs">
-                        {hasSummaryAccess ? (
-                          "View subscriptions and notifications summary"
-                        ) : (
-                          <div className="space-y-1 text-center">
-                            <p className="font-medium">
-                              Course Summary is a premium feature. Subscribe to
-                              Plus/Pro to unlock!
-                            </p>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-auto p-1 text-xs"
-                              onClick={() => window.open("/#pricing", "_blank")}
-                            >
-                              View pricing{" "}
-                              <ExternalLink className="ml-1 h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-
-                  {/* Class Sections Header */}
-                  {localCourse.classes && localCourse.classes.length > 0 && (
-                    <div className="pt-4 border-t">
-                      <ClassSectionsHeader
-                        classes={localCourse.classes}
-                        filter={filter}
-                        sort={sort}
-                        onFilterChange={setFilter}
-                        onSortChange={setSort}
-                        filteredCount={filteredAndSortedClasses.length}
-                      />
-                    </div>
-                  )}
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
+
+                {/* Class Sections Header */}
+                {localCourse.classes && localCourse.classes.length > 0 && (
+                  <div className="border-t pt-4">
+                    <ClassSectionsHeader
+                      classes={localCourse.classes}
+                      filter={filter}
+                      onFilterChange={setFilter}
+                      filteredCount={filteredClasses.length}
+                    />
+                  </div>
+                )}
               </CardHeader>
             </Card>
           </div>
@@ -353,7 +337,7 @@ export function CourseDetails({
         <div className="lg:col-span-3 space-y-6">
           {/* Class Sections */}
           <ClassList
-            classes={filteredAndSortedClasses}
+            classes={filteredClasses}
             showSubscriptionButtons={true}
             subscriptions={subscriptions}
             subscriptionsLoading={subscriptionsLoading}

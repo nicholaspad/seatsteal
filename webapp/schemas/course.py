@@ -67,6 +67,7 @@ class CourseWithClasses(CourseWithCollege):
     """Course with nested classes and college"""
 
     classes: List[ClassInCourse] = []
+    last_scraper_update: Optional[datetime] = Field(None, alias="lastScraperUpdate")
 
 
 class CourseSearchParams(BaseModel):

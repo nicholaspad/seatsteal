@@ -46,6 +46,7 @@ import VerifyRequest from "@/pages/VerifyRequest";
 import SelectCollege from "@/pages/SelectCollege";
 import Error from "@/pages/Error";
 import Courses from "@/pages/Courses";
+import CourseDetails from "@/pages/CourseDetails";
 import Dashboard from "@/pages/Dashboard";
 import Settings from "@/pages/Settings";
 import Offline from "@/pages/Offline";
@@ -75,6 +76,17 @@ createRoot(document.getElementById("root")!).render(
                   <Route exact path="/" component={Home} />
                   <Route exact path="/courses" component={Courses} />
                   <Route exact path="/offline" component={Offline} />
+
+                  {/* Protected course detail route */}
+                  <Route
+                    exact
+                    path="/courses/:id"
+                    render={() => (
+                      <ProtectedRoute>
+                        <CourseDetails />
+                      </ProtectedRoute>
+                    )}
+                  />
 
                   {/* Auth routes */}
                   <Route exact path="/login" component={Login} />

@@ -68,11 +68,9 @@ export function ClassCard({
       <CardHeader>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <div className="flex items-center gap-2 justify-self-start">
-            <h3 className="font-semibold text-lg leading-none">
-              {classData.sectionCode}
-            </h3>
+            <h3 className="font-semibold text-lg">{classData.sectionCode}</h3>
             {classData.classNumber && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs flex items-center">
                 {classData.classNumber}
               </Badge>
             )}

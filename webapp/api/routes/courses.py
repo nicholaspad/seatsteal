@@ -203,6 +203,7 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
 
         # Get latest enrollment for each class
         classes_with_enrollment = []
+        latest_scraper_update = None
         for class_obj in classes:
             enrollment_query = (
                 select(Enrollment)
@@ -212,6 +213,14 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
             )
             enrollment_result = db.execute(enrollment_query)
             enrollment = enrollment_result.scalar_one_or_none()
+
+            # Track the most recent scraper update across all classes
+            if enrollment and enrollment.scraped_at:
+                if (
+                    latest_scraper_update is None
+                    or enrollment.scraped_at > latest_scraper_update
+                ):
+                    latest_scraper_update = enrollment.scraped_at
 
             class_data = ClassInCourse(
                 class_id=class_obj.class_id,
@@ -243,6 +252,7 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
             is_active=course.is_active,
             college=CollegeResponse.model_validate(course.college),
             classes=classes_with_enrollment,
+            last_scraper_update=latest_scraper_update,
         )
 
         return {

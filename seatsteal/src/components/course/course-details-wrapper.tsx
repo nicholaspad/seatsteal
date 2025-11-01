@@ -1,15 +1,10 @@
 import { useState, useEffect } from "react";
 import { useHistory } from "react-router-dom";
-import {
-  useSession,
-  useSubscriptionTier,
-} from "@/components/providers/SessionProvider";
+import { useSubscriptionTier } from "@/components/providers/SessionProvider";
 import { CourseDetails } from "@/components/course/course-details";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { UnsubscribeConfirmationModal } from "@/components/ui/unsubscribe-confirmation-modal";
-import { BookOpen, Users, Bell, UserPlus, ExternalLink } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import type {
@@ -25,7 +20,6 @@ interface CourseDetailsWrapperProps {
 export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
   const history = useHistory();
   const [mounted, setMounted] = useState(false);
-  const { user } = useSession();
   const { subscriptionTier: userTier } = useSubscriptionTier();
   const [subscriptionsData, setSubscriptionsData] = useState<
     SubscriptionWithDetails[]
@@ -45,9 +39,9 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
   // Convert subscriptions array to Set for easy lookup
   const subscriptions = new Set(subscriptionsData.map((sub) => sub.classId));
 
-  // Fetch user subscriptions
+  // Fetch user subscriptions - user is guaranteed to exist since route is protected
   useEffect(() => {
-    if (!mounted || !user) return;
+    if (!mounted) return;
 
     const fetchSubscriptions = async () => {
       try {
@@ -72,7 +66,7 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
     };
 
     fetchSubscriptions();
-  }, [mounted, user]);
+  }, [mounted]);
 
   const handleConfirmedUnsubscribe = async (confirmData: {
     classId: number;
@@ -213,70 +207,6 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
               <div className="h-3 bg-muted rounded w-2/3"></div>
             </div>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show signup prompt if not logged in
-  if (!user) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Course Preview Card */}
-          <Card className="mb-8">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-6 w-6 text-primary" />
-                <div>
-                  <CardTitle className="text-2xl">
-                    {course.courseCode}
-                  </CardTitle>
-                  <p className="text-lg text-muted-foreground">
-                    {course.title}
-                  </p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Users className="h-4 w-4" />
-                  <span>
-                    {course.classes?.length || 0} section
-                    {(course.classes?.length || 0) !== 1 ? "s" : ""}
-                  </span>
-                </div>
-                <span>•</span>
-                <span>{course.college.name}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Login Required Message */}
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="pt-6">
-              <div className="text-center py-8">
-                <Bell className="h-16 w-16 mx-auto mb-4 text-primary" />
-                <h2 className="text-2xl font-bold mb-2">
-                  Sign up to view course details
-                </h2>
-                <p className="text-lg text-muted-foreground mb-6 max-w-2xl mx-auto">
-                  Create an account to get real-time enrollment data, class
-                  availability, and notifications when seats open up.
-                </p>
-
-                <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-                  <Button asChild size="lg" className="text-lg px-8 py-6">
-                    <Link to="/login">
-                      <UserPlus className="w-5 h-5 mr-2" />
-                      Get started
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     );
