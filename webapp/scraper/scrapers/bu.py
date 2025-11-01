@@ -3,7 +3,7 @@ import asyncio
 import httpx
 from scraper.base import BaseScraper
 from scraper.utils.logger import scraper_logger as logger
-from sqlalchemy import select
+from scraper.utils.term_code_db import get_term_code_from_db
 
 
 class BuScraper(BaseScraper):
@@ -21,36 +21,7 @@ class BuScraper(BaseScraper):
     def __init__(self, db_session=None):
         super().__init__("bu")
         self.client: Optional[httpx.AsyncClient] = None
-        self.current_term = self._get_term_from_db(db_session)
-
-    def _get_term_from_db(self, db_session) -> str:
-        """
-        Get the current term code from the database.
-
-        Args:
-            db_session: SQLAlchemy database session
-
-        Returns:
-            Term code string or fallback value
-        """
-        if db_session:
-            try:
-                from models.college import College
-
-                college = db_session.execute(
-                    select(College).where(College.short_name == "bu")
-                ).scalar_one_or_none()
-
-                if college and college.term_code:
-                    logger.info(f"Using term code from database: {college.term_code}")
-                    return college.term_code
-            except Exception as e:
-                logger.warning(f"Failed to get term code from database: {e}")
-
-        # Fallback to hardcoded value for Fall 2025
-        fallback_term = "2258"
-        logger.info(f"Using fallback term code: {fallback_term}")
-        return fallback_term
+        self.current_term = get_term_code_from_db(db_session, "bu")
 
     async def _ensure_client(self):
         """Ensure HTTP client is initialized"""

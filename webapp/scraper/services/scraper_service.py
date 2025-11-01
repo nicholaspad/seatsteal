@@ -82,11 +82,8 @@ class ScraperService:
                     f"No scraper implementation found for '{college_short_name}'"
                 )
 
-            # BuScraper needs database session to get term code
-            if college_short_name == "bu":
-                scraper = scraper_class(self.db)
-            else:
-                scraper = scraper_class()
+            # All scrapers need database session to get term code
+            scraper = scraper_class(self.db)
 
             # Scrape courses
             logger.info(

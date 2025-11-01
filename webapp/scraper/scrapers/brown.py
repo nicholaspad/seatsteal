@@ -6,7 +6,7 @@ from urllib.parse import quote
 import httpx
 from scraper.base import BaseScraper
 from scraper.utils.logger import scraper_logger as logger
-from scraper.utils.term_config import TermConfig
+from scraper.utils.term_code_db import get_term_code_from_db
 
 
 class BrownScraper(BaseScraper):
@@ -23,9 +23,9 @@ class BrownScraper(BaseScraper):
     )
     CLASS_DETAILS_URL = "https://cab.brown.edu/api/?page=fose&route=details"
 
-    def __init__(self):
+    def __init__(self, db_session=None):
         super().__init__("brown")
-        self.current_term = TermConfig.get_current_term("brown")
+        self.current_term = get_term_code_from_db(db_session, "brown")
         self.client: Optional[httpx.AsyncClient] = None
 
     async def _ensure_client(self):

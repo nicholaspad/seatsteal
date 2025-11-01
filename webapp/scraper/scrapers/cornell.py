@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import re
 from scraper.base import BaseScraper
 from scraper.utils.logger import scraper_logger as logger
-from scraper.utils.term_config import TermConfig
+from scraper.utils.term_code_db import get_term_code_from_db
 
 
 class CornellScraper(BaseScraper):
@@ -15,9 +15,9 @@ class CornellScraper(BaseScraper):
 
     BASE_URL = "https://classes.cornell.edu/browse/roster"
 
-    def __init__(self):
+    def __init__(self, db_session=None):
         super().__init__("cornell")
-        self.current_term = TermConfig.get_current_term("cornell")
+        self.current_term = get_term_code_from_db(db_session, "cornell")
 
     async def scrape_courses(
         self, department: str, limit: Optional[int] = None
