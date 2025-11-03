@@ -64,11 +64,13 @@ export function ClassCard({
   };
 
   return (
-    <Card className={cn("transition-shadow duration-200", className)}>
-      <CardHeader>
+    <Card className={cn("transition-shadow duration-200 py-0", className)}>
+      <CardHeader className="p-4">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <div className="flex items-center gap-2 justify-self-start">
-            <h3 className="font-semibold text-lg">{classData.sectionCode}</h3>
+            <h3 className="font-semibold text-lg leading-none">
+              {classData.sectionCode}
+            </h3>
             {classData.classNumber && (
               <Badge variant="outline" className="text-xs flex items-center">
                 {classData.classNumber}
@@ -140,13 +142,13 @@ export function ClassCard({
       </CardHeader>
 
       {showSubscriptionButton && isClosed && (
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 pb-4 px-4">
           {subscriptionsLoading ? (
             // Single loading skeleton line for entire subscription card
             <div className="h-16 w-full bg-muted rounded-lg animate-pulse" />
           ) : (
             <div className="flex items-center justify-between p-3 rounded-lg border-2 border-primary/20 bg-primary/5">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center">
                 <Bell className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-semibold text-sm">

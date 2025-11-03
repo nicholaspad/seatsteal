@@ -163,18 +163,12 @@ export function Header({ className }: HeaderProps) {
             <nav className="flex flex-col space-y-1 py-4">
               {navigation.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.href;
 
                 return (
                   <Link
                     key={item.href}
                     to={item.href}
-                    className={cn(
-                      "flex items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-foreground/60 hover:text-foreground hover:bg-muted",
-                    )}
+                    className="flex items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors bg-white text-black hover:bg-white/90"
                     onClick={(e) => {
                       handleNavClick(e, item.href);
                       setMobileMenuOpen(false);
@@ -195,7 +189,7 @@ export function Header({ className }: HeaderProps) {
                       await signOut();
                       history.push("/");
                     }}
-                    className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+                    className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors bg-white text-black hover:bg-white/90"
                   >
                     <LogOut className="h-4 w-4" />
                     <span>Logout</span>
@@ -206,7 +200,7 @@ export function Header({ className }: HeaderProps) {
                       setMobileMenuOpen(false);
                       history.push("/login");
                     }}
-                    className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+                    className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors bg-white text-black hover:bg-white/90"
                   >
                     <LogIn className="h-4 w-4" />
                     <span>Login</span>

@@ -133,6 +133,16 @@ export default function Home() {
               <h2 className="text-3xl md:text-4xl font-bold">FAQs</h2>
             </div>
             <FAQSection colleges={colleges} />
+            <div className="flex justify-center mt-8">
+              <a
+                href="https://form.typeform.com/to/fz0mcjEn"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white transition-colors text-base underline"
+              >
+                Feedback
+              </a>
+            </div>
           </section>
 
           {/* Testimonials */}

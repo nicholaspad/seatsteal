@@ -384,7 +384,7 @@ const UserDashboard = memo(function UserDashboard({
                   variant={userTier as "free" | "plus" | "pro"}
                   className="capitalize"
                 >
-                  {userTier} Plan
+                  {userTier}
                 </Badge>
                 {
                   <Button
@@ -420,12 +420,6 @@ const UserDashboard = memo(function UserDashboard({
 
           {/* Filters */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Filter className="h-5 w-5" />
-                Filter
-              </CardTitle>
-            </CardHeader>
             <CardContent className="pt-0 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Show</label>
@@ -621,7 +615,7 @@ const UserDashboard = memo(function UserDashboard({
                     <div className="flex items-start justify-between">
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold">
+                          <h3 className="text-lg">
                             {subscription.class.course.courseCode}
                           </h3>
                           <Button

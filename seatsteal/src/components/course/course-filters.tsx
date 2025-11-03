@@ -71,12 +71,6 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Filter className="h-5 w-5" />
-          Search & Filter
-        </CardTitle>
-      </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-4">
           {/* Search */}

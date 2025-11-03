@@ -247,14 +247,14 @@ export function CourseDetails({
         {/* Course Info Sidebar */}
         <div className="lg:col-span-1">
           <div className="sticky top-8">
-            <Card>
-              <CardHeader className="space-y-4">
+            <Card className="py-0">
+              <CardHeader className="space-y-4 p-4">
                 <div className="space-y-2">
-                  <h1 className="text-2xl font-bold break-words">
+                  <h1 className="text-2xl font-bold break-words leading-none">
                     {localCourse.courseCode}
                   </h1>
 
-                  <h2 className="text-base text-muted-foreground font-medium line-clamp-2 break-all">
+                  <h2 className="text-base text-muted-foreground font-medium line-clamp-2 break-all leading-none pb-2">
                     {localCourse.title}
                   </h2>
                 </div>
@@ -345,8 +345,8 @@ export function CourseDetails({
           />
 
           {/* Footer Info */}
-          <Card>
-            <CardContent>
+          <Card className="py-0">
+            <CardContent className="p-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-4">
                   <span>College: {localCourse.college.name}</span>
