@@ -254,7 +254,7 @@ export function CourseDetails({
                     {localCourse.courseCode}
                   </h1>
 
-                  <h2 className="text-base text-muted-foreground font-medium line-clamp-2 break-all leading-none pb-2">
+                  <h2 className="text-base text-muted-foreground font-medium line-clamp-2 break-all leading-none mb-2">
                     {localCourse.title}
                   </h2>
                 </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useHistory } from "react-router-dom";
 import { useSearchParams } from "@/hooks/use-search-params";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -10,7 +10,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CourseSearch } from "@/components/course/course-search";
-import { Filter } from "lucide-react";
 import type { College } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 
@@ -104,7 +103,7 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
                 <SelectItem value="all">All Colleges</SelectItem>
                 {colleges.map((college) => (
                   <SelectItem key={college.id} value={college.id.toString()}>
-                    {college.shortName} - {college.name}
+                    {college.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -118,7 +117,7 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
                 );
                 return (
                   selectedCollege?.termName && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground pl-3">
                       Term: {selectedCollege.termName}
                     </p>
                   )

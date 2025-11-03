@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   BellOff,
-  Filter,
   BookOpen,
   Users,
   Settings,
@@ -551,8 +550,7 @@ const UserDashboard = memo(function UserDashboard({
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No notifications this week. Subscribe to closed classes to
-                      start receiving alerts.
+                      No notifications this week.
                     </p>
                   )}
                 </div>
@@ -571,11 +569,6 @@ const UserDashboard = memo(function UserDashboard({
                       <h3 className="text-lg font-medium mb-2">
                         No Subscriptions Yet
                       </h3>
-                      <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                        You haven&rsquo;t subscribed to any classes yet. Browse
-                        courses and subscribe to closed classes to get notified
-                        when seats become available.
-                      </p>
                       <Button
                         className="bg-white text-black hover:bg-white/90 px-6"
                         asChild

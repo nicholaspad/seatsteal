@@ -123,6 +123,17 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 
+  /* Remove all margin from heading elements */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
   a:not([class*="bg-white"]):not([class*="text-black"]),
   a:visited:not([class*="bg-white"]):not([class*="text-black"]),
   a:link:not([class*="bg-white"]):not([class*="text-black"]) {
