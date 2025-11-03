@@ -248,9 +248,9 @@ export function CourseDetails({
         <div className="lg:col-span-1">
           <div className="sticky top-8">
             <Card className="py-0">
-              <CardHeader className="space-y-4 p-4">
+              <CardHeader className="space-y-4 p-6">
                 <div className="space-y-2">
-                  <h1 className="text-2xl font-bold break-words leading-none">
+                  <h1 className="text-2xl font-bold break-words leading-none mb-2">
                     {localCourse.courseCode}
                   </h1>
 
