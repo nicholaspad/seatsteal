@@ -93,64 +93,109 @@ async def get_courses(
         courses_result = db.execute(courses_query)
         courses = courses_result.unique().scalars().all()
 
-        # For each course, get classes with latest enrollment
+        # Optimization: Fetch all classes and enrollments in bulk queries
         result_data = []
-        for course in courses:
-            # Get classes for this course
-            classes_query = (
+        if courses:
+            # Get all course IDs
+            course_ids = [course.id for course in courses]
+
+            # Fetch all classes for these courses in one query
+            all_classes_query = (
                 select(Class)
-                .where(and_(Class.course_id == course.id, Class.is_active == True))
-                .order_by(Class.class_number)
+                .where(and_(Class.course_id.in_(course_ids), Class.is_active == True))
+                .order_by(Class.course_id, Class.class_number)
             )
-            classes_result = db.execute(classes_query)
-            classes = classes_result.scalars().all()
+            all_classes_result = db.execute(all_classes_query)
+            all_classes = all_classes_result.scalars().all()
 
-            # Get latest enrollment for each class
-            classes_with_enrollment = []
-            for class_obj in classes:
-                # Get latest enrollment
-                enrollment_query = (
-                    select(Enrollment)
-                    .where(Enrollment.class_id == class_obj.class_id)
-                    .order_by(Enrollment.scraped_at.desc())
-                    .limit(1)
-                )
-                enrollment_result = db.execute(enrollment_query)
-                enrollment = enrollment_result.scalar_one_or_none()
+            # Group classes by course_id
+            classes_by_course = {}
+            for class_obj in all_classes:
+                if class_obj.course_id not in classes_by_course:
+                    classes_by_course[class_obj.course_id] = []
+                classes_by_course[class_obj.course_id].append(class_obj)
 
-                # Build class response
-                class_data = ClassInCourse(
-                    class_id=class_obj.class_id,
-                    course_id=class_obj.course_id,
-                    class_number=class_obj.class_number,
-                    section_code=class_obj.section_code,
-                    created_at=class_obj.created_at,
-                    updated_at=class_obj.updated_at,
-                    is_active=class_obj.is_active,
-                    current_enrollment=(
-                        EnrollmentStatus(
-                            enrollment_status=enrollment.enrollment_status,
-                            scraped_at=enrollment.scraped_at.isoformat(),
+            # Get all class IDs
+            class_ids = [c.class_id for c in all_classes]
+
+            # Fetch latest enrollment for each class using window function (single query)
+            enrollments_by_class = {}
+            if class_ids:
+                enrollment_ranked = (
+                    select(
+                        Enrollment.class_id,
+                        Enrollment.enrollment_status,
+                        Enrollment.scraped_at,
+                        func.row_number()
+                        .over(
+                            partition_by=Enrollment.class_id,
+                            order_by=Enrollment.scraped_at.desc(),
                         )
-                        if enrollment
-                        else None
-                    ),
+                        .label("rn"),
+                    )
+                    .where(Enrollment.class_id.in_(class_ids))
+                    .subquery()
                 )
-                classes_with_enrollment.append(class_data)
 
-            # Build course response
-            course_data = CourseWithClasses(
-                id=course.id,
-                college_id=course.college_id,
-                course_code=course.course_code,
-                title=course.title,
-                created_at=course.created_at,
-                updated_at=course.updated_at,
-                is_active=course.is_active,
-                college=CollegeResponse.model_validate(course.college),
-                classes=classes_with_enrollment,
-            )
-            result_data.append(course_data)
+                latest_enrollments_query = select(
+                    enrollment_ranked.c.class_id,
+                    enrollment_ranked.c.enrollment_status,
+                    enrollment_ranked.c.scraped_at,
+                ).where(enrollment_ranked.c.rn == 1)
+
+                latest_enrollments_result = db.execute(latest_enrollments_query)
+                latest_enrollments_list = latest_enrollments_result.all()
+
+                # Create dict for fast lookup
+                enrollments_by_class = {
+                    row.class_id: {
+                        "enrollment_status": row.enrollment_status,
+                        "scraped_at": row.scraped_at,
+                    }
+                    for row in latest_enrollments_list
+                }
+
+            # Build response for each course
+            for course in courses:
+                classes = classes_by_course.get(course.id, [])
+                classes_with_enrollment = []
+
+                for class_obj in classes:
+                    enrollment_data = enrollments_by_class.get(class_obj.class_id)
+
+                    # Build class response
+                    class_data = ClassInCourse(
+                        class_id=class_obj.class_id,
+                        course_id=class_obj.course_id,
+                        class_number=class_obj.class_number,
+                        section_code=class_obj.section_code,
+                        created_at=class_obj.created_at,
+                        updated_at=class_obj.updated_at,
+                        is_active=class_obj.is_active,
+                        current_enrollment=(
+                            EnrollmentStatus(
+                                enrollment_status=enrollment_data["enrollment_status"],
+                                scraped_at=enrollment_data["scraped_at"].isoformat(),
+                            )
+                            if enrollment_data
+                            else None
+                        ),
+                    )
+                    classes_with_enrollment.append(class_data)
+
+                # Build course response
+                course_data = CourseWithClasses(
+                    id=course.id,
+                    college_id=course.college_id,
+                    course_code=course.course_code,
+                    title=course.title,
+                    created_at=course.created_at,
+                    updated_at=course.updated_at,
+                    is_active=course.is_active,
+                    college=CollegeResponse.model_validate(course.college),
+                    classes=classes_with_enrollment,
+                )
+                result_data.append(course_data)
 
         # Build pagination metadata
         pagination = PaginationMetadata(
@@ -201,45 +246,76 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
         classes_result = db.execute(classes_query)
         classes = classes_result.scalars().all()
 
-        # Get latest enrollment for each class
+        # Optimization: Fetch all latest enrollments in one query using window function
         classes_with_enrollment = []
         latest_scraper_update = None
-        for class_obj in classes:
-            enrollment_query = (
-                select(Enrollment)
-                .where(Enrollment.class_id == class_obj.class_id)
-                .order_by(Enrollment.scraped_at.desc())
-                .limit(1)
-            )
-            enrollment_result = db.execute(enrollment_query)
-            enrollment = enrollment_result.scalar_one_or_none()
 
-            # Track the most recent scraper update across all classes
-            if enrollment and enrollment.scraped_at:
-                if (
-                    latest_scraper_update is None
-                    or enrollment.scraped_at > latest_scraper_update
-                ):
-                    latest_scraper_update = enrollment.scraped_at
+        if classes:
+            class_ids = [c.class_id for c in classes]
 
-            class_data = ClassInCourse(
-                class_id=class_obj.class_id,
-                course_id=class_obj.course_id,
-                class_number=class_obj.class_number,
-                section_code=class_obj.section_code,
-                created_at=class_obj.created_at,
-                updated_at=class_obj.updated_at,
-                is_active=class_obj.is_active,
-                current_enrollment=(
-                    EnrollmentStatus(
-                        enrollment_status=enrollment.enrollment_status,
-                        scraped_at=enrollment.scraped_at.isoformat(),
+            # Use window function to get latest enrollment per class
+            enrollment_ranked = (
+                select(
+                    Enrollment.class_id,
+                    Enrollment.enrollment_status,
+                    Enrollment.scraped_at,
+                    func.row_number()
+                    .over(
+                        partition_by=Enrollment.class_id,
+                        order_by=Enrollment.scraped_at.desc(),
                     )
-                    if enrollment
-                    else None
-                ),
+                    .label("rn"),
+                )
+                .where(Enrollment.class_id.in_(class_ids))
+                .subquery()
             )
-            classes_with_enrollment.append(class_data)
+
+            latest_enrollments_query = select(
+                enrollment_ranked.c.class_id,
+                enrollment_ranked.c.enrollment_status,
+                enrollment_ranked.c.scraped_at,
+            ).where(enrollment_ranked.c.rn == 1)
+
+            latest_enrollments_result = db.execute(latest_enrollments_query)
+            latest_enrollments_list = latest_enrollments_result.all()
+
+            # Create dict for fast lookup
+            enrollments_by_class = {
+                row.class_id: {
+                    "enrollment_status": row.enrollment_status,
+                    "scraped_at": row.scraped_at,
+                }
+                for row in latest_enrollments_list
+            }
+
+            # Track the most recent scraper update
+            for enrollment_data in enrollments_by_class.values():
+                scraped_at = enrollment_data["scraped_at"]
+                if latest_scraper_update is None or scraped_at > latest_scraper_update:
+                    latest_scraper_update = scraped_at
+
+            # Build class responses
+            for class_obj in classes:
+                enrollment_data = enrollments_by_class.get(class_obj.class_id)
+
+                class_data = ClassInCourse(
+                    class_id=class_obj.class_id,
+                    course_id=class_obj.course_id,
+                    class_number=class_obj.class_number,
+                    section_code=class_obj.section_code,
+                    created_at=class_obj.created_at,
+                    updated_at=class_obj.updated_at,
+                    is_active=class_obj.is_active,
+                    current_enrollment=(
+                        EnrollmentStatus(
+                            enrollment_status=enrollment_data["enrollment_status"],
+                            scraped_at=enrollment_data["scraped_at"].isoformat(),
+                        )
+                        if enrollment_data
+                        else None
+                    ),
+                )
+                classes_with_enrollment.append(class_data)
 
         # Build response
         course_data = CourseWithClasses(
@@ -281,7 +357,7 @@ async def get_course_classes(course_id: int, db: Session = Depends(get_db)):
         if not course:
             raise HTTPException(status_code=404, detail="Course not found")
 
-        # Get classes with latest enrollment
+        # Get classes for this course
         classes_query = (
             select(Class)
             .where(and_(Class.course_id == course_id, Class.is_active == True))
@@ -290,36 +366,69 @@ async def get_course_classes(course_id: int, db: Session = Depends(get_db)):
         classes_result = db.execute(classes_query)
         classes = classes_result.scalars().all()
 
-        # Build response with enrollments
+        # Optimization: Fetch all latest enrollments in one query using window function
         classes_with_enrollment = []
-        for class_obj in classes:
-            enrollment_query = (
-                select(Enrollment)
-                .where(Enrollment.class_id == class_obj.class_id)
-                .order_by(Enrollment.scraped_at.desc())
-                .limit(1)
-            )
-            enrollment_result = db.execute(enrollment_query)
-            enrollment = enrollment_result.scalar_one_or_none()
 
-            class_data = {
-                "classId": class_obj.class_id,
-                "courseId": class_obj.course_id,
-                "classNumber": class_obj.class_number,
-                "sectionCode": class_obj.section_code,
-                "createdAt": class_obj.created_at,
-                "updatedAt": class_obj.updated_at,
-                "isActive": class_obj.is_active,
-                "currentEnrollment": (
-                    {
-                        "enrollmentStatus": enrollment.enrollment_status,
-                        "scrapedAt": enrollment.scraped_at.isoformat(),
-                    }
-                    if enrollment
-                    else None
-                ),
+        if classes:
+            class_ids = [c.class_id for c in classes]
+
+            # Use window function to get latest enrollment per class
+            enrollment_ranked = (
+                select(
+                    Enrollment.class_id,
+                    Enrollment.enrollment_status,
+                    Enrollment.scraped_at,
+                    func.row_number()
+                    .over(
+                        partition_by=Enrollment.class_id,
+                        order_by=Enrollment.scraped_at.desc(),
+                    )
+                    .label("rn"),
+                )
+                .where(Enrollment.class_id.in_(class_ids))
+                .subquery()
+            )
+
+            latest_enrollments_query = select(
+                enrollment_ranked.c.class_id,
+                enrollment_ranked.c.enrollment_status,
+                enrollment_ranked.c.scraped_at,
+            ).where(enrollment_ranked.c.rn == 1)
+
+            latest_enrollments_result = db.execute(latest_enrollments_query)
+            latest_enrollments_list = latest_enrollments_result.all()
+
+            # Create dict for fast lookup
+            enrollments_by_class = {
+                row.class_id: {
+                    "enrollment_status": row.enrollment_status,
+                    "scraped_at": row.scraped_at,
+                }
+                for row in latest_enrollments_list
             }
-            classes_with_enrollment.append(class_data)
+
+            # Build class responses
+            for class_obj in classes:
+                enrollment_data = enrollments_by_class.get(class_obj.class_id)
+
+                class_data = {
+                    "classId": class_obj.class_id,
+                    "courseId": class_obj.course_id,
+                    "classNumber": class_obj.class_number,
+                    "sectionCode": class_obj.section_code,
+                    "createdAt": class_obj.created_at,
+                    "updatedAt": class_obj.updated_at,
+                    "isActive": class_obj.is_active,
+                    "currentEnrollment": (
+                        {
+                            "enrollmentStatus": enrollment_data["enrollment_status"],
+                            "scrapedAt": enrollment_data["scraped_at"].isoformat(),
+                        }
+                        if enrollment_data
+                        else None
+                    ),
+                }
+                classes_with_enrollment.append(class_data)
 
         return {"success": True, "data": classes_with_enrollment}
 
