@@ -65,7 +65,9 @@ export function ClassCard({
 
   return (
     <Card className={cn("transition-shadow duration-200 py-0", className)}>
-      <CardHeader className={cn("p-6", showSubscriptionButton && isClosed && "pb-0")}>
+      <CardHeader
+        className={cn("p-6", showSubscriptionButton && isClosed && "pb-0")}
+      >
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <div className="flex items-center gap-2 justify-self-start">
             <h3 className="font-semibold text-lg leading-none">

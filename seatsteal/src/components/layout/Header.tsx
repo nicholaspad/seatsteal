@@ -70,7 +70,7 @@ export function Header({ className }: HeaderProps) {
             onClick={(e) => handleNavClick(e, "/")}
             className="flex items-center space-x-2"
           >
-            <span className="font-bold text-lg">seatsteal</span>
+            <span className="font-bold text-lg">SeatSteal</span>
             <Badge variant="secondary" className="text-xs">
               BETA
             </Badge>
