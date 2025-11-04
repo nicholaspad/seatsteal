@@ -250,7 +250,7 @@ export function CourseDetails({
             <Card className="py-0">
               <CardHeader className="space-y-4 p-6">
                 <div className="space-y-2">
-                  <h1 className="text-2xl font-bold break-words leading-none mb-2">
+                  <h1 className="text-2xl font-bold break-words leading-none pb-2">
                     {localCourse.courseCode}
                   </h1>
 

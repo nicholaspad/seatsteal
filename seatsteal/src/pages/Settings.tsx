@@ -200,7 +200,7 @@ export default function Settings() {
                 <CardTitle>Account Settings</CardTitle>
               </CardHeader>
 
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-6 pt-2">
                 {error && (
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
@@ -258,7 +258,7 @@ export default function Settings() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-4 pt-4">
+                <div className="flex gap-4">
                   <Button
                     onClick={handleSave}
                     disabled={!hasChanges || saving}

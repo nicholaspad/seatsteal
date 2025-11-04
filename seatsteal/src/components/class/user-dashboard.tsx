@@ -566,7 +566,7 @@ const UserDashboard = memo(function UserDashboard({
                   {subscriptions.length === 0 ? (
                     <>
                       <BellOff className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-                      <h3 className="text-lg font-medium mb-2">
+                      <h3 className="text-lg font-medium pb-2">
                         No Subscriptions Yet
                       </h3>
                       <Button

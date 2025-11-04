@@ -60,6 +60,7 @@ export function ClassSectionsHeader({
 
       {/* Filter */}
       <div className="space-y-2">
+        <label className="text-sm font-medium">Filter</label>
         <Select
           value={filter}
           onValueChange={(value: string) => onFilterChange(value as FilterType)}
