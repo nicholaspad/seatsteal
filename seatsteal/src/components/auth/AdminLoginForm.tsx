@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail, Loader2, Shield } from "lucide-react";
+import { Mail, Loader2 } from "lucide-react";
 import { EmailSchema } from "@/lib/validation";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 

@@ -21,11 +21,7 @@ export function FullWidthCTA() {
             <div className="space-y-3">
               {/* <h3 className="text-2xl font-bold">See All Courses</h3> */}
               <p className="text-muted-foreground text-lg">
-                Login to browse{" "}
-                <span className="font-semibold text-foreground">
-                  10,000+ courses
-                </span>{" "}
-                and get notified when spots become available.
+                Login to browse courses and get notified when spots become available.
               </p>
             </div>
 
