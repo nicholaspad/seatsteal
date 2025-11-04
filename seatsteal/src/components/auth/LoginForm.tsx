@@ -146,62 +146,71 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {validationError && (
-        <Alert variant="destructive">
-          <AlertDescription>{validationError}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">
-          Email Address
-        </label>
-        <div className="relative">
-          <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (validationError) {
-                setValidationError("");
-              }
-            }}
-            onBlur={() => {
-              if (email) {
-                validateEmail(email);
-              }
-            }}
-            placeholder="john@university.edu"
-            className="pl-10"
-            required
-            disabled={isLoading}
-          />
-        </div>
+    <>
+      <div className="space-y-2 text-center">
+        <h1 className="text-3xl font-bold tracking-tight">Welcome Back</h1>
+        <p className="text-muted-foreground">
+          Sign in to your SeatSteal account
+        </p>
       </div>
 
-      <Button type="submit" className="w-full" disabled={isLoading || !email}>
-        {isLoading ? (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Sending Magic Link...
-          </>
-        ) : (
-          "Send Magic Link"
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
-      </Button>
+        {validationError && (
+          <Alert variant="destructive">
+            <AlertDescription>{validationError}</AlertDescription>
+          </Alert>
+        )}
 
-      <div className="text-center text-xs text-muted-foreground">
-        We&apos;ll send you a secure link to sign in instantly. No password
-        required. Must use a valid .edu email address.
-      </div>
-    </form>
+        <div className="space-y-2">
+          <label htmlFor="email" className="text-sm font-medium">
+            Email Address
+          </label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (validationError) {
+                  setValidationError("");
+                }
+              }}
+              onBlur={() => {
+                if (email) {
+                  validateEmail(email);
+                }
+              }}
+              placeholder="john@university.edu"
+              className="pl-10"
+              required
+              disabled={isLoading}
+            />
+          </div>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={isLoading || !email}>
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Sending Magic Link...
+            </>
+          ) : (
+            "Send Magic Link"
+          )}
+        </Button>
+
+        <div className="text-center text-xs text-muted-foreground">
+          We&apos;ll send you a secure link to sign in instantly. No password
+          required. Must use a valid .edu email address.
+        </div>
+      </form>
+    </>
   );
 }

@@ -81,14 +81,6 @@
                     <!-- Content -->
                     <tr>
                         <td style="padding: 0 40px 30px 40px;">
-                            <h2 class="content-heading" style="margin: 0 0 20px 0; font-size: 20px; color: #333333; font-weight: 500; text-align: center;">
-                                Your secure login link
-                            </h2>
-
-                            <p class="content-text" style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #666666; text-align: center;">
-                                Click the button below to sign in to your SeatSteal account. This link will expire in 1 hour for security.
-                            </p>
-
                             <p style="margin: 0 0 30px 0; font-size: 14px; text-align: center;">
                                 <span class="email-label" style="color: #999999;">Email:</span>
                                 <strong class="email-value" style="color: #666666; margin-left: 5px;">{{ .Email }}</strong>
@@ -100,22 +92,11 @@
                                     <td align="center" style="padding: 10px 0 20px 0;">
                                         <a href="{{ .ConfirmationURL }}" class="cta-button"
                                            style="display: inline-block; padding: 14px 40px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500;">
-                                            Sign In to SeatSteal
+                                            Sign In
                                         </a>
                                     </td>
                                 </tr>
                             </table>
-                        </td>
-                    </tr>
-
-                    <!-- Security Notice -->
-                    <tr>
-                        <td style="padding: 0 40px 30px 40px;">
-                            <div style="background-color: #f8f9fa; border-left: 4px solid #17a2b8; padding: 15px; border-radius: 6px;">
-                                <p class="security-text" style="margin: 0; font-size: 14px; color: #666666; line-height: 1.6;">
-                                    <strong>🛡️ Security Note:</strong> If you didn't request this email, you can safely ignore it. The link will expire automatically and no action is required.
-                                </p>
-                            </div>
                         </td>
                     </tr>
 
@@ -126,9 +107,6 @@
                                 You're receiving this because you requested to sign in to SeatSteal.
                             </p>
 
-                            <p class="footer-text" style="margin: 20px 0 0 0; font-size: 12px; color: #999999;">
-                                SeatSteal - Never miss a course opening
-                            </p>
                             <p class="footer-muted" style="margin: 10px 0 0 0; font-size: 12px; color: #cccccc;">
                                 This is an automated email. Please do not reply.
                             </p>

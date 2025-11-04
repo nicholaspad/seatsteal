@@ -88,15 +88,9 @@ export function AdminLoginForm() {
   if (isSubmitted) {
     return (
       <div className="space-y-4 text-center">
-        <div className="flex justify-center">
-          <div className="mt-2 p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-            <Shield className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-          </div>
-        </div>
         <div className="space-y-2">
-          <h3 className="font-medium">Check Your Email</h3>
           <p className="text-sm text-muted-foreground">
-            We&apos;ve sent an admin magic link to <strong>{email}</strong>.
+            Login link sent to <strong>{email}</strong>.
           </p>
         </div>
         <Button
@@ -159,13 +153,10 @@ export function AdminLoginForm() {
         {isLoading ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Sending Admin Link...
+            Logging in...
           </>
         ) : (
-          <>
-            <Shield className="w-4 h-4 mr-2" />
-            Send Admin Magic Link
-          </>
+          <>Login</>
         )}
       </Button>
 
