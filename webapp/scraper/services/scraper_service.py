@@ -12,6 +12,7 @@ from scraper.scrapers.cornell import CornellScraper
 from scraper.scrapers.brown import BrownScraper
 from scraper.scrapers.bu import BuScraper
 from scraper.scrapers.neu import NeuScraper
+from scraper.scrapers.usc import UscScraper
 
 
 # Map college short names to scraper classes
@@ -20,6 +21,7 @@ SCRAPER_MAP = {
     "brown": BrownScraper,
     "bu": BuScraper,
     "neu": NeuScraper,
+    "usc": UscScraper,
 }
 
 
