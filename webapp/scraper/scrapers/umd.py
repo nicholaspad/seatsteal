@@ -162,8 +162,9 @@ class UmdScraper(BaseScraper):
         self, course_ids: List[Dict[str, str]]
     ) -> List[Dict[str, Any]]:
         """
-        Fetch course details and sections in batches.
-        Processes 10 courses per batch, with 2 batches running concurrently.
+        Fetch course details and sections with smooth rate limiting.
+        Uses a semaphore to limit concurrency and staggers request start times
+        to spread load evenly and avoid overwhelming the server.
 
         Args:
             course_ids: List of course ID dictionaries
@@ -172,111 +173,134 @@ class UmdScraper(BaseScraper):
             List of transformed course dictionaries
         """
         all_courses = []
-        courses_per_batch = 10  # Courses per batch
-        concurrent_batches = 1  # Number of batches to run simultaneously
 
-        total_batches = (len(course_ids) + courses_per_batch - 1) // courses_per_batch
+        # Rate limiting parameters
+        max_concurrent = 10  # Maximum concurrent requests
+        request_delay = 0.3  # Delay between starting each request (seconds)
+        log_interval = 6  # Log progress every N courses
 
-        # Process in groups of concurrent_batches
-        for group_start in range(0, len(course_ids), courses_per_batch * concurrent_batches):
-            # Get courses for this group of batches
-            group_courses = course_ids[group_start : group_start + (courses_per_batch * concurrent_batches)]
+        semaphore = asyncio.Semaphore(max_concurrent)
+        completed_count = 0
+        total_courses = len(course_ids)
 
-            # Split into individual batches
-            batch_tasks = []
-            for i in range(0, len(group_courses), courses_per_batch):
-                batch = group_courses[i : i + courses_per_batch]
-                batch_num = (group_start + i) // courses_per_batch + 1
-                logger.info(f"Queueing batch {batch_num}/{total_batches} ({len(batch)} courses)...")
-                batch_tasks.append(self._fetch_single_batch(batch))
+        async def fetch_with_rate_limit(course_info: Dict[str, str], index: int):
+            """Fetch a single course with rate limiting."""
+            nonlocal completed_count
 
-            # Execute batches in this group concurrently
-            group_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+            # Stagger request start times to avoid bursts
+            await asyncio.sleep(index * request_delay)
 
-            # Collect results
-            for result in group_results:
-                if isinstance(result, Exception):
-                    logger.warning(f"Batch failed: {result}")
-                    continue
-                all_courses.extend(result)
+            async with semaphore:
+                result = await self._fetch_course_with_sections(course_info)
+                completed_count += 1
 
-            # Delay between groups to avoid overwhelming the server
-            if group_start + (courses_per_batch * concurrent_batches) < len(course_ids):
-                await asyncio.sleep(0.5)
+                # Log progress at intervals
+                if (
+                    completed_count % log_interval == 0
+                    or completed_count == total_courses
+                ):
+                    logger.info(
+                        f"Progress: {completed_count}/{total_courses} courses fetched "
+                        f"({completed_count * 100 // total_courses}%)"
+                    )
+
+                return result
+
+        logger.info(
+            f"Fetching {total_courses} courses with rate limiting "
+            f"(max_concurrent={max_concurrent}, delay={request_delay}s)..."
+        )
+
+        # Create all tasks with staggered delays
+        tasks = [
+            fetch_with_rate_limit(course_info, i)
+            for i, course_info in enumerate(course_ids)
+        ]
+
+        # Execute all tasks
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Collect results
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                course_id = (
+                    course_ids[i].get("course_id", "unknown")
+                    if isinstance(course_ids[i], dict)
+                    else course_ids[i]
+                )
+                logger.warning(f"Course fetch failed for {course_id}: {result}")
+                continue
+            elif result is not None:
+                all_courses.append(result)
 
         logger.info(f"Successfully fetched {len(all_courses)} courses with sections")
         return all_courses
 
-    async def _fetch_single_batch(
-        self, batch_courses: List[Dict[str, str]]
-    ) -> List[Dict[str, Any]]:
-        """
-        Fetch a single batch of courses concurrently.
-
-        Args:
-            batch_courses: List of course dictionaries for this batch
-
-        Returns:
-            List of successfully fetched course data
-        """
-        tasks = [self._fetch_course_with_sections(course) for course in batch_courses]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        batch_results = []
-        for result in results:
-            if isinstance(result, Exception):
-                logger.warning(f"Course fetch failed: {result}")
-                continue
-            elif result is not None:
-                batch_results.append(result)
-
-        return batch_results
-
     async def _fetch_course_with_sections(
-        self, course_info: Dict[str, str]
+        self, course_info: Dict[str, str], max_retries: int = 3
     ) -> Optional[Dict[str, Any]]:
         """
-        Fetch a single course with its sections.
+        Fetch a single course with its sections, with retry logic.
 
         Args:
             course_info: Dictionary with course_id and name
+            max_retries: Maximum number of retry attempts
 
         Returns:
             Transformed course dictionary or None on error
         """
-        try:
-            course_id = (
-                course_info["course_id"]
-                if isinstance(course_info, dict)
-                else course_info
-            )
-            course_name = (
-                course_info.get("name", "") if isinstance(course_info, dict) else ""
-            )
+        course_id = (
+            course_info["course_id"] if isinstance(course_info, dict) else course_info
+        )
+        course_name = (
+            course_info.get("name", "") if isinstance(course_info, dict) else ""
+        )
 
-            # Fetch sections for this course
-            url = f"{self.BASE_API_URL}/courses/sections"
-            params = {"course_id": course_id, "semester": self.current_term}
+        url = f"{self.BASE_API_URL}/courses/sections"
+        params = {"course_id": course_id, "semester": self.current_term}
+        retry_delay = 1.0  # Start with 1 second delay
 
-            response = await self.client.get(url, params=params)
-            response.raise_for_status()
-            self.request_count += 1
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.get(url, params=params)
+                response.raise_for_status()
+                self.request_count += 1
 
-            sections = response.json()
+                sections = response.json()
 
-            if not sections:
-                logger.debug(f"No sections found for {course_id}")
+                if not sections:
+                    logger.debug(f"No sections found for {course_id}")
+                    return None
+
+                # Transform to standard format
+                course_data = self._transform_course_sections(
+                    course_id, sections, course_name
+                )
+                return course_data
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (500, 502, 503, 504):
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            f"Server error {e.response.status_code} for {course_id} "
+                            f"(attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s..."
+                        )
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        logger.warning(
+                            f"Failed to fetch {course_id} after {max_retries} attempts: {e}"
+                        )
+                else:
+                    logger.warning(f"Error fetching course {course_id}: {e}")
                 return None
 
-            # Transform to standard format
-            course_data = self._transform_course_sections(
-                course_id, sections, course_name
-            )
-            return course_data
+            except Exception as e:
+                logger.warning(f"Error fetching course {course_id}: {e}")
+                return None
 
-        except Exception as e:
-            logger.warning(f"Error fetching course {course_id}: {e}")
-            return None
+        return None
 
     def _transform_course_sections(
         self, course_id: str, sections: List[Dict[str, Any]], course_title: str = ""
