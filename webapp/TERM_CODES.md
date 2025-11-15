@@ -106,6 +106,83 @@ curl -s https://cab.brown.edu/ | grep -A 5 'id="crit-srcdb"' | grep '<option' | 
 
 ---
 
+### University of Maryland (UMD)
+
+**Method:** Scrape the Testudo Schedule of Classes page
+
+**Steps:**
+
+1. Use curl to get all available terms:
+   ```bash
+   curl -s "https://app.testudo.umd.edu/soc/" | grep 'id="term-id-input"' | grep -o '<option[^>]*>[^<]*</option>' | sed 's/<option value="\([0-9]*\)"[^>]*>\([^<]*\)<\/option>/\1 - \2/'
+   ```
+2. Term code format: `YYYYMM` where MM is the month the semester starts
+   - `01` = Winter/Spring (January)
+   - `05` = Summer (May)
+   - `08` = Fall (August)
+   - `12` = Winter (December)
+
+**Example output:**
+
+```
+202505 - Summer 2025
+202508 - Fall 2025
+202512 - Winter 2026
+202601 - Spring 2026
+```
+
+**Example term code:** `202601` (Spring 2026)
+
+---
+
+### Rutgers University
+
+**Method:** Extract from embedded JSON and generate available terms (Rutgers uses current + 8 previous semesters)
+
+**Steps:**
+
+1. Use curl to get all available terms:
+   ```bash
+   curl -s "https://classes.rutgers.edu/soc/" | grep -o '"currentTermDate":{[^}]*}' | python3 -c "
+   import json, sys
+   d = json.loads('{'+sys.stdin.read()+'}')
+   t = d['currentTermDate']
+   year, term = t['year'], t['term']
+   names = {0:'Winter',1:'Spring',7:'Summer',9:'Fall'}
+   order = {9:7, 7:1, 1:0, 0:9}
+   terms = []
+   for _ in range(9):
+       terms.append(f'{year}:{term}:NB - {names[term]} {year}')
+       if term == 0: year -= 1
+       term = order[term]
+   for t in terms: print(t)
+   "
+   ```
+2. Term code format: `year:term:campus`
+3. Term codes:
+   - `1`=Spring, `7`=Summer, `9`=Fall, `0`=Winter
+   - Campus: `NB`=New Brunswick, `NK`=Newark, `CM`=Camden
+
+**Example output:**
+
+```
+2026:1:NB - Spring 2026
+2026:0:NB - Winter 2026
+2025:9:NB - Fall 2025
+2025:7:NB - Summer 2025
+2025:1:NB - Spring 2025
+2025:0:NB - Winter 2025
+2024:9:NB - Fall 2024
+2024:7:NB - Summer 2024
+2024:1:NB - Spring 2024
+```
+
+**Note:** Replace `NB` in the script with `NK` or `CM` for Newark or Camden campuses.
+
+**Example term code:** `2026:1:NB` (Spring 2026, New Brunswick campus)
+
+---
+
 ## Updating Term Codes in the Database
 
 Once you have retrieved the current term code for a college, update it in the database:
