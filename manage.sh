@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Menu options
-options=("Deploy seatsteal (Vercel)" "Manage EC2 services")
+options=("Deploy seatsteal (Vercel)" "Manage EC2 services" "Local utils")
 selected=0  # Default to "Deploy seatsteal" (index 0)
 
 # Function to display menu
@@ -76,5 +76,8 @@ case $choice in
     ;;
   2)
     ./utils/service.sh
+    ;;
+  3)
+    ./utils/local.sh
     ;;
 esac
