@@ -10,20 +10,28 @@ Term codes are stored in the `colleges` table in the database, with columns `ter
 
 ### Brown University
 
-**Method:** Web scraping the course search page
+**Method:** Extract from the course search page dropdown
 
 **Steps:**
 
-1. Visit: https://cab.brown.edu/
-2. Open browser developer tools (F12)
-3. Look for the term dropdown: `<select id="crit-srcdb">`
-4. Find the first `<option>` element - this is the current/latest term
-5. Copy the `value` attribute (format: `YYYYSS` where `SS` is semester code)
+1. Use curl to get all available terms:
+   ```bash
+   curl -s https://cab.brown.edu/ | grep -o '<option[^>]*value="[0-9]*"[^>]*>[^<]*</option>' | sed 's/<option[^>]*value="\([0-9]*\)"[^>]*>\([^<]*\)<.*/\1 - \2/' | grep -v "Any Term"
+   ```
+2. Term code format: `YYYYSS` where `SS` is semester code
+   - `00` = Summer
+   - `10` = Fall
+   - `15` = Winter
+   - `20` = Spring
 
-**Or use curl:**
+**Example output:**
 
-```bash
-curl -s https://cab.brown.edu/ | grep -A 5 'id="crit-srcdb"' | grep '<option' | head -1
+```
+202520 - Spring 2026
+202515 - Winter 2026
+202510 - Fall 2025
+202500 - Summer 2025
+202420 - Spring 2025
 ```
 
 **Example term code:** `202520` (Spring 2026)
@@ -32,29 +40,48 @@ curl -s https://cab.brown.edu/ | grep -A 5 'id="crit-srcdb"' | grep '<option' | 
 
 ### Boston University (BU)
 
-**Method:** Check the BU student portal API or course search
+**Method:** Manual browser inspection (requires JavaScript rendering)
 
 **Steps:**
 
 1. Visit: https://public.mybustudent.bu.edu/psp/BUPRD/EMPLOYEE/SA/s/WEBLIB_HCX_CM.H_CLASS_SEARCH.FieldFormula.IScript_Main?institution=BU001
-2. Select a term and click search
-3. Inspect network requests to see the `term` parameter
+2. Open browser developer tools (F12)
+3. Find the term dropdown and inspect the `value` attributes
+4. Term code format: `YYSM` where:
+   - `YY` = last 2 digits of year
+   - `S` = semester digit (2=Spring, 5=Summer, 8=Fall)
+   - `M` = 8 (appears constant)
 
-**Example term code:** `2258` (Fall 2025)
+**Note:** BU's portal requires JavaScript and cannot be easily scraped via curl.
+
+**Example term code:** `2258` (Fall 2025), `2618` (Spring 2026)
 
 ---
 
 ### Cornell University
 
-**Method:** Check the course roster browsing page
+**Method:** Extract from the class roster page menu
 
 **Steps:**
 
-1. Visit: https://classes.cornell.edu/browse/roster/
-2. Look at the dropdown for semester selection or check the URL
-3. URL pattern: `https://classes.cornell.edu/browse/roster/{TERM}`
+1. Use curl to get all available terms:
+   ```bash
+   curl -s "https://classes.cornell.edu/browse/roster/SP26" | grep -o 'href="/browse/roster/[A-Z][A-Z][0-9][0-9]"[^>]*title="[^"]*"[^>]*>[^<]*</a>' | sed 's/.*roster\/\([A-Z][A-Z][0-9][0-9]\)"[^>]*>\([^<]*\)<.*/\1 - \2/' | grep -v 'clear\|Roster'
+   ```
+2. Term code format: `SSYY` where:
+   - `SS` = Season code (`FA`=Fall, `SP`=Spring, `SU`=Summer, `WI`=Winter)
+   - `YY` = 2-digit year
 
-**Example term code:** `FA25` (Fall 2025), `SP25` (Spring 2025)
+**Example output:**
+
+```
+SP26 - Spring 2026
+WI26 - Winter 2026
+FA25 - Fall 2025
+SU25 - Summer 2025
+```
+
+**Example term code:** `FA25` (Fall 2025), `SP26` (Spring 2026)
 
 ---
 
@@ -64,45 +91,71 @@ curl -s https://cab.brown.edu/ | grep -A 5 'id="crit-srcdb"' | grep '<option' | 
 
 **Steps:**
 
-1. Make API request:
+1. Use curl to get all available terms:
    ```bash
-   curl "https://nubanner.neu.edu/StudentRegistrationSsb/ssb/classSearch/getTerms?offset=1&max=200&searchTerm="
+   curl -s "https://nubanner.neu.edu/StudentRegistrationSsb/ssb/classSearch/getTerms?offset=1&max=20&searchTerm=" | python3 -c "import json,sys; [print(f\"{t['code']} - {t['description']}\") for t in json.load(sys.stdin)]"
    ```
-2. Look for terms in the JSON response
-3. Find the most recent term (highest term code) with full semester priority
+2. Term code format: `YYYYTT` where:
+   - `YYYY` = 4-digit year
+   - `TT` = Term code (`10`=Fall Semester, `30`=Spring Semester, `40`=Summer 1, `60`=Summer 2, etc.)
 
-**Example term code:** `202610` (Fall 2025)
+**Example output:**
+
+```
+202630 - Spring 2026 Semester
+202625 - Winter 2026 CPS Quarter
+202615 - Fall 2025 CPS Quarter
+202610 - Fall 2025 Semester
+202560 - Summer 2 2025 Semester
+```
+
+**Example term code:** `202610` (Fall 2025 Semester), `202630` (Spring 2026 Semester)
 
 ---
 
 ### Princeton University
 
-**Method:** Extract from course offerings page
+**Method:** Manual browser inspection (has Cloudflare protection)
 
 **Steps:**
 
 1. Visit: https://registrar.princeton.edu/course-offerings
-2. Select a term and search
-3. Inspect the URL: `https://registrar.princeton.edu/course-offerings?term={TERM}`
+2. Open browser developer tools (F12)
+3. Find the term dropdown and inspect the `value` attributes
+4. Term code format: `1YSS` where:
+   - `Y` = year offset (2=2025, 3=2026, etc.)
+   - `SS` = Semester code (`62`=Fall, `64`=Spring)
 
-**Example term code:** `1262` (Fall 2025)
+**Note:** Princeton's site has Cloudflare bot protection and cannot be easily scraped via curl.
+
+**Example term code:** `1262` (Fall 2025), `1264` (Spring 2026)
 
 ---
 
 ### University of Southern California (USC)
 
-**Method:** API call to get active terms
+**Method:** API call to get all terms
 
 **Steps:**
 
-1. Use curl:
+1. Use curl to get all available terms:
    ```bash
-   curl "https://classes.usc.edu/api/Terms/All"
+   curl -s "https://classes.usc.edu/api/Terms/All" | python3 -c "import json,sys; [print(f\"{t['termCode']} - {t['season']} {t['year']} ({t['status']})\") for t in json.load(sys.stdin)]"
    ```
-2. Look for a term object with `"status": "Active"`
-3. Use the `termCode` value from that object
+2. Term code format: `YYYYT` where:
+   - `YYYY` = 4-digit year
+   - `T` = Term number (`1`=Spring, `2`=Summer, `3`=Fall)
 
-**Example term code:** `20253` (Fall 2025)
+**Example output:**
+
+```
+20261 - Spring 2026 (Active)
+20253 - Fall 2025 (Active)
+20252 - Summer 2025 (Active)
+20251 - Spring 2025 (Inactive)
+```
+
+**Example term code:** `20253` (Fall 2025), `20261` (Spring 2026)
 
 ---
 
