@@ -63,7 +63,9 @@ class NeuScraper(BaseScraper):
             # Validate session
             test_response = await self._fetch_api_response(0, 1)
             if not test_response or not test_response.get("success"):
-                raise Exception("Session validation failed - API test call unsuccessful")
+                raise Exception(
+                    "Session validation failed - API test call unsuccessful"
+                )
 
             logger.info(
                 f"Session validated successfully for term: {self.current_term} "
@@ -84,9 +86,7 @@ class NeuScraper(BaseScraper):
                     for course in courses_data
                     if course["course_code"].startswith(department.upper())
                 ]
-                logger.info(
-                    f"Filtered to {len(courses_data)} courses for {department}"
-                )
+                logger.info(f"Filtered to {len(courses_data)} courses for {department}")
 
             # Apply limit if specified
             if limit:
@@ -276,7 +276,9 @@ class NeuScraper(BaseScraper):
             )
 
             logger.debug(f"Making API request to: {url}")
-            logger.debug(f"Sending cookies: {cookie_string[:50] if cookie_string else '(none)'}")
+            logger.debug(
+                f"Sending cookies: {cookie_string[:50] if cookie_string else '(none)'}"
+            )
 
             # Include all headers explicitly (matching TypeScript implementation)
             headers = {

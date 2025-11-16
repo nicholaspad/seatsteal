@@ -18,6 +18,7 @@ from api.routes import (
     user,
 )
 from db.connection import init_db, close_db
+from api.middleware.security_headers import SecurityHeadersMiddleware
 
 
 class PydanticJSONResponse(JSONResponse):
@@ -72,14 +73,23 @@ app = FastAPI(
     openapi_url=None if settings.is_production else "/openapi.json",
 )
 
+# Security headers middleware (added first so it runs last)
+app.add_middleware(SecurityHeadersMiddleware)
+
 # CORS middleware
+# Only allow localhost origins in non-production environments
+cors_origins = [settings.FRONTEND_URL]
+if not settings.is_production:
+    cors_origins.extend(
+        [
+            "http://localhost:5173",
+            "http://localhost:3000",
+        ]
+    )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

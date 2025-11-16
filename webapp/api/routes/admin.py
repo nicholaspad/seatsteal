@@ -20,6 +20,7 @@ from models.scraper import Scraper
 from models.scraper_log import ScraperLog
 from models.class_model import Class
 from api.middleware.auth import require_admin
+from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -256,9 +257,7 @@ async def get_analytics(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch analytics: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch analytics", e)
 
 
 @router.get("/notifications")
@@ -269,7 +268,9 @@ async def get_notifications(
     college_id: Optional[int] = Query(None, alias="college"),
     status: Optional[str] = Query(None, description="Filter by status"),
     notification_type: Optional[str] = Query(None, alias="type"),
-    search: Optional[str] = Query(None, description="Search by email or course"),
+    search: Optional[str] = Query(
+        None, description="Search by email or course", max_length=100
+    ),
     admin: Profile = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -390,9 +391,7 @@ async def get_notifications(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch notifications: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch notifications", e)
 
 
 @router.get("/query-performance")
@@ -544,9 +543,7 @@ async def get_query_performance(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch query performance: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch query performance", e)
 
 
 @router.get("/scrapers")
@@ -872,16 +869,14 @@ async def get_scrapers(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch scrapers: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch scrapers", e)
 
 
 @router.get("/users")
 async def get_users(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(10, ge=1, le=100, description="Items per page"),
-    search: Optional[str] = Query(None, description="Search by email"),
+    search: Optional[str] = Query(None, description="Search by email", max_length=100),
     role: Optional[str] = Query(None, description="Filter by role"),
     admin: Profile = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -963,7 +958,7 @@ async def get_users(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(e)}")
+        log_and_raise_500("Failed to fetch users", e)
 
 
 @router.get("/users/{user_id}")
@@ -994,7 +989,7 @@ async def get_user(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch user: {str(e)}")
+        log_and_raise_500("Failed to fetch user", e)
 
 
 class UpdateUserRequest(BaseModel):
@@ -1021,7 +1016,7 @@ async def update_user(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Update fields
+        # Update fields - admins are super users with full access
         if request.role is not None:
             user.role = request.role
         if request.college_id is not None:
@@ -1045,4 +1040,4 @@ async def update_user(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to update user: {str(e)}")
+        log_and_raise_500("Failed to update user", e)

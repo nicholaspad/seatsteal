@@ -2,12 +2,14 @@ import { IonContent, IonPage } from "@ionic/react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { getErrorMessage } from "@/lib/security";
 
 export default function Error() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const error = searchParams.get("error") || "An error occurred";
-  const message = searchParams.get("message") || "Please try again";
+  // Use only predefined error codes to prevent XSS and information disclosure
+  const errorCode = searchParams.get("code");
+  const { title, message } = getErrorMessage(errorCode);
 
   return (
     <IonPage>
@@ -21,7 +23,7 @@ export default function Error() {
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-semibold">{error}</h2>
+              <h2 className="text-xl font-semibold">{title}</h2>
               <p className="text-sm text-muted-foreground">{message}</p>
             </div>
 

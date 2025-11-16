@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { logError } from "@/lib/logger";
 
 export default function AuthCallback() {
   const history = useHistory();
@@ -20,7 +21,7 @@ export default function AuthCallback() {
         } = await supabase.auth.getSession();
 
         if (sessionError) {
-          console.error("Auth callback error:", sessionError);
+          logError("Auth callback error", sessionError);
           setError(
             sessionError.message ||
               "Failed to complete authentication. Please try again.",
@@ -63,7 +64,7 @@ export default function AuthCallback() {
           history.replace("/dashboard");
         }
       } catch (err) {
-        console.error("Unexpected error during auth callback:", err);
+        logError("Unexpected error during auth callback", err);
         setError("An unexpected error occurred. Please try logging in again.");
         setIsProcessing(false);
       }

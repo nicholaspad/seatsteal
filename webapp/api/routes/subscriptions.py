@@ -18,6 +18,7 @@ from schemas.class_schema import ClassWithCourse
 from schemas.course import CourseWithCollege
 from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
+from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 
@@ -89,10 +90,7 @@ async def get_subscriptions(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch subscriptions: {str(e)}",
-        )
+        log_and_raise_500("Failed to fetch subscriptions", e)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -147,10 +145,7 @@ async def create_subscription(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create subscription: {str(e)}",
-        )
+        log_and_raise_500("Failed to create subscription", e)
 
 
 @router.delete("/{subscription_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -184,7 +179,4 @@ async def delete_subscription(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete subscription: {str(e)}",
-        )
+        log_and_raise_500("Failed to delete subscription", e)

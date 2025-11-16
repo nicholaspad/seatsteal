@@ -9,6 +9,7 @@ from uuid import UUID
 from config import settings
 from db.session import get_db
 from models.user import Profile
+from utils.errors import log_and_raise
 
 # HTTP Bearer token security
 # auto_error=False allows optional authentication - returns None instead of 403 when no token
@@ -73,10 +74,10 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication failed: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
+        log_and_raise(
+            status.HTTP_401_UNAUTHORIZED,
+            "Authentication failed",
+            e,
         )
 
 

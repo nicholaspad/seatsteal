@@ -7,6 +7,7 @@ import { getSubscriptionFeatures } from "@/lib/subscription-constants";
 import { supabase } from "@/lib/supabase";
 import { fetchWithToasts } from "@/lib/api";
 import { toast } from "sonner";
+import { isValidStripeUrl } from "@/lib/security";
 
 export function PricingTiers() {
   const history = useHistory();
@@ -96,8 +97,14 @@ export function PricingTiers() {
         throw new Error(data.error || "Failed to create checkout session");
       }
 
+      // Validate Stripe URL before redirecting to prevent phishing
+      const sessionUrl = data.data.sessionUrl;
+      if (!isValidStripeUrl(sessionUrl)) {
+        throw new Error("Invalid checkout session URL");
+      }
+
       // Redirect to Stripe checkout
-      window.location.href = data.data.sessionUrl;
+      window.location.href = sessionUrl;
     } catch (error) {
       toast.error(
         error instanceof Error

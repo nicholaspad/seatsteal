@@ -21,13 +21,14 @@ from schemas.course import (
 from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
 from utils.premium import require_premium_access
+from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
 
 
 @router.get("/")
 async def get_courses(
-    q: Optional[str] = Query(None, description="Search query"),
+    q: Optional[str] = Query(None, description="Search query", max_length=100),
     college_id: Optional[int] = Query(
         None, alias="collegeId", description="Filter by college ID"
     ),
@@ -216,9 +217,7 @@ async def get_courses(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch courses: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch courses", e)
 
 
 @router.get("/{course_id}")
@@ -339,9 +338,7 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch course details: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch course details", e)
 
 
 @router.get("/{course_id}/classes")
@@ -435,9 +432,7 @@ async def get_course_classes(course_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch course classes: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch course classes", e)
 
 
 @router.get("/{course_id}/summary")
@@ -545,6 +540,4 @@ async def get_course_summary(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch course summary: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch course summary", e)

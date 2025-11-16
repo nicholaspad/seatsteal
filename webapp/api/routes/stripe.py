@@ -21,6 +21,7 @@ from utils.stripe_utils import (
     get_tier_from_price_id,
 )
 from config import settings
+from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/stripe", tags=["stripe"])
 
@@ -80,10 +81,7 @@ async def create_stripe_checkout_session(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create checkout session: {str(e)}",
-        )
+        log_and_raise_500("Failed to create checkout session", e)
 
 
 @router.post("/create-portal-session")
@@ -121,10 +119,7 @@ async def create_stripe_portal_session(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create portal session: {str(e)}",
-        )
+        log_and_raise_500("Failed to create portal session", e)
 
 
 @router.post("/webhooks")
@@ -240,8 +235,7 @@ async def stripe_webhooks(
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # ValueError typically from signature verification - don't expose details
+        log_and_raise_500("Invalid webhook request", e)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Webhook processing failed: {str(e)}"
-        )
+        log_and_raise_500("Webhook processing failed", e)

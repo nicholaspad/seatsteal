@@ -410,4 +410,6 @@ class TestStripeWebhooks:
                 headers={"stripe-signature": "invalid_signature"},
             )
 
-            assert response.status_code == 400
+            # Security: We return 500 instead of 400 to not reveal
+            # information about signature validation to potential attackers
+            assert response.status_code == 500

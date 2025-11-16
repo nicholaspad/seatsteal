@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { UnsubscribeConfirmationModal } from "@/components/ui/unsubscribe-confirmation-modal";
 import { formatLocalDate } from "@/lib/date-utils";
+import { isValidStripeUrl } from "@/lib/security";
 import type {
   SubscriptionWithDetails,
   SubscriptionsApiResponse,
@@ -203,8 +204,14 @@ const UserDashboard = memo(function UserDashboard({
         throw new Error(data.error || "Failed to create portal session");
       }
 
+      // Validate Stripe URL before redirecting to prevent phishing
+      const sessionUrl = data.data.sessionUrl;
+      if (!isValidStripeUrl(sessionUrl)) {
+        throw new Error("Invalid portal session URL");
+      }
+
       // Redirect to Stripe customer portal
-      window.location.href = data.data.sessionUrl;
+      window.location.href = sessionUrl;
     } catch (err) {
       if (err instanceof ServerErrorWithToast) {
         return; // Toast already shown

@@ -36,7 +36,8 @@ class TestGetCurrentUser:
                 await get_current_user(mock_credentials, test_db)
 
             assert exc_info.value.status_code == 401
-            assert "Invalid authentication credentials" in exc_info.value.detail
+            # Error messages are now sanitized to prevent information leakage
+            assert "Authentication failed" in exc_info.value.detail
 
     @pytest.mark.unit
     async def test_expired_token(
@@ -57,7 +58,8 @@ class TestGetCurrentUser:
                 await get_current_user(mock_credentials, test_db)
 
             assert exc_info.value.status_code == 401
-            assert "Invalid authentication credentials" in exc_info.value.detail
+            # Error messages are now sanitized to prevent information leakage
+            assert "Authentication failed" in exc_info.value.detail
 
     @pytest.mark.unit
     async def test_valid_token_user_not_in_database(
@@ -82,9 +84,9 @@ class TestGetCurrentUser:
                 await get_current_user(mock_credentials, test_db)
 
             # Note: HTTPException with 404 gets caught by broad Exception handler
-            # and re-raised as 401 with the original message included
+            # and re-raised as 401 with sanitized error message
             assert exc_info.value.status_code == 401
-            assert "User profile not found" in exc_info.value.detail
+            assert "Authentication failed" in exc_info.value.detail
 
     @pytest.mark.unit
     async def test_invalid_user_id_format_not_uuid(
@@ -127,8 +129,11 @@ class TestGetCurrentUser:
                 await get_current_user(mock_credentials, test_db)
 
             assert exc_info.value.status_code == 401
+            # Error messages are now sanitized to prevent information leakage
+            # The actual exception details ("Connection timeout") are logged
+            # but not exposed to the client
             assert "Authentication failed" in exc_info.value.detail
-            assert "Connection timeout" in exc_info.value.detail
+            assert "Connection timeout" not in exc_info.value.detail
 
 
 class TestGetOptionalUser:

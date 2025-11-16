@@ -5,6 +5,7 @@ import { PricingTiers } from "@/components/home/pricing-tiers";
 import type { College } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
+import { logError } from "@/lib/logger";
 
 async function getColleges(): Promise<College[]> {
   try {
@@ -16,7 +17,7 @@ async function getColleges(): Promise<College[]> {
     return [];
   } catch (error) {
     if (!(error instanceof ServerErrorWithToast)) {
-      console.error("Failed to load colleges:", error);
+      logError("Failed to load colleges", error);
     }
     return [];
   }

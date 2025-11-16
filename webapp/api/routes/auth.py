@@ -9,6 +9,7 @@ from models.college import College
 from models.early_access_email import EarlyAccessEmail
 from api.middleware.auth import require_auth, supabase
 from config import settings
+from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -57,10 +58,7 @@ async def update_college(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to update college: {str(e)}",
-        )
+        log_and_raise_500("Failed to update college", e)
 
 
 class AdminSignInRequest(BaseModel):
@@ -109,7 +107,9 @@ async def admin_signin(
                 "rate limit" in error_msg.lower()
                 or "security purposes" in error_msg.lower()
             ):
-                raise HTTPException(status_code=429, detail=error_msg)
+                raise HTTPException(
+                    status_code=429, detail="Too many requests. Please try again later."
+                )
             # Re-raise other Supabase exceptions to be caught by outer handler
             raise
 
@@ -121,10 +121,7 @@ async def admin_signin(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}",
-        )
+        log_and_raise_500("Failed to send admin sign-in email", e)
 
 
 class CheckEarlyAccessRequest(BaseModel):
@@ -166,7 +163,4 @@ async def check_early_access(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to check early access status: {str(e)}",
-        )
+        log_and_raise_500("Failed to check early access status", e)

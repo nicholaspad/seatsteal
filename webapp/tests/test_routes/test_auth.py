@@ -169,7 +169,9 @@ class TestAdminSignIn:
         )
 
         assert response.status_code == 500
-        assert "Internal server error" in response.json()["detail"]
+        # Security: Error messages are now sanitized to prevent information leakage
+        # The actual error details ("Supabase error") are logged but not exposed
+        assert "Failed to send admin sign-in email" in response.json()["detail"]
 
 
 class TestCheckEarlyAccess:

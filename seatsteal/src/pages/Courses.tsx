@@ -22,6 +22,7 @@ import { useSession } from "@/components/providers/SessionProvider";
 import type { CourseWithClasses } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { useSearchParams } from "@/hooks/use-search-params";
+import { logError } from "@/lib/logger";
 
 interface CoursesData {
   courses: CourseWithClasses[];
@@ -72,7 +73,7 @@ async function getCoursesData(
     };
   } catch (error) {
     if (!(error instanceof ServerErrorWithToast)) {
-      console.error("Failed to load courses:", error);
+      logError("Failed to load courses", error);
     }
     return {
       courses: [],

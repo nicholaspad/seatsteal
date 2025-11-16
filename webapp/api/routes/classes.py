@@ -16,6 +16,7 @@ from schemas.course import EnrollmentStatus, CourseWithCollege
 from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
 from utils.premium import require_premium_access
+from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/classes", tags=["classes"])
 
@@ -86,9 +87,7 @@ async def get_class(class_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch class details: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch class details", e)
 
 
 @router.get("/{class_id}/enrollment-analysis")
@@ -263,7 +262,4 @@ async def get_enrollment_analysis(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch enrollment analysis: {str(e)}",
-        )
+        log_and_raise_500("Failed to fetch enrollment analysis", e)
