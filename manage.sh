@@ -95,4 +95,7 @@ while true; do
       ./utils/local.sh
       ;;
   esac
+
+  # Exit after executing the selected option
+  exit 0
 done
