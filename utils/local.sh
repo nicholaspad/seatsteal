@@ -16,7 +16,7 @@ display_menu() {
   echo "=========================================="
   echo ""
   echo "What would you like to do?"
-  echo "(Use ↑/↓ arrows to navigate, Enter to select)"
+  echo "(Use ↑/↓ arrows to navigate, Enter to select, q to go back)"
   echo ""
 
   for i in "${!options[@]}"; do
@@ -39,8 +39,9 @@ while true; do
 
   # Check if it's an escape sequence (arrow keys start with ESC)
   if [[ $key == $'\x1b' ]]; then
-    read -rsn2 key  # Read the rest of the escape sequence
-    case $key in
+    # Try to read more characters (arrow keys send ESC [ A/B/C/D)
+    read -rsn2 rest
+    case $rest in
       '[A')  # Up arrow
         ((selected--))
         if [ $selected -lt 0 ]; then
@@ -57,10 +58,19 @@ while true; do
         clear
         display_menu
         ;;
+      *)
+        # Standalone escape key or unknown sequence - go back to parent menu
+        clear
+        exit 0
+        ;;
     esac
   elif [[ $key == "" ]]; then
     # Enter key pressed
     break
+  elif [[ $key == "q" ]]; then
+    # q key pressed - go back to parent menu
+    clear
+    exit 0
   fi
 done
 
