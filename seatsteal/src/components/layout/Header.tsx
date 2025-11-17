@@ -168,7 +168,7 @@ export function Header({ className }: HeaderProps) {
                   <Link
                     key={item.href}
                     to={item.href}
-                    className="flex items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors bg-white text-black hover:bg-white/90"
+                    className="flex items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors text-foreground hover:bg-accent hover:text-accent-foreground"
                     onClick={(e) => {
                       handleNavClick(e, item.href);
                       setMobileMenuOpen(false);
@@ -189,7 +189,7 @@ export function Header({ className }: HeaderProps) {
                       await signOut();
                       history.push("/");
                     }}
-                    className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors bg-white text-black hover:bg-white/90"
+                    className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors text-foreground hover:bg-accent hover:text-accent-foreground"
                   >
                     <LogOut className="h-4 w-4" />
                     <span>Logout</span>
@@ -200,7 +200,7 @@ export function Header({ className }: HeaderProps) {
                       setMobileMenuOpen(false);
                       history.push("/login");
                     }}
-                    className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors bg-white text-black hover:bg-white/90"
+                    className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors text-foreground hover:bg-accent hover:text-accent-foreground"
                   >
                     <LogIn className="h-4 w-4" />
                     <span>Login</span>

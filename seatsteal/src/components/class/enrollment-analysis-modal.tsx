@@ -23,6 +23,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { formatCompactDateTime } from "@/lib/date-utils";
+import { fetchWithToasts } from "@/lib/api";
 import type { ClassWithEnrollment } from "@/types/api";
 
 interface EnrollmentAnalysisData {
@@ -57,7 +58,7 @@ export function EnrollmentAnalysisModal({
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await fetchWithToasts(
         `/api/classes/${classData.classId}/enrollment-analysis`,
       );
 
