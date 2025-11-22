@@ -15,7 +15,7 @@ import {
 import { EnrollmentBadge } from "@/components/class/enrollment-badge";
 import { CollegeBadge } from "@/components/college/CollegeBadge";
 import { CourseSummaryModal } from "@/components/course/course-summary-modal";
-import { Users, ChevronRight, Sparkles, ExternalLink } from "lucide-react";
+import { Users, ArrowRight, Sparkles, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSubscriptionTier } from "@/components/providers/SessionProvider";
 import type { CourseWithCollege, ClassWithEnrollment } from "@/types/api";
@@ -219,7 +219,7 @@ const CourseCard = memo(function CourseCard({
           <Button asChild variant="outline" size="sm" className="flex-1">
             <Link to={`/courses/${course.id}`}>
               Classes
-              <ChevronRight className="ml-2 h-4 w-4" />
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
         </div>

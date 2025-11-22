@@ -6,7 +6,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ChevronRight } from "lucide-react";
+import { Users, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BlurredCourseCardProps {
@@ -209,7 +209,7 @@ const BlurredCourseCard = memo(function BlurredCourseCard({
       <CardFooter className="pt-3">
         <Button variant="outline" className="w-full">
           Classes
-          <ChevronRight className="ml-2 h-4 w-4" />
+          <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </CardFooter>
     </Card>
