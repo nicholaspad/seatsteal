@@ -1,11 +1,34 @@
 """Stripe integration utilities"""
 
 import stripe
+import logging
 from typing import Literal, Optional
 from config import settings
 
+logger = logging.getLogger(__name__)
+
 # Initialize Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+# Validate Stripe configuration at startup
+if not settings.STRIPE_SECRET_KEY:
+    logger.warning(
+        "STRIPE_SECRET_KEY is not configured. Stripe payments will not work."
+    )
+else:
+    logger.info(
+        f"Stripe initialized with key starting with: {settings.STRIPE_SECRET_KEY[:12]}..."
+    )
+
+if not settings.STRIPE_PLUS_PRICE_ID:
+    logger.warning(
+        "STRIPE_PLUS_PRICE_ID is not configured. Plus tier subscriptions will fail."
+    )
+
+if not settings.STRIPE_PRO_PRICE_ID:
+    logger.warning(
+        "STRIPE_PRO_PRICE_ID is not configured. Pro tier subscriptions will fail."
+    )
 
 StripePriceTier = Literal["plus", "pro"]
 

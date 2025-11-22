@@ -40,6 +40,21 @@ async def create_stripe_checkout_session(
 ):
     """Create a Stripe checkout session for subscription"""
     try:
+        # Validate Stripe configuration first
+        if not settings.STRIPE_SECRET_KEY:
+            raise HTTPException(
+                status_code=500,
+                detail="Stripe is not configured. STRIPE_SECRET_KEY is missing.",
+            )
+
+        # Get price ID for tier and validate
+        price_id = get_price_id_for_tier(request.tier)
+        if not price_id:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Stripe price ID for tier '{request.tier}' is not configured.",
+            )
+
         # Get or create Stripe customer
         customer_result = db.execute(
             select(StripeCustomer).where(StripeCustomer.user_id == user.id)
@@ -60,9 +75,6 @@ async def create_stripe_checkout_session(
             db.commit()
             db.refresh(stripe_customer)
 
-        # Get price ID for tier
-        price_id = get_price_id_for_tier(request.tier)
-
         # Create checkout session
         session = await create_checkout_session(
             customer_id=stripe_customer.stripe_customer_id,
@@ -80,6 +92,23 @@ async def create_stripe_checkout_session(
             },
         }
 
+    except HTTPException:
+        raise
+    except stripe.error.AuthenticationError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stripe authentication failed. Check STRIPE_SECRET_KEY. Error: {str(e)}",
+        )
+    except stripe.error.InvalidRequestError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Invalid Stripe request. This usually means the price ID is invalid or doesn't exist in your Stripe account. Error: {str(e)}",
+        )
+    except stripe.error.StripeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stripe API error: {str(e)}",
+        )
     except Exception as e:
         log_and_raise_500("Failed to create checkout session", e)
 
