@@ -77,11 +77,23 @@ app = FastAPI(
 app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS middleware
-# Only allow localhost origins in non-production environments
-cors_origins = [settings.FRONTEND_URL]
-if not settings.is_production:
+# Allow both www and non-www variants in production, localhost in development
+cors_origins = []
+
+if settings.is_production:
+    # In production, allow both www and non-www variants
+    # This handles domain redirects and direct access from either variant
     cors_origins.extend(
         [
+            "https://seatsteal.app",
+            "https://www.seatsteal.app",
+        ]
+    )
+else:
+    # In development, allow localhost and the configured frontend URL
+    cors_origins.extend(
+        [
+            settings.FRONTEND_URL,
             "http://localhost:5173",
             "http://localhost:3000",
         ]

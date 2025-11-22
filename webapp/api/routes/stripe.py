@@ -94,17 +94,17 @@ async def create_stripe_checkout_session(
 
     except HTTPException:
         raise
-    except stripe.error.AuthenticationError as e:
+    except stripe.AuthenticationError as e:
         raise HTTPException(
             status_code=500,
             detail=f"Stripe authentication failed. Check STRIPE_SECRET_KEY. Error: {str(e)}",
         )
-    except stripe.error.InvalidRequestError as e:
+    except stripe.InvalidRequestError as e:
         raise HTTPException(
             status_code=500,
             detail=f"Invalid Stripe request. This usually means the price ID is invalid or doesn't exist in your Stripe account. Error: {str(e)}",
         )
-    except stripe.error.StripeError as e:
+    except stripe.StripeError as e:
         raise HTTPException(
             status_code=500,
             detail=f"Stripe API error: {str(e)}",

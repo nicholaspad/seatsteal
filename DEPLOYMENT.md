@@ -103,7 +103,10 @@ Go to your project settings > Environment Variables and add:
 **Application:**
 - `PYTHON_ENV` - Set to `production` (already configured in vercel.json)
 - `VITE_API_BASE_URL` - Your backend API URL (same as deployment URL)
-- `FRONTEND_URL` - Your frontend URL (from step 1)
+- `FRONTEND_URL` - Your frontend URL (e.g., `https://www.seatsteal.app`)
+  - **IMPORTANT**: Use the primary domain variant (with or without www) that users will access
+  - CORS is configured to allow both `https://seatsteal.app` and `https://www.seatsteal.app`
+  - This is used for Stripe success/cancel redirect URLs
 
 **Stripe (Payments):**
 - `STRIPE_SECRET_KEY` - Stripe secret API key
@@ -121,36 +124,37 @@ Go to your project settings > Environment Variables and add:
 - `requirements.txt` - Optimized dependencies (excludes playwright, celery, dev tools)
 - `requirements-full.txt` - Full dependencies for local development with scrapers
 
-### 3. Update CORS Configuration
+### 3. CORS Configuration
 
-After both deployments, update the backend's CORS settings:
+The backend is pre-configured to allow both www and non-www domain variants in production:
 
-1. Note your frontend production URL (e.g., `https://your-app.vercel.app`)
-2. Add it to the allowed origins in `webapp/app.py`:
+- `https://seatsteal.app` (without www)
+- `https://www.seatsteal.app` (with www)
+
+**If using a custom domain:**
+
+1. Update `webapp/app.py` to include your custom domain:
 
 ```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://your-frontend.vercel.app",  # Add your production URL
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if settings.is_production:
+    cors_origins.extend(
+        [
+            "https://seatsteal.app",
+            "https://www.seatsteal.app",
+            "https://your-custom-domain.com",  # Add your custom domain
+            "https://www.your-custom-domain.com",  # Add www variant
+        ]
+    )
 ```
 
-3. Redeploy the backend:
+2. Redeploy the backend:
 ```bash
 cd webapp
 vercel --prod
 ```
 
-4. Update the frontend's `VITE_API_BASE_URL` environment variable in Vercel to point to your backend URL
-5. Redeploy the frontend to pick up the new API URL
+3. Update the frontend's `VITE_API_BASE_URL` environment variable in Vercel to point to your backend URL
+4. Redeploy the frontend to pick up the new API URL
 
 ### 4. Verify Deployment
 
@@ -248,9 +252,11 @@ If you see import errors related to `webapp.app`, ensure the package structure i
 - Check that connection pooling settings are appropriate for serverless
 
 ### CORS Errors
-- Verify frontend URL is added to backend's allowed origins
-- Ensure both `FRONTEND_URL` environment variable and hardcoded URLs in `app.py` include your production URL
-- Check that credentials are enabled in CORS settings
+- **www vs non-www domain mismatch**: The backend allows both `https://seatsteal.app` and `https://www.seatsteal.app` by default
+- If using a custom domain, ensure BOTH variants (with and without www) are added to `webapp/app.py`
+- Verify the `Access-Control-Allow-Origin` header is present in the response (check browser DevTools Network tab)
+- Ensure credentials are enabled in CORS settings
+- **Note**: CORS errors may appear as 500 errors in the browser console - check the actual error message for "No 'Access-Control-Allow-Origin' header"
 
 ### Build Failures
 - Check Vercel build logs for specific errors
