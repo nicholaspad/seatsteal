@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime
 from loguru import logger
+import time
+from sqlalchemy.exc import OperationalError
 
 from models.college import College
 from models.course import Course
@@ -42,6 +44,48 @@ class ScraperService:
             db: SQLAlchemy database session
         """
         self.db = db
+
+    def _execute_with_retry(self, query, params, max_retries: int = 3):
+        """
+        Execute a database query with retry logic for transient connection errors.
+
+        Args:
+            query: SQLAlchemy query to execute
+            params: Parameters for the query
+            max_retries: Maximum number of retry attempts (default: 3)
+
+        Returns:
+            Query result
+
+        Raises:
+            OperationalError: If all retries are exhausted
+        """
+        for attempt in range(max_retries):
+            try:
+                return self.db.execute(query, params)
+            except OperationalError as e:
+                error_msg = str(e)
+                # Only retry on connection/timeout errors, not data errors
+                if any(
+                    keyword in error_msg.lower()
+                    for keyword in ["ssl", "eof", "connection", "timeout"]
+                ):
+                    if attempt < max_retries - 1:
+                        wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                        logger.warning(
+                            f"Database connection error (attempt {attempt + 1}/{max_retries}): {error_msg}. "
+                            f"Retrying in {wait_time}s..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(
+                            f"Database connection error after {max_retries} attempts: {error_msg}"
+                        )
+                        raise
+                else:
+                    # Don't retry non-connection errors
+                    raise
 
     async def scrape_college(
         self, college_short_name: str, department: str, limit: Optional[int] = None
@@ -359,7 +403,7 @@ class ScraperService:
         self,
         college_id: int,
         course_data_list: List[Dict[str, str]],
-        batch_size: int = 500,
+        batch_size: int = 100,
     ) -> Dict[str, int]:
         """
         Batch upsert courses using PostgreSQL's ON CONFLICT with true multi-row INSERT.
@@ -367,7 +411,7 @@ class ScraperService:
         Args:
             college_id: College ID for all courses
             course_data_list: List of dicts with 'course_code' and 'title'
-            batch_size: Number of records to upsert per batch (default: 500)
+            batch_size: Number of records to upsert per batch (default: 100)
 
         Returns:
             Dictionary mapping course_code to course.id
@@ -417,8 +461,8 @@ class ScraperService:
                 """
             )
 
-            # Execute single query for entire batch and collect results
-            result = self.db.execute(query, params)
+            # Execute single query for entire batch and collect results (with retry)
+            result = self._execute_with_retry(query, params)
             for row in result:
                 course_mapping[row[1]] = row[0]  # course_code -> id
 
@@ -430,14 +474,14 @@ class ScraperService:
         return course_mapping
 
     def _batch_upsert_classes(
-        self, class_data_list: List[Dict[str, Any]], batch_size: int = 500
+        self, class_data_list: List[Dict[str, Any]], batch_size: int = 100
     ) -> Dict[tuple, int]:
         """
         Batch upsert classes using PostgreSQL's ON CONFLICT with true multi-row INSERT.
 
         Args:
             class_data_list: List of dicts with 'course_id', 'class_number', 'section_code'
-            batch_size: Number of records to upsert per batch (default: 500)
+            batch_size: Number of records to upsert per batch (default: 100)
 
         Returns:
             Dictionary mapping (course_id, class_number) to class_id
@@ -487,8 +531,8 @@ class ScraperService:
                 """
             )
 
-            # Execute single query for entire batch and collect results
-            result = self.db.execute(query, params)
+            # Execute single query for entire batch and collect results (with retry)
+            result = self._execute_with_retry(query, params)
             for row in result:
                 class_mapping[(row[1], row[2])] = row[
                     0
@@ -502,14 +546,14 @@ class ScraperService:
         return class_mapping
 
     def _batch_insert_enrollments(
-        self, enrollment_data_list: List[Dict[str, Any]], batch_size: int = 500
+        self, enrollment_data_list: List[Dict[str, Any]], batch_size: int = 100
     ) -> int:
         """
         Batch insert enrollments for performance optimization.
 
         Args:
             enrollment_data_list: List of enrollment data dictionaries
-            batch_size: Number of records to insert per batch (default: 500)
+            batch_size: Number of records to insert per batch (default: 100)
 
         Returns:
             Number of enrollments inserted
@@ -530,9 +574,35 @@ class ScraperService:
         for i in range(0, len(enrollment_data_list), batch_size):
             batch = enrollment_data_list[i : i + batch_size]
 
-            # Use SQLAlchemy's bulk_insert_mappings for efficient batch insert
-            self.db.bulk_insert_mappings(Enrollment, batch)
-            total_inserted += len(batch)
+            # Use SQLAlchemy's bulk_insert_mappings for efficient batch insert (with retry)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self.db.bulk_insert_mappings(Enrollment, batch)
+                    total_inserted += len(batch)
+                    break
+                except OperationalError as e:
+                    error_msg = str(e)
+                    if any(
+                        keyword in error_msg.lower()
+                        for keyword in ["ssl", "eof", "connection", "timeout"]
+                    ):
+                        if attempt < max_retries - 1:
+                            wait_time = 2**attempt
+                            logger.warning(
+                                f"Database connection error during enrollment insert "
+                                f"(attempt {attempt + 1}/{max_retries}): {error_msg}. "
+                                f"Retrying in {wait_time}s..."
+                            )
+                            time.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(
+                                f"Database connection error after {max_retries} attempts: {error_msg}"
+                            )
+                            raise
+                    else:
+                        raise
 
             logger.debug(
                 f"Inserted batch {i // batch_size + 1}: {len(batch)} enrollments"

@@ -8,7 +8,14 @@ engine: Engine = create_engine(
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
-    connect_args={"options": "-c statement_timeout=10000"},  # 10 second timeout
+    pool_recycle=3600,  # Recycle connections after 1 hour
+    connect_args={
+        "options": "-c statement_timeout=300000",  # 5 minute timeout for large batch operations
+        "keepalives": 1,  # Enable TCP keepalive
+        "keepalives_idle": 30,  # Start keepalive after 30s idle
+        "keepalives_interval": 10,  # Send keepalive every 10s
+        "keepalives_count": 5,  # Drop connection after 5 failed keepalives
+    },
 )
 
 

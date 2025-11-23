@@ -284,40 +284,40 @@ cp ../.env .env
 # Service-specific deployment
 if [[ "$SERVICE" == "all" ]]; then
     echo "🐳 Stopping all containers..."
-    docker-compose down || true
+    sg docker -c "docker-compose down" || true
 
     echo "🏗️  Building and starting all services (notifs, scraper)..."
-    docker-compose up --build -d
+    sg docker -c "docker-compose up --build -d"
 
     echo "⏳ Waiting for services to start..."
     sleep 5
 
     echo "✅ Deployment completed successfully!"
     echo "📊 Container status:"
-    docker-compose ps
+    sg docker -c "docker-compose ps"
 
     echo "📋 Recent logs:"
-    docker-compose logs --tail=20
+    sg docker -c "docker-compose logs --tail=20"
 else
     echo "🐳 Stopping $SERVICE container if running..."
-    docker stop seatsteal-$SERVICE || true
-    docker rm seatsteal-$SERVICE || true
+    sg docker -c "docker stop seatsteal-$SERVICE" || true
+    sg docker -c "docker rm seatsteal-$SERVICE" || true
 
     echo "🏗️  Building $SERVICE Docker image..."
-    docker build --tag "seatsteal-$SERVICE" -f "$DOCKERFILE" .
+    sg docker -c "docker build --tag \"seatsteal-$SERVICE\" -f \"$DOCKERFILE\" ."
 
     echo "🚀 Starting $SERVICE container..."
-    docker run -d \\
-        --name "seatsteal-$SERVICE" \\
+    sg docker -c "docker run -d \\
+        --name \"seatsteal-$SERVICE\" \\
         --env-file .env \\
-        "seatsteal-$SERVICE"
+        \"seatsteal-$SERVICE\""
 
     echo "✅ Deployment completed successfully!"
     echo "📊 Container status:"
-    docker ps --filter "name=seatsteal-$SERVICE"
+    sg docker -c "docker ps --filter \"name=seatsteal-$SERVICE\""
 
     echo "📋 Recent container logs:"
-    docker logs --tail 20 "seatsteal-$SERVICE"
+    sg docker -c "docker logs --tail 20 \"seatsteal-$SERVICE\""
 fi
 EOF
 

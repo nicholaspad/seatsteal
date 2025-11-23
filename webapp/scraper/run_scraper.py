@@ -31,7 +31,7 @@ class ScraperCLI:
     """CLI for managing scraper jobs"""
 
     def __init__(self):
-        self.loop_interval_seconds = 600  # 10 minutes
+        self.loop_interval_seconds = 300  # 5 minutes
 
     async def _run_single_job(
         self,
