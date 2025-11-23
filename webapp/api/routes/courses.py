@@ -444,7 +444,7 @@ async def get_course_summary(
     """Get course summary statistics (Premium feature)"""
     try:
         # Require premium access
-        await require_premium_access(user.id, db)
+        require_premium_access(user.id, db)
 
         # Verify course exists
         course_result = db.execute(

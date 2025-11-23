@@ -94,7 +94,7 @@ async def create_portal_session(
     )
 
 
-def verify_webhook_signature(payload: str, sig_header: str) -> stripe.Event:
+def verify_webhook_signature(payload: bytes, sig_header: str) -> stripe.Event:
     """Verify Stripe webhook signature and construct event"""
     try:
         event = stripe.Webhook.construct_event(

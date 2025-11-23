@@ -154,17 +154,17 @@ async def create_stripe_portal_session(
 @router.post("/webhooks")
 async def stripe_webhooks(
     request: Request,
-    stripe_signature: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
     """Handle Stripe webhook events"""
     try:
+        # Get signature from header
+        stripe_signature = request.headers.get("stripe-signature")
         if not stripe_signature:
             raise HTTPException(status_code=400, detail="No Stripe signature found")
 
-        # Get raw body
-        body = await request.body()
-        payload = body.decode("utf-8")
+        # Get raw body as bytes (do not decode)
+        payload = await request.body()
 
         # Verify webhook signature
         event = verify_webhook_signature(payload, stripe_signature)
