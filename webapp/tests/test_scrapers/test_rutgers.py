@@ -140,7 +140,7 @@ class TestRutgersScraper:
 
         assert result is not None
         assert result["course_code"] == "01:198:111"
-        assert result["title"] == "INTRO TO COMPUTER SCI"
+        assert result["title"] == "Intro To Computer Sci"
         assert len(result["classes"]) == 2
 
         # Check first section (open)

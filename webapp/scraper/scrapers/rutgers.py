@@ -171,7 +171,75 @@ class RutgersScraper(BaseScraper):
                 )
                 continue
 
+        # Deduplicate courses with the same course_code
+        courses_data = self._deduplicate_courses(courses_data)
+
         return courses_data
+
+    def _deduplicate_courses(
+        self, courses: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Deduplicate courses with the same course_code by merging their sections.
+
+        Rutgers API can return duplicate course codes representing different course
+        offerings with separate sections. This method merges them into a single
+        course entry with all sections combined.
+
+        Args:
+            courses: List of course dictionaries
+
+        Returns:
+            Deduplicated list of course dictionaries
+        """
+        # Group courses by course_code
+        course_map: Dict[str, List[Dict[str, Any]]] = {}
+        for course in courses:
+            course_code = course.get("course_code", "")
+            if course_code not in course_map:
+                course_map[course_code] = []
+            course_map[course_code].append(course)
+
+        # Merge duplicates
+        deduplicated = []
+        duplicates_found = 0
+
+        for course_code, course_list in course_map.items():
+            if len(course_list) == 1:
+                # No duplicates, keep as-is
+                deduplicated.append(course_list[0])
+            else:
+                # Merge duplicate courses
+                duplicates_found += len(course_list) - 1
+                logger.info(
+                    f"Merging {len(course_list)} duplicate courses with code {course_code}"
+                )
+
+                # Combine all classes from all duplicate courses
+                all_classes = []
+                titles = []
+                for course in course_list:
+                    all_classes.extend(course.get("classes", []))
+                    titles.append(course.get("title", ""))
+
+                # Choose the longest/most descriptive title
+                best_title = max(titles, key=len) if titles else ""
+
+                # Create merged course
+                merged_course = {
+                    "course_code": course_code,
+                    "title": best_title,
+                    "classes": all_classes,
+                }
+                deduplicated.append(merged_course)
+
+        if duplicates_found > 0:
+            logger.info(
+                f"Deduplicated {duplicates_found} duplicate courses "
+                f"({len(courses)} -> {len(deduplicated)} unique courses)"
+            )
+
+        return deduplicated
 
     def _transform_single_course(
         self, raw_course: Dict[str, Any]
@@ -189,7 +257,7 @@ class RutgersScraper(BaseScraper):
             # Build course code from Rutgers format: "school:subject:courseNumber"
             # e.g., "01:013:111" -> "01:013:111" or we can simplify
             course_string = raw_course.get("courseString", "")
-            title = raw_course.get("title", "").strip()
+            title = raw_course.get("title", "").strip().title()
 
             if not course_string:
                 logger.warning("Skipping course with missing courseString")
