@@ -198,7 +198,7 @@ export function EnrollmentAnalysisModal({
                       </div>
                       <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
                         <Target className="h-3 w-3" />
-                        Most recent opening
+                        Most recent open seat
                       </p>
                     </div>
                   </CardContent>

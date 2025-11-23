@@ -251,11 +251,11 @@ export function CourseDetails({
               <CardHeader className="space-y-4 p-6">
                 <div className="space-y-2">
                   <h1 className="text-2xl font-bold break-words leading-none pb-2">
-                    {localCourse.courseCode}
+                    {localCourse.title}
                   </h1>
 
                   <h2 className="text-base text-muted-foreground font-medium line-clamp-2 break-all leading-none mb-2">
-                    {localCourse.title}
+                    {localCourse.courseCode}
                   </h2>
                 </div>
 
