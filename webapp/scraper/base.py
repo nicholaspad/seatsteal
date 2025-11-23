@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-import requests
+import httpx
+import asyncio
 from bs4 import BeautifulSoup
 from loguru import logger
 import time
@@ -17,11 +18,11 @@ class BaseScraper(ABC):
             college_short_name: Short identifier for the college (e.g., 'princeton', 'brown')
         """
         self.college_short_name = college_short_name
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
+        self.client = httpx.AsyncClient(
+            headers={
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            }
+            },
+            timeout=30.0,
         )
         self.request_count = 0
         self.last_request_time = 0
@@ -59,7 +60,7 @@ class BaseScraper(ABC):
         """
         pass
 
-    def fetch_html(self, url: str, timeout: int = 30) -> BeautifulSoup:
+    async def fetch_html(self, url: str, timeout: int = 30) -> BeautifulSoup:
         """
         Fetch and parse HTML from a URL.
 
@@ -71,28 +72,28 @@ class BaseScraper(ABC):
             BeautifulSoup object with parsed HTML
 
         Raises:
-            requests.RequestException: If request fails
+            httpx.HTTPError: If request fails
         """
         try:
             # Rate limiting: ensure minimum 100ms between requests
             current_time = time.time()
             time_since_last_request = current_time - self.last_request_time
             if time_since_last_request < 0.1:
-                time.sleep(0.1 - time_since_last_request)
+                await asyncio.sleep(0.1 - time_since_last_request)
 
             logger.debug(f"Fetching {url}")
-            response = self.session.get(url, timeout=timeout)
+            response = await self.client.get(url, timeout=timeout)
             response.raise_for_status()
             self.request_count += 1
             self.last_request_time = time.time()
 
             return BeautifulSoup(response.content, "lxml")
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             logger.error(f"Failed to fetch {url}: {e}")
             raise
 
-    def fetch_json(self, url: str, timeout: int = 30) -> Dict[str, Any]:
+    async def fetch_json(self, url: str, timeout: int = 30) -> Dict[str, Any]:
         """
         Fetch JSON data from a URL.
 
@@ -104,24 +105,24 @@ class BaseScraper(ABC):
             Parsed JSON as dictionary
 
         Raises:
-            requests.RequestException: If request fails
+            httpx.HTTPError: If request fails
         """
         try:
             # Rate limiting
             current_time = time.time()
             time_since_last_request = current_time - self.last_request_time
             if time_since_last_request < 0.1:
-                time.sleep(0.1 - time_since_last_request)
+                await asyncio.sleep(0.1 - time_since_last_request)
 
             logger.debug(f"Fetching JSON from {url}")
-            response = self.session.get(url, timeout=timeout)
+            response = await self.client.get(url, timeout=timeout)
             response.raise_for_status()
             self.request_count += 1
             self.last_request_time = time.time()
 
             return response.json()
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             logger.error(f"Failed to fetch JSON from {url}: {e}")
             raise
 
@@ -150,15 +151,15 @@ class BaseScraper(ABC):
         else:
             return "Unknown"
 
-    def close(self):
-        """Close the HTTP session"""
-        self.session.close()
+    async def close(self):
+        """Close the HTTP client"""
+        await self.client.aclose()
         logger.debug(f"Scraper closed. Total requests: {self.request_count}")
 
-    def __enter__(self):
-        """Context manager entry"""
+    async def __aenter__(self):
+        """Async context manager entry"""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit"""
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        await self.close()

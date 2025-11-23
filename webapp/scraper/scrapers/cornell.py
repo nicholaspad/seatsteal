@@ -64,7 +64,7 @@ class CornellScraper(BaseScraper):
 
         # Load base roster page to get all subjects
         base_url = f"{self.BASE_URL}/{self.current_term}"
-        soup = self.fetch_html(base_url)
+        soup = await self.fetch_html(base_url)
 
         # Extract all subjects from the browse page
         subjects = []
@@ -116,7 +116,7 @@ class CornellScraper(BaseScraper):
         """
         # Cornell roster URL format
         url = f"{self.BASE_URL}/{self.current_term}/subject/{subject_code}"
-        soup = self.fetch_html(url)
+        soup = await self.fetch_html(url)
 
         courses = []
         course_elements = soup.select(".node")
