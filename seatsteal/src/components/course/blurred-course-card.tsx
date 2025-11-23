@@ -131,11 +131,11 @@ const BlurredCourseCard = memo(function BlurredCourseCard({
               </span>
             </div>
             <h3 className="font-semibold text-lg leading-none tracking-tight">
-              {mockCourse.courseCode}
+              {mockCourse.title}
             </h3>
           </div>
           <p className="text-sm text-muted-foreground line-clamp-2">
-            {mockCourse.title}
+            {mockCourse.courseCode}
           </p>
         </div>
       </CardHeader>
