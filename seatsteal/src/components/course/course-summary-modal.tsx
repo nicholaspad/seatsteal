@@ -7,14 +7,8 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Sparkles,
-  Loader2,
-  Users,
-  Bell,
-  BookOpen,
-  TrendingUp,
-} from "lucide-react";
+import { Sparkles, Users, Bell, BookOpen, TrendingUp } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { fetchWithToasts } from "@/lib/api";
 import type { CourseWithCollege } from "@/types/api";
 
@@ -87,7 +81,7 @@ export function CourseSummaryModal({
         <div className="space-y-6">
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Spinner className="size-6" />
               <span className="ml-2">Loading summary...</span>
             </div>
           )}

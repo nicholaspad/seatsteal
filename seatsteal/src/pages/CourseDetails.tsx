@@ -4,7 +4,8 @@ import { IonPage, IonContent } from "@ionic/react";
 import { CourseDetailsClient } from "@/components/course/course-details-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import type { CourseWithClasses, CourseDetailsApiResponse } from "@/types/api";
 
@@ -61,7 +62,7 @@ export default function CourseDetails() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <Spinner className="size-12" />
                     <p className="text-lg text-muted-foreground">
                       Loading course details...
                     </p>

@@ -19,8 +19,8 @@ import {
   Settings,
   Calendar,
   ExternalLink,
-  Loader2,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { CollegeBadge } from "@/components/college/CollegeBadge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -402,7 +402,7 @@ const UserDashboard = memo(function UserDashboard({
                   >
                     {managingSubscription ? (
                       <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        <Spinner className="size-3 mr-1" />
                         Loading...
                       </>
                     ) : (

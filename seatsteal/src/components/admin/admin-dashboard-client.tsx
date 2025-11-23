@@ -27,6 +27,7 @@ import {
   School,
   RefreshCw,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { formatChartDate } from "@/lib/date-utils";
 
@@ -161,9 +162,11 @@ export function AdminDashboardClient() {
             </SelectContent>
           </Select>
           <Button onClick={fetchAnalytics} disabled={loading}>
-            <RefreshCw
-              className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
-            />
+            {loading ? (
+              <Spinner className="size-4 mr-2" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
             Refresh
           </Button>
         </div>

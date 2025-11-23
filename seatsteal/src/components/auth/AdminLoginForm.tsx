@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail, Loader2 } from "lucide-react";
+import { Mail } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { EmailSchema } from "@/lib/validation";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 
@@ -149,7 +150,7 @@ export function AdminLoginForm() {
       <Button type="submit" className="w-full" disabled={isLoading || !email}>
         {isLoading ? (
           <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <Spinner className="size-4 mr-2" />
             Logging in...
           </>
         ) : (

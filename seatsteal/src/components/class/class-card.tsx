@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/tooltip";
 import { EnrollmentBadge } from "./enrollment-badge";
 import { EnrollmentAnalysisModal } from "./enrollment-analysis-modal";
-import { Bell, Loader2, Sparkles, ExternalLink } from "lucide-react";
+import { Bell, Sparkles, ExternalLink } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useSubscriptionTier } from "@/components/providers/SessionProvider";
 
@@ -188,7 +189,7 @@ export function ClassCard({
                 }
               >
                 {buttonLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner className="size-4" />
                 ) : (
                   <Bell className="h-4 w-4" />
                 )}

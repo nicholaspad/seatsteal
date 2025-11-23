@@ -1,7 +1,7 @@
 import { CollegeFilter } from "@/components/course/college-filter";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useHistory } from "react-router-dom";
 import { useState } from "react";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -78,7 +78,7 @@ export function CollegeSelectionForm() {
         >
           {isLoading ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Spinner className="size-4 mr-2" />
               Setting Up Account...
             </>
           ) : (

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useHistory } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, ArrowRight, Loader2 } from "lucide-react";
+import { CheckCircle, ArrowRight } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { getSubscriptionFeatures } from "@/lib/subscription-constants";
 import { supabase } from "@/lib/supabase";
 import { fetchWithToasts } from "@/lib/api";
@@ -156,7 +157,7 @@ export function PricingTiers() {
             >
               {loading === tier.id ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Spinner className="size-4 mr-2" />
                   Loading...
                 </>
               ) : (

@@ -13,7 +13,6 @@ import {
   Calendar,
   Clock,
   TrendingUp,
-  Loader2,
   Users,
   Bell,
   Target,
@@ -22,6 +21,7 @@ import {
   XCircle,
   BarChart3,
 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { formatCompactDateTime } from "@/lib/date-utils";
 import { fetchWithToasts } from "@/lib/api";
 import type { ClassWithEnrollment } from "@/types/api";
@@ -135,7 +135,7 @@ export function EnrollmentAnalysisModal({
         <div className="space-y-6">
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Spinner className="size-6" />
               <span className="ml-2">Loading analysis...</span>
             </div>
           )}

@@ -18,6 +18,7 @@ import { FullWidthCTA } from "@/components/course/full-width-cta";
 import { CourseFilters } from "@/components/course/course-filters";
 import { PaginationLinks } from "@/components/layout/PaginationLinks";
 import { BookOpen } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useSession } from "@/components/providers/SessionProvider";
 import type { CourseWithClasses } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -165,7 +166,7 @@ export default function Courses() {
         <IonContent>
           <div className="container mx-auto px-4 py-8">
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+              <Spinner className="size-12 mx-auto" />
               <p className="mt-4 text-muted-foreground">Loading...</p>
             </div>
           </div>
@@ -251,7 +252,7 @@ export default function Courses() {
               {/* Results */}
               {loading ? (
                 <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                  <Spinner className="size-12 mx-auto" />
                   <p className="mt-4 text-muted-foreground">
                     Loading courses...
                   </p>

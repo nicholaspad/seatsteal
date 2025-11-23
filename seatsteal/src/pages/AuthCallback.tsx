@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useHistory } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { logError } from "@/lib/logger";
@@ -77,7 +78,7 @@ export default function AuthCallback() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-primary" />
+          <Spinner className="size-12 mx-auto" />
           <h2 className="text-xl font-semibold">Signing you in...</h2>
           <p className="text-muted-foreground">
             Please wait while we complete your authentication.

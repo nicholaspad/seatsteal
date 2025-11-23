@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/breadcrumb";
 import type { College } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
-import { AlertTriangle, Loader2, Mail, Save, School } from "lucide-react";
+import { AlertTriangle, Mail, Save, School } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -162,7 +163,7 @@ export default function Settings() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <Spinner className="size-8" />
                   </div>
                 </CardContent>
               </Card>
@@ -266,7 +267,7 @@ export default function Settings() {
                   >
                     {saving ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Spinner className="size-4 mr-2" />
                         Saving...
                       </>
                     ) : (

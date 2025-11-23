@@ -6,14 +6,8 @@ import {
 import { useHistory } from "react-router-dom";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import {
-  Bell,
-  BellOff,
-  Loader2,
-  AlertCircle,
-  LogIn,
-  ExternalLink,
-} from "lucide-react";
+import { Bell, BellOff, AlertCircle, LogIn, ExternalLink } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { ClassWithEnrollment, SubscriptionRequest } from "@/types/api";
@@ -173,11 +167,10 @@ export function SubscriptionButton({
     if (loading || sessionLoading) {
       return (
         <>
-          <Loader2
+          <Spinner
             className={cn(
-              "animate-spin",
               showIcon && "mr-2",
-              size === "sm" ? "h-3 w-3" : "h-4 w-4",
+              size === "sm" ? "size-3" : "size-4",
             )}
           />
           {loading ? "Processing..." : "Loading..."}
