@@ -93,26 +93,7 @@ const UserDashboard = memo(function UserDashboard({
         throw new Error(data.error || "Failed to fetch subscriptions");
       }
 
-      // Mock subscription data with enhanced details for demonstration
-      const mockSubscriptions: SubscriptionWithDetails[] = (
-        data.data || []
-      ).map((sub, index) => ({
-        ...sub,
-        lastNotified:
-          index % 2 === 0
-            ? new Date(
-                Date.now() - Math.random() * 3 * 24 * 60 * 60 * 1000,
-              ).toISOString()
-            : null,
-        notificationCount: Math.floor(Math.random() * 5),
-        createdAt:
-          sub.createdAt ||
-          new Date(
-            Date.now() - (index + 1) * 2 * 24 * 60 * 60 * 1000,
-          ).toISOString(),
-      }));
-
-      setSubscriptions(mockSubscriptions);
+      setSubscriptions(data.data || []);
     } catch (err) {
       if (err instanceof ServerErrorWithToast) {
         return; // Toast already shown

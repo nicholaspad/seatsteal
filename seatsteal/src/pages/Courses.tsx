@@ -131,7 +131,9 @@ function SearchSummary({
 
 export default function Courses() {
   const searchParams = useSearchParams();
-  const { user, profile, profileLoading } = useSession();
+  const { user, profile, profileLoading, loading: authLoading } = useSession();
+
+  // All hooks must be declared before any conditional returns
   const isLoggedOut = !user;
   const [data, setData] = useState<CoursesData>({
     courses: [],
@@ -143,12 +145,18 @@ export default function Courses() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Wait for auth to load before fetching data
+    // This prevents race condition where API call happens before auth completes
+    if (authLoading || (user && profileLoading)) {
+      return;
+    }
+
     setLoading(true);
     getCoursesData(searchParams, isLoggedOut).then((result) => {
       setData(result);
       setLoading(false);
     });
-  }, [searchParams.toString(), isLoggedOut]);
+  }, [searchParams.toString(), isLoggedOut, authLoading, user, profileLoading]);
 
   const { courses, totalCourses, currentPage, totalPages, error } = data;
 
@@ -158,6 +166,22 @@ export default function Courses() {
     courses.length > 0
       ? courses[0].college
       : null;
+
+  // Show loading spinner while auth is initializing
+  if (authLoading) {
+    return (
+      <IonPage>
+        <IonContent>
+          <div className="container mx-auto px-4 py-8">
+            <div className="text-center py-12">
+              <Spinner className="size-12 mx-auto" />
+              <p className="mt-4 text-muted-foreground">Loading...</p>
+            </div>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
 
   // Wait for profile to load before rendering to get correct initial college filter
   if (user && profileLoading) {
