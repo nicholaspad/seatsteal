@@ -28,4 +28,6 @@ class Class(Base):
         Index(
             "classes_course_class_number_idx", "course_id", "class_number", unique=True
         ),
+        # Composite index for filtering by course and active status
+        Index("classes_course_active_idx", "course_id", "is_active"),
     )

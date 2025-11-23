@@ -3,8 +3,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
+import json
 
 from db.session import get_db
+from utils.cache import CacheClient, _make_cache_key, _serialize_for_cache
+from loguru import logger
 from models.class_model import Class
 from models.course import Course
 from models.college import College
@@ -23,7 +26,26 @@ router = APIRouter(prefix="/api/classes", tags=["classes"])
 
 @router.get("/{class_id}")
 async def get_class(class_id: int, db: Session = Depends(get_db)):
-    """Get class details with course, college, and latest enrollment"""
+    """
+    Get class details with course, college, and latest enrollment.
+
+    Caching: Results cached for 5 minutes
+    """
+    # Try to get from cache first
+    cache_client = CacheClient.get_client()
+    cache_key = None
+
+    if cache_client:
+        try:
+            cache_key = _make_cache_key("class_detail", class_id=class_id)
+            cached_result = cache_client.get(cache_key)
+
+            if cached_result:
+                logger.debug(f"Cache hit for class detail: {cache_key}")
+                return json.loads(cached_result)
+        except Exception as e:
+            logger.error(f"Cache read error: {e}")
+
     try:
         # Get class with related course and college
         class_query = (
@@ -79,10 +101,22 @@ async def get_class(class_id: int, db: Session = Depends(get_db)):
             ),
         )
 
-        return {
+        response = {
             "success": True,
             "data": class_data,
         }
+
+        # Store in cache (shorter TTL since enrollment data changes frequently)
+        if cache_client and cache_key:
+            try:
+                ttl = 300  # 5 minutes
+                serialized = _serialize_for_cache(response)
+                cache_client.setex(cache_key, ttl, json.dumps(serialized))
+                logger.debug(f"Cached class detail: {cache_key} (TTL: {ttl}s)")
+            except Exception as e:
+                logger.error(f"Cache write error: {e}")
+
+        return response
 
     except HTTPException:
         raise

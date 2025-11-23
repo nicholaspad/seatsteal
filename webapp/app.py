@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
@@ -19,6 +20,7 @@ from api.routes import (
 )
 from db.connection import init_db, close_db
 from api.middleware.security_headers import SecurityHeadersMiddleware
+from utils.cache import CacheClient
 
 
 class PydanticJSONResponse(JSONResponse):
@@ -53,11 +55,22 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting SeatSteal API...")
     init_db()
     print("✅ Database connection initialized")
+
+    # Initialize Redis connection
+    redis_client = CacheClient.get_client()
+    if redis_client:
+        print("✅ Redis cache connection initialized")
+    else:
+        print("⚠️  Redis not configured, caching disabled")
+
     yield
+
     # Shutdown
     print("🛑 Shutting down SeatSteal API...")
     close_db()
     print("✅ Database connections closed")
+    CacheClient.close()
+    print("✅ Redis connection closed")
 
 
 # Create FastAPI application
@@ -75,6 +88,9 @@ app = FastAPI(
 
 # Security headers middleware (added first so it runs last)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# GZip compression middleware for response compression (70-80% size reduction)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS middleware
 # Allow both www and non-www variants in production, localhost in development

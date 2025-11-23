@@ -253,7 +253,9 @@ class TestCornellScraper:
 
     @pytest.mark.unit
     @patch("scraper.scrapers.cornell.CornellScraper.fetch_html")
-    async def test_scrape_single_subject(self, mock_fetch_html, mock_cornell_db_session):
+    async def test_scrape_single_subject(
+        self, mock_fetch_html, mock_cornell_db_session
+    ):
         """Test scraping a single subject/department."""
         scraper = CornellScraper(mock_cornell_db_session)
 
@@ -338,9 +340,7 @@ class TestCornellScraper:
 
     @pytest.mark.unit
     @patch("scraper.scrapers.cornell.CornellScraper._scrape_all_subjects")
-    async def test_scrape_courses_all(
-        self, mock_scrape_all, mock_cornell_db_session
-    ):
+    async def test_scrape_courses_all(self, mock_scrape_all, mock_cornell_db_session):
         """Test scraping all courses."""
         scraper = CornellScraper(mock_cornell_db_session)
 
@@ -349,7 +349,9 @@ class TestCornellScraper:
             {
                 "course_code": "CS 1110",
                 "title": "Intro to CS",
-                "classes": [{"class_number": "12345", "section": "001", "status": "open"}],
+                "classes": [
+                    {"class_number": "12345", "section": "001", "status": "open"}
+                ],
             }
         ]
         mock_scrape_all.return_value = mock_courses

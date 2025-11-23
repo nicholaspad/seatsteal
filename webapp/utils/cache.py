@@ -1,0 +1,263 @@
+"""
+Redis caching utilities for API response caching.
+
+Provides a simple caching layer with TTL support for reducing database load
+and improving API response times.
+"""
+
+import json
+import hashlib
+from typing import Any, Optional, Callable
+from functools import wraps
+from datetime import datetime
+from pydantic import BaseModel
+import redis
+from loguru import logger
+
+from config import settings
+
+
+class CacheClient:
+    """Redis cache client with connection pooling and error handling."""
+
+    _instance: Optional[redis.Redis] = None
+
+    @classmethod
+    def get_client(cls) -> Optional[redis.Redis]:
+        """
+        Get or create Redis client instance.
+
+        Returns None if Redis is not configured or connection fails.
+        Uses connection pooling for efficiency.
+        """
+        if cls._instance is not None:
+            return cls._instance
+
+        if not settings.REDIS_URL:
+            logger.warning("Redis URL not configured, caching disabled")
+            return None
+
+        try:
+            cls._instance = redis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+            )
+            # Test connection
+            cls._instance.ping()
+            logger.info("Redis connection established")
+            return cls._instance
+        except Exception as e:
+            logger.error(f"Failed to connect to Redis: {e}")
+            return None
+
+    @classmethod
+    def close(cls):
+        """Close Redis connection."""
+        if cls._instance:
+            cls._instance.close()
+            cls._instance = None
+
+
+def _serialize_for_cache(obj: Any) -> Any:
+    """
+    Recursively serialize objects for caching, handling Pydantic models and datetimes.
+
+    Args:
+        obj: Object to serialize
+
+    Returns:
+        JSON-serializable version of the object
+    """
+    if isinstance(obj, BaseModel):
+        return obj.model_dump(mode="json", by_alias=True)
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: _serialize_for_cache(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_serialize_for_cache(item) for item in obj]
+    else:
+        return obj
+
+
+def _make_cache_key(prefix: str, **kwargs) -> str:
+    """
+    Generate a cache key from a prefix and keyword arguments.
+
+    Args:
+        prefix: Cache key prefix (e.g., 'courses', 'colleges')
+        **kwargs: Key-value pairs to include in cache key
+
+    Returns:
+        A deterministic cache key string
+    """
+    # Sort kwargs for consistent key generation
+    sorted_params = sorted(kwargs.items())
+    # Serialize for consistent string representation
+    param_str = json.dumps(sorted_params, sort_keys=True, default=str)
+    # Hash params to keep key length manageable
+    param_hash = hashlib.md5(param_str.encode()).hexdigest()[:12]
+    return f"{prefix}:{param_hash}"
+
+
+def cache_response(
+    prefix: str,
+    ttl: int = 300,
+    key_builder: Optional[Callable[..., dict]] = None,
+):
+    """
+    Decorator to cache function responses in Redis.
+
+    Args:
+        prefix: Cache key prefix (e.g., 'courses', 'colleges')
+        ttl: Time to live in seconds (default: 300 = 5 minutes)
+        key_builder: Optional function to extract cache key parameters from function args
+
+    Example:
+        @cache_response(prefix='courses', ttl=600)
+        async def get_courses(college_id: int, search: str):
+            # Function implementation
+            pass
+
+        # With custom key builder
+        def build_key(college_id, **kwargs):
+            return {'college': college_id}
+
+        @cache_response(prefix='courses', ttl=600, key_builder=build_key)
+        async def get_courses(college_id: int, page: int = 1):
+            # Only college_id is used in cache key, page is ignored
+            pass
+    """
+
+    def decorator(func: Callable):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            client = CacheClient.get_client()
+
+            # If Redis not available, bypass cache
+            if client is None:
+                return await func(*args, **kwargs)
+
+            # Build cache key
+            try:
+                if key_builder:
+                    key_params = key_builder(*args, **kwargs)
+                else:
+                    # Default: use all kwargs
+                    key_params = kwargs
+
+                cache_key = _make_cache_key(prefix, **key_params)
+
+                # Try to get from cache
+                cached = client.get(cache_key)
+                if cached:
+                    logger.debug(f"Cache hit: {cache_key}")
+                    return json.loads(cached)
+
+                # Cache miss - call function
+                logger.debug(f"Cache miss: {cache_key}")
+                result = await func(*args, **kwargs)
+
+                # Serialize and store in cache
+                serialized = _serialize_for_cache(result)
+                client.setex(cache_key, ttl, json.dumps(serialized))
+                return result
+
+            except Exception as e:
+                # If cache operations fail, log and continue without cache
+                logger.error(f"Cache error: {e}")
+                return await func(*args, **kwargs)
+
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            client = CacheClient.get_client()
+
+            # If Redis not available, bypass cache
+            if client is None:
+                return func(*args, **kwargs)
+
+            # Build cache key
+            try:
+                if key_builder:
+                    key_params = key_builder(*args, **kwargs)
+                else:
+                    # Default: use all kwargs
+                    key_params = kwargs
+
+                cache_key = _make_cache_key(prefix, **key_params)
+
+                # Try to get from cache
+                cached = client.get(cache_key)
+                if cached:
+                    logger.debug(f"Cache hit: {cache_key}")
+                    return json.loads(cached)
+
+                # Cache miss - call function
+                logger.debug(f"Cache miss: {cache_key}")
+                result = func(*args, **kwargs)
+
+                # Serialize and store in cache
+                serialized = _serialize_for_cache(result)
+                client.setex(cache_key, ttl, json.dumps(serialized))
+                return result
+
+            except Exception as e:
+                # If cache operations fail, log and continue without cache
+                logger.error(f"Cache error: {e}")
+                return func(*args, **kwargs)
+
+        # Return appropriate wrapper based on function type
+        import inspect
+
+        if inspect.iscoroutinefunction(func):
+            return async_wrapper
+        else:
+            return sync_wrapper
+
+    return decorator
+
+
+def invalidate_cache(prefix: str, **kwargs):
+    """
+    Invalidate a specific cache entry.
+
+    Args:
+        prefix: Cache key prefix
+        **kwargs: Key-value pairs that were used to create the cache key
+    """
+    client = CacheClient.get_client()
+    if client is None:
+        return
+
+    try:
+        cache_key = _make_cache_key(prefix, **kwargs)
+        client.delete(cache_key)
+        logger.debug(f"Cache invalidated: {cache_key}")
+    except Exception as e:
+        logger.error(f"Cache invalidation error: {e}")
+
+
+def invalidate_cache_pattern(pattern: str):
+    """
+    Invalidate all cache entries matching a pattern.
+
+    Args:
+        pattern: Redis key pattern (e.g., 'courses:*', 'colleges:*')
+
+    Warning: Use sparingly as SCAN can be slow on large datasets
+    """
+    client = CacheClient.get_client()
+    if client is None:
+        return
+
+    try:
+        count = 0
+        for key in client.scan_iter(match=pattern):
+            client.delete(key)
+            count += 1
+        logger.info(f"Invalidated {count} cache entries matching '{pattern}'")
+    except Exception as e:
+        logger.error(f"Cache pattern invalidation error: {e}")

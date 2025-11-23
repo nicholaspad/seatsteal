@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     """PostgreSQL database URL. Will be converted to async format for asyncpg."""
 
+    # Redis
+    REDIS_URL: str | None = None
+    """Redis connection URL for caching (optional, e.g., redis://localhost:6379)"""
+
     # Supabase
     VITE_SUPABASE_URL: str
     """Supabase project URL (e.g., https://your-project.supabase.co)"""

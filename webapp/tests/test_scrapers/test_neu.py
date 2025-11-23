@@ -383,9 +383,7 @@ class TestNeuScraper:
         scraper = NeuScraper(mock_neu_db_session)
 
         # Mock _fetch_sections_page to return data on first call, empty on second
-        with patch.object(
-            scraper, "_fetch_sections_page"
-        ) as mock_fetch:
+        with patch.object(scraper, "_fetch_sections_page") as mock_fetch:
             mock_fetch.side_effect = [SAMPLE_NEU_SECTIONS, []]
 
             result = await scraper._fetch_all_courses()
@@ -411,7 +409,9 @@ class TestNeuScraper:
                     }
 
                     # Mock _fetch_all_courses to return transformed classes
-                    mock_classes = scraper._transform_sections_to_classes(SAMPLE_NEU_SECTIONS)
+                    mock_classes = scraper._transform_sections_to_classes(
+                        SAMPLE_NEU_SECTIONS
+                    )
                     mock_fetch_all.return_value = mock_classes
 
                     # Mock the client
@@ -444,7 +444,9 @@ class TestNeuScraper:
                     }
 
                     # Mock _fetch_all_courses to return transformed classes
-                    mock_classes = scraper._transform_sections_to_classes(SAMPLE_NEU_SECTIONS)
+                    mock_classes = scraper._transform_sections_to_classes(
+                        SAMPLE_NEU_SECTIONS
+                    )
                     mock_fetch_all.return_value = mock_classes
 
                     # Mock the client
@@ -456,7 +458,9 @@ class TestNeuScraper:
 
                     # Should only return CS courses
                     assert len(result) == 2
-                    assert all(course["course_code"].startswith("CS") for course in result)
+                    assert all(
+                        course["course_code"].startswith("CS") for course in result
+                    )
 
     @pytest.mark.unit
     async def test_scrape_courses_with_limit(self, mock_neu_db_session):
@@ -474,7 +478,9 @@ class TestNeuScraper:
                     }
 
                     # Mock _fetch_all_courses to return transformed classes
-                    mock_classes = scraper._transform_sections_to_classes(SAMPLE_NEU_SECTIONS)
+                    mock_classes = scraper._transform_sections_to_classes(
+                        SAMPLE_NEU_SECTIONS
+                    )
                     mock_fetch_all.return_value = mock_classes
 
                     # Mock the client

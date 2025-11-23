@@ -3,8 +3,11 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, func, or_, and_, text
 from typing import Optional
 import math
+import json
 
 from db.session import get_db
+from utils.cache import CacheClient, _make_cache_key, _serialize_for_cache
+from loguru import logger
 from models.course import Course
 from models.college import College
 from models.class_model import Class
@@ -44,7 +47,31 @@ async def get_courses(
     - Search by course code or title
     - Filter by college
     - Pagination
+
+    Caching: Results cached for 5 minutes (search queries) or 10 minutes (no search)
     """
+    # Try to get from cache first
+    cache_client = CacheClient.get_client()
+    cache_key = None
+
+    if cache_client:
+        try:
+            cache_params = {
+                "q": q or "",
+                "college_id": college_id or 0,
+                "enrollment": enrollment,
+                "page": page,
+                "limit": limit,
+            }
+            cache_key = _make_cache_key("courses", **cache_params)
+            cached_result = cache_client.get(cache_key)
+
+            if cached_result:
+                logger.debug(f"Cache hit for courses: {cache_key}")
+                return json.loads(cached_result)
+        except Exception as e:
+            logger.error(f"Cache read error: {e}")
+
     try:
         # Build base query
         conditions = [Course.is_active == True]
@@ -208,7 +235,7 @@ async def get_courses(
 
         paginated_response = PaginatedResponse(data=result_data, pagination=pagination)
 
-        return {
+        response = {
             "success": True,
             "data": {
                 "data": paginated_response.data,
@@ -216,13 +243,45 @@ async def get_courses(
             },
         }
 
+        # Store in cache
+        if cache_client and cache_key:
+            try:
+                # Use shorter TTL for search queries (2 min), longer for listings (10 min)
+                ttl = 120 if q else 600
+                serialized = _serialize_for_cache(response)
+                cache_client.setex(cache_key, ttl, json.dumps(serialized))
+                logger.debug(f"Cached courses result: {cache_key} (TTL: {ttl}s)")
+            except Exception as e:
+                logger.error(f"Cache write error: {e}")
+
+        return response
+
     except Exception as e:
         log_and_raise_500("Failed to fetch courses", e)
 
 
 @router.get("/{course_id}")
 async def get_course(course_id: int, db: Session = Depends(get_db)):
-    """Get course details with classes and college"""
+    """
+    Get course details with classes and college.
+
+    Caching: Results cached for 5 minutes
+    """
+    # Try to get from cache first
+    cache_client = CacheClient.get_client()
+    cache_key = None
+
+    if cache_client:
+        try:
+            cache_key = _make_cache_key("course_detail", course_id=course_id)
+            cached_result = cache_client.get(cache_key)
+
+            if cached_result:
+                logger.debug(f"Cache hit for course detail: {cache_key}")
+                return json.loads(cached_result)
+        except Exception as e:
+            logger.error(f"Cache read error: {e}")
+
     try:
         # Get course with college
         course_query = (
@@ -330,10 +389,22 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
             last_scraper_update=latest_scraper_update,
         )
 
-        return {
+        response = {
             "success": True,
             "data": course_data,
         }
+
+        # Store in cache (shorter TTL since enrollment data changes frequently)
+        if cache_client and cache_key:
+            try:
+                ttl = 300  # 5 minutes
+                serialized = _serialize_for_cache(response)
+                cache_client.setex(cache_key, ttl, json.dumps(serialized))
+                logger.debug(f"Cached course detail: {cache_key} (TTL: {ttl}s)")
+            except Exception as e:
+                logger.error(f"Cache write error: {e}")
+
+        return response
 
     except HTTPException:
         raise
