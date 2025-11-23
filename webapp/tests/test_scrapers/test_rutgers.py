@@ -154,6 +154,49 @@ class TestRutgersScraper:
         assert result["classes"][1]["status"] == "closed"
 
     @pytest.mark.unit
+    def test_smart_title_case_preserves_roman_numerals(self, mock_rutgers_db_session):
+        """Test that roman numerals are preserved in uppercase in course titles."""
+        scraper = RutgersScraper(mock_rutgers_db_session)
+
+        # Test various roman numerals
+        test_cases = [
+            ("CALCULUS II", "Calculus II"),
+            ("PHYSICS III LAB", "Physics III Lab"),
+            ("INTRO TO COMPUTER SCIENCE I", "Intro To Computer Science I"),
+            ("CALC IV FOR ENGINEERS", "Calc IV For Engineers"),
+            ("CHEMISTRY V", "Chemistry V"),
+            ("LATIN VI", "Latin VI"),
+            ("PHYSICS VII", "Physics VII"),
+            ("MUSIC VIII", "Music VIII"),
+            ("BIOLOGY IX", "Biology IX"),
+            ("STATISTICS X", "Statistics X"),
+            ("ORGANIC CHEMISTRY II: MECHANISMS", "Organic Chemistry II: Mechanisms"),
+        ]
+
+        for input_text, expected_output in test_cases:
+            result = scraper._smart_title_case(input_text)
+            assert (
+                result == expected_output
+            ), f"Expected '{expected_output}' but got '{result}' for input '{input_text}'"
+
+    @pytest.mark.unit
+    def test_transform_single_course_with_roman_numerals(self, mock_rutgers_db_session):
+        """Test that course transformation correctly handles roman numerals in titles."""
+        scraper = RutgersScraper(mock_rutgers_db_session)
+
+        raw_course = {
+            "courseString": "01:640:152",
+            "title": "CALCULUS II",
+            "subject": "640",
+            "sections": [{"index": "12345", "number": "01", "openStatus": True}],
+        }
+        result = scraper._transform_single_course(raw_course)
+
+        assert result is not None
+        assert result["title"] == "Calculus II"
+        assert result["course_code"] == "01:640:152"
+
+    @pytest.mark.unit
     def test_transform_section_open(self, mock_rutgers_db_session):
         """Test transformation of an open section."""
         scraper = RutgersScraper(mock_rutgers_db_session)

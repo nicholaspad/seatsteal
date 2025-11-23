@@ -47,6 +47,61 @@ class RutgersScraper(BaseScraper):
             f"Parsed Rutgers term code: year={self.year}, term={self.term}, campus={self.campus}"
         )
 
+    @staticmethod
+    def _smart_title_case(text: str) -> str:
+        """
+        Convert text to title case while preserving roman numerals in uppercase.
+
+        Roman numerals (I, II, III, IV, V, VI, VII, VIII, IX, X, etc.) are kept
+        in uppercase to maintain proper formatting for course titles.
+
+        Args:
+            text: Text to convert to title case
+
+        Returns:
+            Title-cased text with roman numerals preserved in uppercase
+
+        Examples:
+            "CALCULUS II" -> "Calculus II"
+            "PHYSICS III LAB" -> "Physics III Lab"
+            "INTRO TO COMPUTER SCIENCE I" -> "Intro To Computer Science I"
+        """
+        # Roman numerals commonly found in course titles
+        roman_numerals = {
+            "I",
+            "II",
+            "III",
+            "IV",
+            "V",
+            "VI",
+            "VII",
+            "VIII",
+            "IX",
+            "X",
+            "XI",
+            "XII",
+            "XIII",
+            "XIV",
+            "XV",
+        }
+
+        # First apply standard title case
+        words = text.title().split()
+        result = []
+
+        for word in words:
+            # Strip punctuation to check if word is a roman numeral
+            clean_word = word.rstrip(".,;:!?")
+            punctuation = word[len(clean_word) :]
+
+            # If the clean word (without punctuation) is a roman numeral, uppercase it
+            if clean_word.upper() in roman_numerals:
+                result.append(clean_word.upper() + punctuation)
+            else:
+                result.append(word)
+
+        return " ".join(result)
+
     async def _ensure_client(self):
         """Ensure HTTP client is initialized"""
         if self.client is None:
@@ -257,7 +312,7 @@ class RutgersScraper(BaseScraper):
             # Build course code from Rutgers format: "school:subject:courseNumber"
             # e.g., "01:013:111" -> "01:013:111" or we can simplify
             course_string = raw_course.get("courseString", "")
-            title = raw_course.get("title", "").strip().title()
+            title = self._smart_title_case(raw_course.get("title", "").strip())
 
             if not course_string:
                 logger.warning("Skipping course with missing courseString")
