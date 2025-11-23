@@ -371,10 +371,6 @@ const UserDashboard = memo(function UserDashboard({
           onClose={() => setConfirmUnsubscribe(null)}
           onConfirm={() => handleUnsubscribe(confirmUnsubscribe)}
           isLoading={unsubscribing}
-          courseCode={confirmUnsubscribe.class.course.courseCode}
-          courseTitle={confirmUnsubscribe.class.course.title}
-          sectionCode={confirmUnsubscribe.class.sectionCode || undefined}
-          college={confirmUnsubscribe.class.course.college}
         />
       )}
 

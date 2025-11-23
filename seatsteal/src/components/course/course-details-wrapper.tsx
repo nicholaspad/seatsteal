@@ -221,12 +221,6 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
           onClose={() => setConfirmUnsubscribe(null)}
           onConfirm={() => handleConfirmedUnsubscribe(confirmUnsubscribe)}
           isLoading={unsubscribing}
-          courseCode={course.courseCode}
-          courseTitle={course.title}
-          sectionCode={
-            confirmUnsubscribe.subscription.class.sectionCode || undefined
-          }
-          college={course.college}
         />
       )}
 
