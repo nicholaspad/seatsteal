@@ -5,7 +5,6 @@ import "@fontsource/inter";
 import "./index.css";
 import { IonApp, IonRouterOutlet, setupIonicReact } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
-import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Route, Redirect } from "react-router-dom";
 import { Toaster } from "sonner";
 
@@ -185,6 +184,5 @@ createRoot(document.getElementById("root")!).render(
         </TooltipProvider>
       </SessionProvider>
     </ThemeProvider>
-    <SpeedInsights />
   </StrictMode>,
 );
