@@ -73,11 +73,11 @@ const CourseCard = memo(function CourseCard({
           <div className="flex items-center gap-2">
             <CollegeBadge college={course.college} />
             <h3 className="font-semibold text-lg leading-none tracking-tight">
-              {course.courseCode}
+              {course.title}
             </h3>
           </div>
           <p className="text-sm text-muted-foreground line-clamp-2">
-            {course.title}
+            {course.courseCode}
           </p>
         </div>
       </CardHeader>

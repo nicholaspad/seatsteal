@@ -76,7 +76,7 @@ export function ClassCard({
             </h3>
             {classData.classNumber && (
               <Badge variant="outline" className="text-xs flex items-center">
-                {classData.classNumber}
+                ID: {classData.classNumber}
               </Badge>
             )}
           </div>
