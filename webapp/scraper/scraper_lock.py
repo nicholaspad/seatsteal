@@ -102,6 +102,8 @@ class ScraperLock:
             if result:
                 # Successfully transitioned to running
                 self.acquired = True
+                # Commit immediately to release the row lock
+                self.db.commit()
                 logger.info(f"🔒 Acquired scraper lock for {college_short_name}")
                 return LockResult(success=True, scraper=result)
 
@@ -145,6 +147,8 @@ class ScraperLock:
 
         except Exception as e:
             logger.error(f"Error acquiring lock for {college_short_name}: {e}")
+            # Rollback the transaction to prevent "transaction aborted" errors
+            self.db.rollback()
             return LockResult(success=False, reason=f"Database error: {e}")
 
     def release(
@@ -242,9 +246,7 @@ class ScraperLock:
             )
             self.db.commit()
 
-            logger.info(
-                f"🔓 Force released stuck scraper lock for {college_short_name}"
-            )
+            logger.info(f"🔓 Force released stuck scraper lock for {college_short_name}")
 
             # Now try to acquire the lock again
             return self.acquire()
