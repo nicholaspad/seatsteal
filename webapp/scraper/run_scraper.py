@@ -23,6 +23,7 @@ webapp_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(webapp_dir))
 
 from db.session import SessionLocal
+from db.connection import engine
 from models.college import College
 from models.scraper import Scraper
 from scraper.scraper_job import ScraperJob, JobConfig
@@ -171,9 +172,19 @@ class ScraperCLI:
         """
         Reset all scraper statuses to idle.
         This is useful on startup to clear any stuck or stale states.
+        
+        Forces release of ALL database row locks by disposing of the connection pool
+        and reinitializing it, ensuring a clean slate.
         """
-        with SessionLocal() as db:
-            try:
+        try:
+            # Force release ALL database row locks by disposing of all connections
+            # This closes all connections in the pool, which releases any held locks
+            logger.info("🔓 Forcing release of all database row locks...")
+            engine.dispose()
+            logger.info("✅ All database connections disposed and locks released")
+            
+            # Now proceed with resetting scrapers using a fresh connection
+            with SessionLocal() as db:
                 # Use bulk update to avoid row-level locks
                 result = db.execute(
                     update(Scraper)
@@ -188,11 +199,10 @@ class ScraperCLI:
                 else:
                     logger.info("✅ All scrapers already in idle status")
                     
-            except Exception as e:
-                logger.error(f"❌ Error resetting scrapers: {e}")
-                db.rollback()
-                # Don't fail the startup, just log the error
-                logger.warning("⚠️ Continuing with startup despite reset error")
+        except Exception as e:
+            logger.error(f"❌ Error resetting scrapers: {e}")
+            # Don't fail the startup, just log the error
+            logger.warning("⚠️ Continuing with startup despite reset error")
 
     async def show_status(self) -> None:
         """Show status of all scrapers"""
