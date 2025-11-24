@@ -24,6 +24,7 @@ sys.path.insert(0, str(webapp_dir))
 
 from db.session import SessionLocal
 from models.college import College
+from models.scraper import Scraper
 from scraper.scraper_job import ScraperJob, JobConfig
 
 
@@ -166,10 +167,30 @@ class ScraperCLI:
 
         return {"total": len(colleges), "successful": successful, "failed": failed}
 
+    async def reset_all_scrapers_to_idle(self) -> None:
+        """
+        Reset all scraper statuses to idle.
+        This is useful on startup to clear any stuck or stale states.
+        """
+        with SessionLocal() as db:
+            scrapers = db.execute(select(Scraper)).scalars().all()
+            
+            if not scrapers:
+                logger.info("📊 No scrapers found to reset")
+                return
+            
+            reset_count = 0
+            for scraper in scrapers:
+                if scraper.status != "idle":
+                    scraper.status = "idle"
+                    scraper.updated_at = datetime.now()
+                    reset_count += 1
+            
+            db.commit()
+            logger.info(f"🔄 Reset {reset_count} scraper(s) to idle status")
+
     async def show_status(self) -> None:
         """Show status of all scrapers"""
-        from models.scraper import Scraper
-
         with SessionLocal() as db:
             scrapers = db.execute(
                 select(Scraper, College)
@@ -221,6 +242,10 @@ class ScraperCLI:
         logger.info(
             f"🔁 Running scraper in loop mode (every {self.loop_interval_seconds}s)"
         )
+
+        # Reset all scrapers to idle on first bootup
+        logger.info("🔄 Resetting all scraper statuses to idle on bootup...")
+        await self.reset_all_scrapers_to_idle()
 
         while True:
             try:
