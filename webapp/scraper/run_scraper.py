@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 # Add webapp directory to Python path
 webapp_dir = Path(__file__).parent.parent
@@ -173,21 +173,26 @@ class ScraperCLI:
         This is useful on startup to clear any stuck or stale states.
         """
         with SessionLocal() as db:
-            scrapers = db.execute(select(Scraper)).scalars().all()
-            
-            if not scrapers:
-                logger.info("📊 No scrapers found to reset")
-                return
-            
-            reset_count = 0
-            for scraper in scrapers:
-                if scraper.status != "idle":
-                    scraper.status = "idle"
-                    scraper.updated_at = datetime.now()
-                    reset_count += 1
-            
-            db.commit()
-            logger.info(f"🔄 Reset {reset_count} scraper(s) to idle status")
+            try:
+                # Use bulk update to avoid row-level locks
+                result = db.execute(
+                    update(Scraper)
+                    .where(Scraper.status != "idle")
+                    .values(status="idle", updated_at=datetime.now())
+                )
+                db.commit()
+                
+                reset_count = result.rowcount
+                if reset_count > 0:
+                    logger.info(f"🔄 Reset {reset_count} scraper(s) to idle status")
+                else:
+                    logger.info("✅ All scrapers already in idle status")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error resetting scrapers: {e}")
+                db.rollback()
+                # Don't fail the startup, just log the error
+                logger.warning("⚠️ Continuing with startup despite reset error")
 
     async def show_status(self) -> None:
         """Show status of all scrapers"""
