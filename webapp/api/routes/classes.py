@@ -135,8 +135,8 @@ async def get_enrollment_analysis(
         # Require premium access
         require_premium_access(user.id, db)
 
-        # Get times opened in last 60 days
-        sixty_days_ago = datetime.utcnow() - timedelta(days=60)
+        # Get times opened in last 30 days
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         times_opened_query = text(
             """
             WITH status_changes AS (
@@ -146,7 +146,7 @@ async def get_enrollment_analysis(
                     LAG(enrollment_status) OVER (ORDER BY scraped_at) as prev_status
                 FROM enrollments
                 WHERE class_id = :class_id
-                  AND scraped_at > :sixty_days_ago
+                  AND scraped_at > :thirty_days_ago
                   AND enrollment_status IS NOT NULL
                 ORDER BY scraped_at
             )
@@ -157,9 +157,10 @@ async def get_enrollment_analysis(
             """
         )
         times_result = db.execute(
-            times_opened_query, {"class_id": class_id, "sixty_days_ago": sixty_days_ago}
+            times_opened_query,
+            {"class_id": class_id, "thirty_days_ago": thirty_days_ago},
         )
-        times_opened_last_60_days = times_result.scalar() or 0
+        times_opened_last_30_days = times_result.scalar() or 0
 
         # Get average days to open
         avg_days_query = text(
@@ -176,7 +177,7 @@ async def get_enrollment_analysis(
                     ) as next_open_time
                 FROM enrollments e1
                 WHERE e1.class_id = :class_id
-                  AND e1.scraped_at > :sixty_days_ago
+                  AND e1.scraped_at > :thirty_days_ago
                   AND e1.enrollment_status = 'closed'
             )
             SELECT AVG(
@@ -187,9 +188,9 @@ async def get_enrollment_analysis(
             """
         )
         avg_result = db.execute(
-            avg_days_query, {"class_id": class_id, "sixty_days_ago": sixty_days_ago}
+            avg_days_query, {"class_id": class_id, "thirty_days_ago": thirty_days_ago}
         )
-        avg_days_to_open_last_60_days = round(avg_result.scalar() or 0, 1)
+        avg_days_to_open_last_30_days = round(avg_result.scalar() or 0, 1)
 
         # Get most recent opening
         most_recent_query = text(
@@ -267,8 +268,8 @@ async def get_enrollment_analysis(
 
         # Calculate competition level
         competition_score = subscriptions_count * 2 + recent_notifications
-        if avg_days_to_open_last_60_days > 0:
-            competition_score += max(0, 10 - avg_days_to_open_last_60_days)
+        if avg_days_to_open_last_30_days > 0:
+            competition_score += max(0, 10 - avg_days_to_open_last_30_days)
 
         if competition_score <= 10:
             competition_level = "low"
@@ -281,8 +282,8 @@ async def get_enrollment_analysis(
             "success": True,
             "data": {
                 "classId": class_id,
-                "timesOpenedLast60Days": times_opened_last_60_days,
-                "avgDaysToOpenLast60Days": avg_days_to_open_last_60_days,
+                "timesOpenedLast30Days": times_opened_last_30_days,
+                "avgDaysToOpenLast30Days": avg_days_to_open_last_30_days,
                 "mostRecentOpening": (
                     most_recent_opening.isoformat() if most_recent_opening else None
                 ),
