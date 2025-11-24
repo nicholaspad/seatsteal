@@ -7,22 +7,43 @@ from uuid import uuid4
 
 from utils.premium import get_user_subscription_tier
 from models.stripe_subscription import StripeSubscription
+from models.stripe_customer import StripeCustomer
+from models.user import Profile
 
 
 class TestGetUserSubscriptionTierCaching:
     """Tests for caching behavior in get_user_subscription_tier."""
 
     @pytest.mark.unit
-    def test_cache_miss_queries_database_and_caches_result(self, test_db: Session):
+    def test_cache_miss_queries_database_and_caches_result(self, test_db: Session, test_college):
         """Test that cache miss queries database and caches the result."""
         with patch("utils.premium.get_cached_user_tier") as mock_get_cache, \
              patch("utils.premium.cache_user_tier") as mock_cache_tier:
-            
+
             # Setup: Cache miss
             mock_get_cache.return_value = None
-            
+
             user_id = uuid4()
-            
+
+            # Create Profile first (required for foreign key)
+            profile = Profile(
+                id=user_id,
+                email="test@example.com",
+                college_id=test_college.id,
+                role="user",
+            )
+            test_db.add(profile)
+            test_db.flush()
+
+            # Create StripeCustomer (required for foreign key)
+            customer = StripeCustomer(
+                user_id=user_id,
+                stripe_customer_id="cus_test123",
+                email="test@example.com",
+            )
+            test_db.add(customer)
+            test_db.flush()
+
             # Create mock subscription in database
             subscription = StripeSubscription(
                 user_id=user_id,
@@ -94,16 +115,35 @@ class TestGetUserSubscriptionTierCaching:
             assert call_args[0][1] == "free"
 
     @pytest.mark.unit
-    def test_cache_handles_multiple_subscriptions_returns_latest(self, test_db: Session):
+    def test_cache_handles_multiple_subscriptions_returns_latest(self, test_db: Session, test_college):
         """Test that latest active subscription is used when multiple exist."""
         with patch("utils.premium.get_cached_user_tier") as mock_get_cache, \
              patch("utils.premium.cache_user_tier") as mock_cache_tier:
-            
+
             # Setup: Cache miss
             mock_get_cache.return_value = None
-            
+
             user_id = uuid4()
-            
+
+            # Create Profile first (required for foreign key)
+            profile = Profile(
+                id=user_id,
+                email="test@example.com",
+                college_id=test_college.id,
+                role="user",
+            )
+            test_db.add(profile)
+            test_db.flush()
+
+            # Create StripeCustomer (required for foreign key)
+            customer = StripeCustomer(
+                user_id=user_id,
+                stripe_customer_id="cus_test123",
+                email="test@example.com",
+            )
+            test_db.add(customer)
+            test_db.flush()
+
             # Create older subscription
             old_subscription = StripeSubscription(
                 user_id=user_id,
@@ -115,7 +155,7 @@ class TestGetUserSubscriptionTierCaching:
             )
             test_db.add(old_subscription)
             test_db.flush()
-            
+
             # Create newer subscription
             new_subscription = StripeSubscription(
                 user_id=user_id,
@@ -138,16 +178,35 @@ class TestGetUserSubscriptionTierCaching:
             assert call_args[0][1] == "pro"
 
     @pytest.mark.unit
-    def test_cache_ignores_inactive_subscriptions(self, test_db: Session):
+    def test_cache_ignores_inactive_subscriptions(self, test_db: Session, test_college):
         """Test that only active subscriptions are considered."""
         with patch("utils.premium.get_cached_user_tier") as mock_get_cache, \
              patch("utils.premium.cache_user_tier") as mock_cache_tier:
-            
+
             # Setup: Cache miss
             mock_get_cache.return_value = None
-            
+
             user_id = uuid4()
-            
+
+            # Create Profile first (required for foreign key)
+            profile = Profile(
+                id=user_id,
+                email="test@example.com",
+                college_id=test_college.id,
+                role="user",
+            )
+            test_db.add(profile)
+            test_db.flush()
+
+            # Create StripeCustomer (required for foreign key)
+            customer = StripeCustomer(
+                user_id=user_id,
+                stripe_customer_id="cus_test123",
+                email="test@example.com",
+            )
+            test_db.add(customer)
+            test_db.flush()
+
             # Create canceled subscription
             canceled_subscription = StripeSubscription(
                 user_id=user_id,
@@ -170,17 +229,36 @@ class TestGetUserSubscriptionTierCaching:
             assert call_args[0][1] == "free"
 
     @pytest.mark.unit
-    def test_cache_failure_does_not_break_tier_lookup(self, test_db: Session):
+    def test_cache_failure_does_not_break_tier_lookup(self, test_db: Session, test_college):
         """Test that cache failures don't prevent tier lookup from working."""
         with patch("utils.premium.get_cached_user_tier") as mock_get_cache, \
              patch("utils.premium.cache_user_tier") as mock_cache_tier:
-            
+
             # Setup: Cache operations return None (simulating failure)
             mock_get_cache.return_value = None
             # cache_user_tier doesn't return anything, so no side_effect needed
-            
+
             user_id = uuid4()
-            
+
+            # Create Profile first (required for foreign key)
+            profile = Profile(
+                id=user_id,
+                email="test@example.com",
+                college_id=test_college.id,
+                role="user",
+            )
+            test_db.add(profile)
+            test_db.flush()
+
+            # Create StripeCustomer (required for foreign key)
+            customer = StripeCustomer(
+                user_id=user_id,
+                stripe_customer_id="cus_test123",
+                email="test@example.com",
+            )
+            test_db.add(customer)
+            test_db.flush()
+
             # Create subscription
             subscription = StripeSubscription(
                 user_id=user_id,

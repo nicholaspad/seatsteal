@@ -4,7 +4,7 @@ import pytest
 import asyncio
 from typing import AsyncGenerator, Generator
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from httpx import AsyncClient, ASGITransport
@@ -214,7 +214,7 @@ def test_enrollment(
         class_id=test_class.class_id,
         college_id=test_course.college_id,
         enrollment_status="open",
-        scraped_at=datetime.utcnow(),
+        scraped_at=datetime.now(timezone.utc),
     )
     test_db.add(enrollment)
     test_db.commit()

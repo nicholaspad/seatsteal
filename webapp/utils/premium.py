@@ -54,7 +54,7 @@ def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
                 StripeSubscription.status == "active",
             )
         )
-        .order_by(StripeSubscription.created_at.desc())
+        .order_by(StripeSubscription.created_at.desc(), StripeSubscription.id.desc())
         .limit(1)
     )
     subscription = result.scalar_one_or_none()

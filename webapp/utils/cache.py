@@ -450,5 +450,12 @@ def invalidate_user_caches(user_id: str):
     Args:
         user_id: User UUID as string
     """
-    invalidate_user_profile_cache(user_id)
-    invalidate_user_tier_cache(user_id)
+    try:
+        invalidate_user_profile_cache(user_id)
+    except Exception as e:
+        logger.error(f"Failed to invalidate profile cache for {user_id}: {e}")
+
+    try:
+        invalidate_user_tier_cache(user_id)
+    except Exception as e:
+        logger.error(f"Failed to invalidate tier cache for {user_id}: {e}")

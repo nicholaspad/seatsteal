@@ -1,7 +1,7 @@
 """Tests for ScraperService enrollment status-change detection logic."""
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
 
@@ -113,7 +113,7 @@ def test_status_change_closed_to_open(
         college_id=test_college.id,
         enrollment_status="closed",
         raw_text='{"initial": "closed"}',
-        scraped_at=datetime(2024, 1, 1, 10, 0, 0),
+        scraped_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
     )
     test_db.add(initial_enrollment)
     test_db.commit()
@@ -158,7 +158,7 @@ def test_status_change_open_to_closed(
         college_id=test_college.id,
         enrollment_status="open",
         raw_text='{"initial": "open"}',
-        scraped_at=datetime(2024, 1, 1, 10, 0, 0),
+        scraped_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
     )
     test_db.add(initial_enrollment)
     test_db.commit()
@@ -198,7 +198,7 @@ def test_status_unchanged_updates_timestamp(
 ):
     """Test that unchanged status updates timestamp instead of inserting."""
     # Insert initial enrollment
-    initial_scraped_at = datetime(2024, 1, 1, 10, 0, 0)
+    initial_scraped_at = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
     initial_enrollment = Enrollment(
         class_id=test_class.class_id,
         college_id=test_college.id,
@@ -244,7 +244,7 @@ def test_status_unchanged_open_updates_timestamp(
 ):
     """Test that unchanged open status updates timestamp instead of inserting."""
     # Insert initial enrollment
-    initial_scraped_at = datetime(2024, 1, 1, 10, 0, 0)
+    initial_scraped_at = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
     initial_enrollment = Enrollment(
         class_id=test_class.class_id,
         college_id=test_college.id,
@@ -320,14 +320,14 @@ def test_batch_with_mixed_scenarios(
         college_id=test_college.id,
         enrollment_status="closed",
         raw_text='{"initial": "closed"}',
-        scraped_at=datetime(2024, 1, 1, 10, 0, 0),
+        scraped_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
     )
     enrollment2 = Enrollment(
         class_id=class2.class_id,
         college_id=test_college.id,
         enrollment_status="open",
         raw_text='{"initial": "open"}',
-        scraped_at=datetime(2024, 1, 1, 10, 0, 0),
+        scraped_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
     )
     test_db.add_all([enrollment1, enrollment2])
     test_db.commit()
@@ -376,8 +376,9 @@ def test_batch_with_mixed_scenarios(
     # Verify class2 - should still have 1 enrollment with updated timestamp
     class2_enrollments = test_db.query(Enrollment).filter_by(class_id=class2.class_id).all()
     assert len(class2_enrollments) == 1
+    test_db.refresh(class2_enrollments[0])
     assert class2_enrollments[0].enrollment_status == "open"
-    assert class2_enrollments[0].scraped_at > datetime(2024, 1, 1, 10, 0, 0)
+    assert class2_enrollments[0].scraped_at > datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
 
     # Verify class3 - should have 1 enrollment (first insert)
     class3_enrollments = test_db.query(Enrollment).filter_by(class_id=class3.class_id).all()
@@ -398,21 +399,21 @@ def test_get_latest_enrollments(
         college_id=test_college.id,
         enrollment_status="closed",
         raw_text='{"first": "closed"}',
-        scraped_at=datetime(2024, 1, 1, 10, 0, 0),
+        scraped_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
     )
     enrollment2 = Enrollment(
         class_id=test_class.class_id,
         college_id=test_college.id,
         enrollment_status="open",
         raw_text='{"second": "open"}',
-        scraped_at=datetime(2024, 1, 2, 10, 0, 0),
+        scraped_at=datetime(2024, 1, 2, 10, 0, 0, tzinfo=timezone.utc),
     )
     enrollment3 = Enrollment(
         class_id=test_class.class_id,
         college_id=test_college.id,
         enrollment_status="closed",
         raw_text='{"third": "closed"}',
-        scraped_at=datetime(2024, 1, 3, 10, 0, 0),
+        scraped_at=datetime(2024, 1, 3, 10, 0, 0, tzinfo=timezone.utc),
     )
     test_db.add_all([enrollment1, enrollment2, enrollment3])
     test_db.commit()
