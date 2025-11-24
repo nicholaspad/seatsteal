@@ -10,6 +10,10 @@ from config import settings
 from db.session import get_db
 from models.user import Profile
 from utils.errors import log_and_raise
+from utils.cache import (
+    get_cached_user_profile,
+    cache_user_profile,
+)
 
 # HTTP Bearer token security
 # auto_error=False allows optional authentication - returns None instead of 403 when no token
@@ -54,8 +58,23 @@ async def get_current_user(
             )
 
         user_id = UUID(user_response.user.id)
+        user_id_str = str(user_id)
 
-        # Get user profile from database
+        # Try to get profile from cache first (300s TTL)
+        cached_profile_data = get_cached_user_profile(user_id_str)
+        
+        if cached_profile_data:
+            # Reconstruct Profile object from cached data
+            profile = Profile(
+                id=UUID(cached_profile_data["id"]),
+                email=cached_profile_data["email"],
+                phone=cached_profile_data.get("phone"),
+                role=cached_profile_data.get("role", "user"),
+                college_id=cached_profile_data.get("college_id"),
+            )
+            return profile
+
+        # Cache miss - get user profile from database
         result = db.execute(select(Profile).where(Profile.id == user_id))
         profile = result.scalar_one_or_none()
 
@@ -64,6 +83,16 @@ async def get_current_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User profile not found",
             )
+
+        # Cache the profile data for future requests (300s TTL)
+        profile_data = {
+            "id": str(profile.id),
+            "email": profile.email,
+            "phone": profile.phone,
+            "role": profile.role,
+            "college_id": profile.college_id,
+        }
+        cache_user_profile(user_id_str, profile_data, ttl=300)
 
         return profile
 

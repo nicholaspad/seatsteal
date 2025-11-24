@@ -11,6 +11,7 @@ from models.user import Profile
 from models.college import College
 from api.middleware.auth import require_auth
 from utils.premium import get_user_subscription_tier
+from utils.cache import invalidate_user_profile_cache
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -96,6 +97,9 @@ async def update_user_settings(
 
         db.commit()
         db.refresh(user)
+        
+        # Invalidate user profile cache after update
+        invalidate_user_profile_cache(str(user.id))
 
         return {
             "success": True,

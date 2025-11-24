@@ -261,3 +261,92 @@ def invalidate_cache_pattern(pattern: str):
         logger.info(f"Invalidated {count} cache entries matching '{pattern}'")
     except Exception as e:
         logger.error(f"Cache pattern invalidation error: {e}")
+
+
+# User profile caching utilities
+
+
+def get_user_profile_cache_key(user_id: str) -> str:
+    """
+    Generate cache key for user profile.
+
+    Args:
+        user_id: User UUID as string
+
+    Returns:
+        Cache key string
+    """
+    return f"user_profile:{user_id}"
+
+
+def cache_user_profile(user_id: str, profile_data: dict, ttl: int = 300):
+    """
+    Cache user profile data with specified TTL.
+
+    Args:
+        user_id: User UUID as string
+        profile_data: Dictionary containing profile data
+        ttl: Time to live in seconds (default: 300 = 5 minutes)
+    """
+    client = CacheClient.get_client()
+    if client is None:
+        return
+
+    try:
+        cache_key = get_user_profile_cache_key(user_id)
+        serialized = _serialize_for_cache(profile_data)
+        client.setex(cache_key, ttl, json.dumps(serialized))
+        logger.debug(f"Cached user profile: {cache_key}")
+    except Exception as e:
+        logger.error(f"Failed to cache user profile: {e}")
+
+
+def get_cached_user_profile(user_id: str) -> Optional[dict]:
+    """
+    Get cached user profile data.
+
+    Args:
+        user_id: User UUID as string
+
+    Returns:
+        Cached profile data dictionary or None if not found
+    """
+    client = CacheClient.get_client()
+    if client is None:
+        return None
+
+    try:
+        cache_key = get_user_profile_cache_key(user_id)
+        cached = client.get(cache_key)
+        if cached:
+            logger.debug(f"Cache hit for user profile: {cache_key}")
+            return json.loads(cached)
+        logger.debug(f"Cache miss for user profile: {cache_key}")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get cached user profile: {e}")
+        return None
+
+
+def invalidate_user_profile_cache(user_id: str):
+    """
+    Invalidate cached user profile data.
+
+    This should be called whenever:
+    - Profile data is updated (profiles table)
+    - Stripe customer data is created/updated (stripe_customers table)
+    - Stripe subscription data is created/updated (stripe_subscriptions table)
+
+    Args:
+        user_id: User UUID as string
+    """
+    client = CacheClient.get_client()
+    if client is None:
+        return
+
+    try:
+        cache_key = get_user_profile_cache_key(user_id)
+        client.delete(cache_key)
+        logger.info(f"Invalidated user profile cache: {cache_key}")
+    except Exception as e:
+        logger.error(f"Failed to invalidate user profile cache: {e}")

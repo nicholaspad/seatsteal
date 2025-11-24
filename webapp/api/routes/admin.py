@@ -21,6 +21,7 @@ from models.scraper_log import ScraperLog
 from models.class_model import Class
 from api.middleware.auth import require_admin
 from utils.errors import log_and_raise_500
+from utils.cache import invalidate_user_profile_cache
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -1024,6 +1025,9 @@ async def update_user(
 
         db.commit()
         db.refresh(user)
+        
+        # Invalidate user profile cache after update
+        invalidate_user_profile_cache(str(user.id))
 
         return {
             "success": True,

@@ -22,6 +22,7 @@ from utils.stripe_utils import (
 )
 from config import settings
 from utils.errors import log_and_raise_500
+from utils.cache import invalidate_user_profile_cache
 
 router = APIRouter(prefix="/api/stripe", tags=["stripe"])
 
@@ -74,6 +75,9 @@ async def create_stripe_checkout_session(
             db.add(stripe_customer)
             db.commit()
             db.refresh(stripe_customer)
+            
+            # Invalidate user profile cache after creating stripe customer
+            invalidate_user_profile_cache(str(user.id))
 
         # Create checkout session
         session = await create_checkout_session(
@@ -195,6 +199,9 @@ async def stripe_webhooks(
                         )
                         db.add(stripe_customer)
                         db.commit()
+                        
+                        # Invalidate user profile cache after creating stripe customer
+                        invalidate_user_profile_cache(str(user.id))
 
         elif event.type in [
             "customer.subscription.created",
@@ -243,6 +250,9 @@ async def stripe_webhooks(
                         db.add(stripe_subscription)
 
                     db.commit()
+                    
+                    # Invalidate user profile cache after subscription change
+                    invalidate_user_profile_cache(str(stripe_customer.user_id))
 
         elif event.type == "customer.subscription.deleted":
             subscription = event.data.object
@@ -258,6 +268,9 @@ async def stripe_webhooks(
             if stripe_subscription:
                 stripe_subscription.status = "canceled"
                 db.commit()
+                
+                # Invalidate user profile cache after subscription cancellation
+                invalidate_user_profile_cache(str(stripe_subscription.user_id))
 
         return {"success": True, "received": True}
 
