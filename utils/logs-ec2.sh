@@ -17,7 +17,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SSH_KEY="$REPO_ROOT/seatsteal.pem"
 
 # Menu options
-options=("notifs" "scraper" "all (docker compose logs)")
+options=("notifs" "scraper")
 selected=0
 
 # Function to display menu
@@ -89,10 +89,6 @@ case $choice in
         SERVICE="scraper"
         CONTAINER_NAME="seatsteal-scraper"
         ;;
-    3)
-        SERVICE="all"
-        CONTAINER_NAME=""
-        ;;
 esac
 
 clear
@@ -139,8 +135,4 @@ echo -e "${GREEN}📋 Using EC2 host: $EC2_HOST${NC}"
 echo -e "${GREEN}📡 Connecting to ec2-user@$EC2_HOST...${NC}"
 
 # Stream logs from selected container
-if [[ "$SERVICE" == "all" ]]; then
-    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@"$EC2_HOST" "cd ~/seatsteal/webapp && docker compose logs --follow --tail 100"
-else
-    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@"$EC2_HOST" "docker logs --follow --tail 100 $CONTAINER_NAME"
-fi
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@"$EC2_HOST" "docker logs --follow --tail 100 $CONTAINER_NAME"

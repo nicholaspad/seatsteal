@@ -228,67 +228,6 @@ setup_dependencies() {
         fi
     fi
 
-    # Install docker compose plugin (v2) and buildx
-    echo "📦 Installing Docker Compose plugin and buildx..."
-    
-    # Create both possible docker CLI plugins directories
-    sudo mkdir -p /usr/local/lib/docker/cli-plugins
-    sudo mkdir -p /usr/libexec/docker/cli-plugins
-    mkdir -p ~/.docker/cli-plugins
-    
-    # Determine architecture
-    ARCH=\$(uname -m)
-    if [ "\$ARCH" = "aarch64" ]; then
-        ARCH="arm64"
-    elif [ "\$ARCH" = "x86_64" ]; then
-        ARCH="amd64"
-    fi
-    
-    # Install docker-compose V2 as a plugin (force latest version)
-    echo "📥 Downloading Docker Compose V2 for \$ARCH..."
-    sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-\${ARCH}" -o /usr/local/lib/docker/cli-plugins/docker-compose
-    sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-    # Also install in user directory as backup
-    curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-\${ARCH}" -o ~/.docker/cli-plugins/docker-compose
-    chmod +x ~/.docker/cli-plugins/docker-compose
-    
-    # Install docker-buildx plugin (force version >= 0.17)
-    echo "📥 Downloading Docker Buildx (v0.17+) for \$ARCH..."
-    BUILDX_VERSION=\$(curl -s https://api.github.com/repos/docker/buildx/releases/latest | grep 'tag_name' | cut -d\" -f4)
-    echo "   Latest Buildx version: \${BUILDX_VERSION}"
-    sudo curl -SL "https://github.com/docker/buildx/releases/download/\${BUILDX_VERSION}/buildx-\${BUILDX_VERSION}.linux-\${ARCH}" -o /usr/local/lib/docker/cli-plugins/docker-buildx
-    sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
-    # Also install in user directory as backup
-    curl -SL "https://github.com/docker/buildx/releases/download/\${BUILDX_VERSION}/buildx-\${BUILDX_VERSION}.linux-\${ARCH}" -o ~/.docker/cli-plugins/docker-buildx
-    chmod +x ~/.docker/cli-plugins/docker-buildx
-    
-    # Verify versions
-    echo "✅ Verifying installations:"
-    if docker compose version &> /dev/null; then
-        docker compose version
-    else
-        echo "⚠️  Docker Compose plugin not recognized"
-    fi
-    
-    if docker buildx version &> /dev/null; then
-        docker buildx version
-    else
-        echo "⚠️  Docker Buildx plugin not recognized"
-    fi
-    
-    # Initialize buildx builder if available
-    if docker buildx version &> /dev/null 2>&1; then
-        echo "🔧 Initializing buildx builder..."
-        docker buildx rm multiarch 2>/dev/null || true
-        docker buildx create --name multiarch --driver docker-container --bootstrap --use || {
-            echo "⚠️  Could not create multiarch builder, trying default builder..."
-            docker buildx use default 2>/dev/null || true
-        }
-        docker buildx inspect --bootstrap 2>/dev/null || echo "⚠️  Buildx bootstrap failed"
-    else
-        echo "⚠️  Buildx not available, will attempt build without it"
-    fi
-    
     echo "✅ All dependencies installed"
 
     # Clone repository if it doesn't exist
@@ -336,21 +275,62 @@ cp ../.env .env
 
 # Service-specific deployment
 if [[ "$SERVICE" == "all" ]]; then
-    echo "🐳 Stopping all containers..."
-    sg docker -c "docker compose down" || true
+    # Deploy both services sequentially
+    echo "================================"
+    echo "🚀 Deploying notifs service..."
+    echo "================================"
 
-    echo "🏗️  Building and starting all services (notifs, scraper)..."
-    sg docker -c "docker compose up --build -d"
+    echo "🐳 Stopping notifs container if running..."
+    sg docker -c "docker stop seatsteal-notifs" || true
+    sg docker -c "docker rm seatsteal-notifs" || true
 
-    echo "⏳ Waiting for services to start..."
-    sleep 5
+    echo "🏗️  Building notifs Docker image..."
+    sg docker -c "docker build --tag \"seatsteal-notifs\" -f \"notifs.Dockerfile\" ."
 
-    echo "✅ Deployment completed successfully!"
+    echo "🚀 Starting notifs container..."
+    sg docker -c "docker run -d \\
+        --name \"seatsteal-notifs\" \\
+        --env-file .env \\
+        \"seatsteal-notifs\""
+
+    echo "✅ notifs deployment completed!"
     echo "📊 Container status:"
-    sg docker -c "docker compose ps"
+    sg docker -c "docker ps --filter \"name=seatsteal-notifs\""
 
-    echo "📋 Recent logs:"
-    sg docker -c "docker compose logs --tail=20"
+    echo "📋 Recent container logs:"
+    sg docker -c "docker logs --tail 20 \"seatsteal-notifs\""
+
+    echo ""
+    echo "================================"
+    echo "🚀 Deploying scraper service..."
+    echo "================================"
+
+    echo "🐳 Stopping scraper container if running..."
+    sg docker -c "docker stop seatsteal-scraper" || true
+    sg docker -c "docker rm seatsteal-scraper" || true
+
+    echo "🏗️  Building scraper Docker image..."
+    sg docker -c "docker build --tag \"seatsteal-scraper\" -f \"scraper.Dockerfile\" ."
+
+    echo "🚀 Starting scraper container..."
+    sg docker -c "docker run -d \\
+        --name \"seatsteal-scraper\" \\
+        --env-file .env \\
+        \"seatsteal-scraper\""
+
+    echo "✅ scraper deployment completed!"
+    echo "📊 Container status:"
+    sg docker -c "docker ps --filter \"name=seatsteal-scraper\""
+
+    echo "📋 Recent container logs:"
+    sg docker -c "docker logs --tail 20 \"seatsteal-scraper\""
+
+    echo ""
+    echo "================================"
+    echo "✅ All services deployed successfully!"
+    echo "================================"
+    echo "📊 Overall container status:"
+    sg docker -c "docker ps"
 else
     echo "🐳 Stopping $SERVICE container if running..."
     sg docker -c "docker stop seatsteal-$SERVICE" || true

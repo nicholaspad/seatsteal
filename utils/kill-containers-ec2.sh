@@ -17,7 +17,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SSH_KEY="$REPO_ROOT/seatsteal.pem"
 
 # Menu options
-options=("notifs" "scraper" "all (stop docker compose)")
+options=("notifs" "scraper" "all (notifs + scraper)")
 selected=0
 
 # Function to display menu
@@ -143,28 +143,35 @@ if [[ "$SERVICE" == "all" ]]; then
     ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@"$EC2_HOST" << 'EOF'
 set -e
 
-echo "🛑 Stopping all seatsteal services..."
+echo "================================"
+echo "🛑 Stopping notifs container..."
+echo "================================"
 
-# Stop docker compose managed containers
-if [[ -d ~/seatsteal/webapp ]]; then
-    echo "📦 Stopping docker compose services..."
-    cd ~/seatsteal/webapp
-    docker compose down || true
-fi
-
-# Stop any individually-run seatsteal containers
-echo "🔍 Checking for individually-run seatsteal containers..."
-INDIVIDUAL_CONTAINERS=$(docker ps -q --filter "name=seatsteal-" 2>/dev/null || echo "")
-
-if [[ -n "$INDIVIDUAL_CONTAINERS" ]]; then
-    echo "🛑 Stopping and removing individual seatsteal containers..."
-    docker stop $INDIVIDUAL_CONTAINERS
-    docker rm $INDIVIDUAL_CONTAINERS
+if docker ps -q --filter "name=seatsteal-notifs" | grep -q .; then
+    docker stop seatsteal-notifs
+    docker rm seatsteal-notifs
+    echo "✅ seatsteal-notifs container stopped and removed"
 else
-    echo "✅ No individual containers found"
+    echo "ℹ️  No seatsteal-notifs container found running"
 fi
 
+echo ""
+echo "================================"
+echo "🛑 Stopping scraper container..."
+echo "================================"
+
+if docker ps -q --filter "name=seatsteal-scraper" | grep -q .; then
+    docker stop seatsteal-scraper
+    docker rm seatsteal-scraper
+    echo "✅ seatsteal-scraper container stopped and removed"
+else
+    echo "ℹ️  No seatsteal-scraper container found running"
+fi
+
+echo ""
+echo "================================"
 echo "✅ All services stopped"
+echo "================================"
 echo "📊 Current container status:"
 docker ps
 EOF
