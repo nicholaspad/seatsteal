@@ -7,6 +7,8 @@ import { IonApp, IonRouterOutlet, setupIonicReact } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
 import { Route, Redirect } from "react-router-dom";
 import { Toaster } from "sonner";
+import { SpeedInsights } from "@vercel/speed-insights/react";
+import { Analytics } from "@vercel/analytics/react";
 
 /* Core Ionic framework styles */
 import "@ionic/react/css/core.css";
@@ -183,6 +185,8 @@ createRoot(document.getElementById("root")!).render(
           </IonApp>
         </TooltipProvider>
       </SessionProvider>
+      <SpeedInsights />
+      <Analytics />
     </ThemeProvider>
   </StrictMode>,
 );
