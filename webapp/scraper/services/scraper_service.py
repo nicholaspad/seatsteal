@@ -24,11 +24,11 @@ from scraper.scrapers.rutgers import RutgersScraper
 SCRAPER_MAP = {
     "cornell": CornellScraper,
     "brown": BrownScraper,
+    "rutgers": RutgersScraper,
     "bu": BuScraper,
     "neu": NeuScraper,
     "usc": UscScraper,
     "upenn": UPennScraper,
-    "rutgers": RutgersScraper,
     # "umd": UmdScraper, // Too slow - takes ~30-40 minutes per run
 }
 
