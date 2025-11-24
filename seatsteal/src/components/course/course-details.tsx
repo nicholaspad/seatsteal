@@ -227,7 +227,9 @@ export function CourseDetails({
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={collegeId ? `/courses?college=${collegeId}` : "/courses"}>
+              <Link
+                to={collegeId ? `/courses?college=${collegeId}` : "/courses"}
+              >
                 Courses
               </Link>
             </BreadcrumbLink>

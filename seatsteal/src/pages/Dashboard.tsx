@@ -7,8 +7,8 @@ export default function Dashboard() {
 
   return (
     <IonPage>
-      <IonContent className="ion-padding">
-        <div className="container mx-auto py-8">
+      <IonContent>
+        <div className="container mx-auto px-4 py-8">
           {tierLoading ? (
             <div className="text-center py-12">
               <div className="animate-pulse space-y-4">
