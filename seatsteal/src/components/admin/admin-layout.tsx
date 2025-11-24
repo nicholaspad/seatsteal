@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Users, Home, Shield, LogOut, Bell, Activity, Zap } from "lucide-react";
+import { Users, Home, Shield, LogOut, Bell, Activity } from "lucide-react";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -22,11 +22,11 @@ const navigation = [
     href: "/admin/scrapers",
     icon: Activity,
   },
-  {
-    name: "Performance",
-    href: "/admin/performance",
-    icon: Zap,
-  },
+  // {
+  //   name: "Performance",
+  //   href: "/admin/performance",
+  //   icon: Zap,
+  // },
   {
     name: "Notifications",
     href: "/admin/notifications",
