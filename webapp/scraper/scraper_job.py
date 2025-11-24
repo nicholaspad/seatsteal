@@ -209,7 +209,22 @@ class ScraperJob:
                     self.college.short_name, self.config.subject, self.config.limit
                 )
 
-                return JobResult(success=True, stats=stats)
+                # Check if the scrape was actually successful
+                if stats.get("success", False):
+                    return JobResult(success=True, stats=stats)
+                else:
+                    # Scrape failed, treat as error and retry
+                    last_error = stats.get("error", "Unknown error during scraping")
+                    logger.error(
+                        f"❌ Attempt {attempt}/{self.config.retry_attempts} failed for {self.college.name}: {last_error}"
+                    )
+                    
+                    # Don't wait after the last attempt
+                    if attempt < self.config.retry_attempts:
+                        # Exponential backoff
+                        delay_ms = self.config.retry_delay_ms * (2 ** (attempt - 1))
+                        logger.info(f"⏱️  Waiting {delay_ms}ms before retry...")
+                        await asyncio.sleep(delay_ms / 1000)
 
             except Exception as e:
                 last_error = str(e)
