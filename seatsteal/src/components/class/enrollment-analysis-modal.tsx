@@ -28,8 +28,8 @@ import type { ClassWithEnrollment } from "@/types/api";
 
 interface EnrollmentAnalysisData {
   classId: number;
-  timesOpenedLast60Days: number;
-  avgDaysToOpenLast60Days: number;
+  timesOpenedLast30Days: number;
+  avgDaysToOpenLast30Days: number;
   mostRecentOpening: string | null;
   subscriptionsCount: number;
   notificationsSent: number;
@@ -158,11 +158,11 @@ export function EnrollmentAnalysisModal({
                   <CardContent>
                     <div className="text-center">
                       <div className="text-lg font-bold text-blue-600">
-                        {analysisData.timesOpenedLast60Days}
+                        {analysisData.timesOpenedLast30Days}
                       </div>
                       <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
                         <Calendar className="h-3 w-3" />
-                        Times opened (60 days)
+                        Times opened (30 days)
                       </p>
                     </div>
                   </CardContent>
@@ -173,13 +173,13 @@ export function EnrollmentAnalysisModal({
                   <CardContent>
                     <div className="text-center">
                       <div className="text-lg font-bold text-purple-600">
-                        {analysisData.avgDaysToOpenLast60Days > 0
-                          ? `${analysisData.avgDaysToOpenLast60Days}`
+                        {analysisData.avgDaysToOpenLast30Days > 0
+                          ? `${analysisData.avgDaysToOpenLast30Days}`
                           : "N/A"}
                       </div>
                       <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
                         <Clock className="h-3 w-3" />
-                        Avg days to open (60 days)
+                        Avg days to open (30 days)
                       </p>
                     </div>
                   </CardContent>

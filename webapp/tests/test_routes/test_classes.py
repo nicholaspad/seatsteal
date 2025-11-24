@@ -126,8 +126,8 @@ class TestGetEnrollmentAnalysis:
             assert data["success"] is True
             assert "data" in data
             assert "classId" in data["data"]
-            assert "timesOpenedLast60Days" in data["data"]
-            assert "avgDaysToOpenLast60Days" in data["data"]
+            assert "timesOpenedLast30Days" in data["data"]
+            assert "avgDaysToOpenLast30Days" in data["data"]
             assert "subscriptionsCount" in data["data"]
             assert "competitionLevel" in data["data"]
 
@@ -206,5 +206,5 @@ class TestGetEnrollmentAnalysis:
             assert response.status_code == 200
             data = response.json()
             # Should return 0s for metrics when no data
-            assert data["data"]["timesOpenedLast60Days"] >= 0
-            assert data["data"]["avgDaysToOpenLast60Days"] >= 0
+            assert data["data"]["timesOpenedLast30Days"] >= 0
+            assert data["data"]["avgDaysToOpenLast30Days"] >= 0
