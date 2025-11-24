@@ -350,3 +350,105 @@ def invalidate_user_profile_cache(user_id: str):
         logger.info(f"Invalidated user profile cache: {cache_key}")
     except Exception as e:
         logger.error(f"Failed to invalidate user profile cache: {e}")
+
+
+# User subscription tier caching utilities
+
+
+def get_user_tier_cache_key(user_id: str) -> str:
+    """
+    Generate cache key for user subscription tier.
+
+    Args:
+        user_id: User UUID as string
+
+    Returns:
+        Cache key string
+    """
+    return f"user_tier:{user_id}"
+
+
+def cache_user_tier(user_id: str, tier: str, ttl: int = 300):
+    """
+    Cache user subscription tier with specified TTL.
+
+    Args:
+        user_id: User UUID as string
+        tier: Subscription tier ('free', 'plus', or 'pro')
+        ttl: Time to live in seconds (default: 300 = 5 minutes)
+    """
+    client = CacheClient.get_client()
+    if client is None:
+        return
+
+    try:
+        cache_key = get_user_tier_cache_key(user_id)
+        # Store tier as simple string (no need for JSON)
+        client.setex(cache_key, ttl, tier)
+        logger.debug(f"Cached user tier: {cache_key} = {tier}")
+    except Exception as e:
+        logger.error(f"Failed to cache user tier: {e}")
+
+
+def get_cached_user_tier(user_id: str) -> Optional[str]:
+    """
+    Get cached user subscription tier.
+
+    Args:
+        user_id: User UUID as string
+
+    Returns:
+        Cached tier string ('free', 'plus', 'pro') or None if not found
+    """
+    client = CacheClient.get_client()
+    if client is None:
+        return None
+
+    try:
+        cache_key = get_user_tier_cache_key(user_id)
+        cached = client.get(cache_key)
+        if cached:
+            logger.debug(f"Cache hit for user tier: {cache_key} = {cached}")
+            return cached
+        logger.debug(f"Cache miss for user tier: {cache_key}")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get cached user tier: {e}")
+        return None
+
+
+def invalidate_user_tier_cache(user_id: str):
+    """
+    Invalidate cached user subscription tier.
+
+    This should be called whenever:
+    - Stripe customer data is created/updated (stripe_customers table)
+    - Stripe subscription data is created/updated (stripe_subscriptions table)
+
+    Args:
+        user_id: User UUID as string
+    """
+    client = CacheClient.get_client()
+    if client is None:
+        return
+
+    try:
+        cache_key = get_user_tier_cache_key(user_id)
+        client.delete(cache_key)
+        logger.info(f"Invalidated user tier cache: {cache_key}")
+    except Exception as e:
+        logger.error(f"Failed to invalidate user tier cache: {e}")
+
+
+def invalidate_user_caches(user_id: str):
+    """
+    Invalidate all user-related caches (profile and tier).
+
+    This is a convenience function to invalidate both caches at once.
+    Call this whenever user profile or subscription data changes.
+
+    Args:
+        user_id: User UUID as string
+    """
+    invalidate_user_profile_cache(user_id)
+    invalidate_user_tier_cache(user_id)

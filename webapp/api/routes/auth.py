@@ -10,7 +10,7 @@ from models.early_access_email import EarlyAccessEmail
 from api.middleware.auth import require_auth, supabase
 from config import settings
 from utils.errors import log_and_raise_500
-from utils.cache import invalidate_user_profile_cache
+from utils.cache import invalidate_user_caches
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -44,8 +44,8 @@ async def update_college(
         db.commit()
         db.refresh(user)
         
-        # Invalidate user profile cache after update
-        invalidate_user_profile_cache(str(user.id))
+        # Invalidate user caches (profile and tier) after update
+        invalidate_user_caches(str(user.id))
 
         return {
             "success": True,

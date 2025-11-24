@@ -7,6 +7,7 @@ from uuid import UUID
 
 from models.stripe_subscription import StripeSubscription
 from models.subscription import Subscription
+from utils.cache import get_cached_user_tier, cache_user_tier
 
 # Subscription tier types
 SubscriptionTier = Literal["free", "plus", "pro"]
@@ -37,7 +38,14 @@ TIER_FEATURES = {
 
 def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
     """Get the subscription tier for a user based on their active Stripe subscription"""
-    # Query for active Stripe subscription
+    user_id_str = str(user_id)
+    
+    # Try to get tier from cache first (300s TTL)
+    cached_tier = get_cached_user_tier(user_id_str)
+    if cached_tier:
+        return cached_tier  # type: ignore
+    
+    # Cache miss - query for active Stripe subscription
     result = db.execute(
         select(StripeSubscription)
         .where(
@@ -52,10 +60,14 @@ def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
     subscription = result.scalar_one_or_none()
 
     if not subscription:
-        return "free"
-
-    # Return tier from subscription
-    return subscription.tier  # type: ignore
+        tier = "free"
+    else:
+        tier = subscription.tier  # type: ignore
+    
+    # Cache the tier for future requests (300s TTL)
+    cache_user_tier(user_id_str, tier, ttl=300)
+    
+    return tier  # type: ignore
 
 
 def get_user_active_subscription_count(user_id: UUID, db: Session) -> int:
