@@ -127,6 +127,9 @@ class ScraperCLI:
     ) -> Dict[str, int]:
         """
         Run scraper jobs for all active colleges concurrently.
+        
+        Each scraper gets its own database session to prevent blocking.
+        Connection pool is sized to handle concurrent scrapers (see db/connection.py).
 
         Args:
             subject: Subject filter (default: 'ALL')

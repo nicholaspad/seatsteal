@@ -3,10 +3,13 @@ from sqlalchemy.orm import Session, sessionmaker
 from db.connection import engine
 
 # Create sync session factory
+# - expire_on_commit=False: Prevents re-querying after commit
+# - autoflush=True: Automatically flush before queries (default, explicit for clarity)
 SessionLocal = sessionmaker(
     bind=engine,
     class_=Session,
     expire_on_commit=False,
+    autoflush=True,
 )
 
 

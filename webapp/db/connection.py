@@ -5,10 +5,11 @@ from config import settings
 engine: Engine = create_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=20,  # Increased for concurrent scrapers (was 10)
+    max_overflow=30,  # Increased for concurrent scrapers (was 20)
     pool_pre_ping=True,
     pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_timeout=30,  # Wait up to 30 seconds for a connection from pool
     connect_args={
         "options": "-c statement_timeout=300000",  # 5 minute timeout for large batch operations
         "keepalives": 1,  # Enable TCP keepalive
