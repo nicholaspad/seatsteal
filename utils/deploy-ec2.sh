@@ -231,34 +231,65 @@ setup_dependencies() {
     # Install docker compose plugin (v2) and buildx
     echo "📦 Installing Docker Compose plugin and buildx..."
     
-    # Create docker CLI plugins directory
+    # Create both possible docker CLI plugins directories
     sudo mkdir -p /usr/local/lib/docker/cli-plugins
+    sudo mkdir -p /usr/libexec/docker/cli-plugins
+    mkdir -p ~/.docker/cli-plugins
+    
+    # Determine architecture
+    ARCH=\$(uname -m)
+    if [ "\$ARCH" = "aarch64" ]; then
+        ARCH="arm64"
+    elif [ "\$ARCH" = "x86_64" ]; then
+        ARCH="amd64"
+    fi
     
     # Install docker-compose V2 as a plugin (force latest version)
-    echo "📥 Downloading Docker Compose V2..."
-    sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-\$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
+    echo "📥 Downloading Docker Compose V2 for \$ARCH..."
+    sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-\${ARCH}" -o /usr/local/lib/docker/cli-plugins/docker-compose
     sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    # Also install in user directory as backup
+    curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-\${ARCH}" -o ~/.docker/cli-plugins/docker-compose
+    chmod +x ~/.docker/cli-plugins/docker-compose
     
     # Install docker-buildx plugin (force version >= 0.17)
-    echo "📥 Downloading Docker Buildx (v0.17+)..."
-    # Get the latest version, but ensure it's at least v0.17
+    echo "📥 Downloading Docker Buildx (v0.17+) for \$ARCH..."
     BUILDX_VERSION=\$(curl -s https://api.github.com/repos/docker/buildx/releases/latest | grep 'tag_name' | cut -d\" -f4)
     echo "   Latest Buildx version: \${BUILDX_VERSION}"
-    sudo curl -SL "https://github.com/docker/buildx/releases/download/\${BUILDX_VERSION}/buildx-\${BUILDX_VERSION}.linux-\$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-buildx
+    sudo curl -SL "https://github.com/docker/buildx/releases/download/\${BUILDX_VERSION}/buildx-\${BUILDX_VERSION}.linux-\${ARCH}" -o /usr/local/lib/docker/cli-plugins/docker-buildx
     sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+    # Also install in user directory as backup
+    curl -SL "https://github.com/docker/buildx/releases/download/\${BUILDX_VERSION}/buildx-\${BUILDX_VERSION}.linux-\${ARCH}" -o ~/.docker/cli-plugins/docker-buildx
+    chmod +x ~/.docker/cli-plugins/docker-buildx
     
     # Verify versions
-    echo "✅ Installed versions:"
-    docker compose version || echo "⚠️  Docker Compose not working"
-    docker buildx version || echo "⚠️  Docker Buildx not working"
+    echo "✅ Verifying installations:"
+    if docker compose version &> /dev/null; then
+        docker compose version
+    else
+        echo "⚠️  Docker Compose plugin not recognized"
+    fi
     
-    # Initialize buildx builder
-    echo "🔧 Initializing buildx builder..."
-    docker buildx rm multiarch 2>/dev/null || true
-    docker buildx create --name multiarch --driver docker-container --bootstrap --use
-    docker buildx inspect --bootstrap
+    if docker buildx version &> /dev/null; then
+        docker buildx version
+    else
+        echo "⚠️  Docker Buildx plugin not recognized"
+    fi
     
-    echo "✅ All dependencies installed and configured"
+    # Initialize buildx builder if available
+    if docker buildx version &> /dev/null 2>&1; then
+        echo "🔧 Initializing buildx builder..."
+        docker buildx rm multiarch 2>/dev/null || true
+        docker buildx create --name multiarch --driver docker-container --bootstrap --use || {
+            echo "⚠️  Could not create multiarch builder, trying default builder..."
+            docker buildx use default 2>/dev/null || true
+        }
+        docker buildx inspect --bootstrap 2>/dev/null || echo "⚠️  Buildx bootstrap failed"
+    else
+        echo "⚠️  Buildx not available, will attempt build without it"
+    fi
+    
+    echo "✅ All dependencies installed"
 
     # Clone repository if it doesn't exist
     if [[ ! -d ~/seatsteal/.git ]]; then
