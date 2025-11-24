@@ -549,64 +549,185 @@ class ScraperService:
         self, enrollment_data_list: List[Dict[str, Any]], batch_size: int = 100
     ) -> int:
         """
-        Batch insert enrollments for performance optimization.
+        Batch insert or update enrollments with status-change detection.
+        
+        Only inserts new enrollment records when status changes. When status is 
+        unchanged, updates the existing enrollment's scraped_at timestamp.
 
         Args:
             enrollment_data_list: List of enrollment data dictionaries
             batch_size: Number of records to insert per batch (default: 100)
 
         Returns:
-            Number of enrollments inserted
+            Number of enrollments inserted (not counting updates)
         """
         from datetime import datetime
+        from sqlalchemy import text
 
         if not enrollment_data_list:
             return 0
 
-        total_inserted = 0
-
-        # Add scraped_at timestamp to all records
         scraped_at = datetime.now()
-        for record in enrollment_data_list:
-            record["scraped_at"] = scraped_at
+        
+        # Extract unique class_ids from enrollment data
+        class_ids = list(set(e["class_id"] for e in enrollment_data_list))
+        
+        # Fetch the most recent enrollment for each class_id (batch query)
+        logger.debug(f"Fetching latest enrollments for {len(class_ids)} classes")
+        latest_enrollments = self._get_latest_enrollments(class_ids)
+        
+        # Separate enrollments into inserts (status changed) and updates (status unchanged)
+        to_insert = []
+        to_update_ids = []
+        
+        for enrollment_data in enrollment_data_list:
+            class_id = enrollment_data["class_id"]
+            new_status = enrollment_data["enrollment_status"]
+            
+            if class_id not in latest_enrollments:
+                # First enrollment for this class - insert it
+                enrollment_data["scraped_at"] = scraped_at
+                to_insert.append(enrollment_data)
+            elif latest_enrollments[class_id]["status"] != new_status:
+                # Status changed - insert new record
+                enrollment_data["scraped_at"] = scraped_at
+                to_insert.append(enrollment_data)
+            else:
+                # Status unchanged - update existing record's timestamp
+                to_update_ids.append(latest_enrollments[class_id]["id"])
+        
+        logger.info(
+            f"Status-change detection: {len(to_insert)} inserts, "
+            f"{len(to_update_ids)} timestamp updates"
+        )
+        
+        total_inserted = 0
+        
+        # Process inserts in batches using bulk_insert_mappings
+        if to_insert:
+            for i in range(0, len(to_insert), batch_size):
+                batch = to_insert[i : i + batch_size]
 
-        # Process in batches using bulk_insert_mappings
-        for i in range(0, len(enrollment_data_list), batch_size):
-            batch = enrollment_data_list[i : i + batch_size]
-
-            # Use SQLAlchemy's bulk_insert_mappings for efficient batch insert (with retry)
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    self.db.bulk_insert_mappings(Enrollment, batch)
-                    total_inserted += len(batch)
-                    break
-                except OperationalError as e:
-                    error_msg = str(e)
-                    if any(
-                        keyword in error_msg.lower()
-                        for keyword in ["ssl", "eof", "connection", "timeout"]
-                    ):
-                        if attempt < max_retries - 1:
-                            wait_time = 2**attempt
-                            logger.warning(
-                                f"Database connection error during enrollment insert "
-                                f"(attempt {attempt + 1}/{max_retries}): {error_msg}. "
-                                f"Retrying in {wait_time}s..."
-                            )
-                            time.sleep(wait_time)
-                            continue
+                # Use SQLAlchemy's bulk_insert_mappings for efficient batch insert (with retry)
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        self.db.bulk_insert_mappings(Enrollment, batch)
+                        total_inserted += len(batch)
+                        break
+                    except OperationalError as e:
+                        error_msg = str(e)
+                        if any(
+                            keyword in error_msg.lower()
+                            for keyword in ["ssl", "eof", "connection", "timeout"]
+                        ):
+                            if attempt < max_retries - 1:
+                                wait_time = 2**attempt
+                                logger.warning(
+                                    f"Database connection error during enrollment insert "
+                                    f"(attempt {attempt + 1}/{max_retries}): {error_msg}. "
+                                    f"Retrying in {wait_time}s..."
+                                )
+                                time.sleep(wait_time)
+                                continue
+                            else:
+                                logger.error(
+                                    f"Database connection error after {max_retries} attempts: {error_msg}"
+                                )
+                                raise
                         else:
-                            logger.error(
-                                f"Database connection error after {max_retries} attempts: {error_msg}"
-                            )
                             raise
-                    else:
-                        raise
+
+                logger.debug(
+                    f"Inserted batch {i // batch_size + 1}: {len(batch)} enrollments"
+                )
+        
+        # Process timestamp updates in batches
+        if to_update_ids:
+            self._batch_update_enrollment_timestamps(to_update_ids, scraped_at, batch_size)
+
+        logger.info(
+            f"Batch processing complete: {total_inserted} enrollments inserted, "
+            f"{len(to_update_ids)} timestamps updated"
+        )
+        return total_inserted
+    
+    def _get_latest_enrollments(self, class_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+        """
+        Fetch the most recent enrollment for each class_id.
+
+        Args:
+            class_ids: List of class IDs to fetch enrollments for
+
+        Returns:
+            Dictionary mapping class_id to {'id': enrollment_id, 'status': enrollment_status}
+        """
+        from sqlalchemy import text
+
+        if not class_ids:
+            return {}
+
+        # Use DISTINCT ON to get the most recent enrollment per class
+        # This is a PostgreSQL-specific feature that's very efficient
+        query = text("""
+            SELECT DISTINCT ON (class_id) class_id, id, enrollment_status
+            FROM enrollments
+            WHERE class_id = ANY(:class_ids)
+            ORDER BY class_id, scraped_at DESC
+        """)
+
+        result = self._execute_with_retry(query, {"class_ids": class_ids})
+        
+        latest_enrollments = {}
+        for row in result:
+            latest_enrollments[row[0]] = {  # class_id
+                "id": row[1],  # enrollment id
+                "status": row[2],  # enrollment_status
+            }
+        
+        logger.debug(f"Found {len(latest_enrollments)} existing enrollments")
+        return latest_enrollments
+    
+    def _batch_update_enrollment_timestamps(
+        self, enrollment_ids: List[int], scraped_at: datetime, batch_size: int = 100
+    ) -> int:
+        """
+        Update scraped_at timestamp for existing enrollment records in batches.
+        Used when status hasn't changed but we want to track last scrape time.
+
+        Args:
+            enrollment_ids: List of enrollment IDs to update
+            scraped_at: New timestamp to set
+            batch_size: Number of records to update per batch (default: 100)
+
+        Returns:
+            Number of enrollments updated
+        """
+        from sqlalchemy import text
+
+        if not enrollment_ids:
+            return 0
+
+        total_updated = 0
+
+        # Process in batches
+        for i in range(0, len(enrollment_ids), batch_size):
+            batch_ids = enrollment_ids[i : i + batch_size]
+
+            query = text("""
+                UPDATE enrollments
+                SET scraped_at = :scraped_at
+                WHERE id = ANY(:enrollment_ids)
+            """)
+
+            result = self._execute_with_retry(
+                query, {"scraped_at": scraped_at, "enrollment_ids": batch_ids}
+            )
+            total_updated += len(batch_ids)
 
             logger.debug(
-                f"Inserted batch {i // batch_size + 1}: {len(batch)} enrollments"
+                f"Updated batch {i // batch_size + 1}: {len(batch_ids)} enrollment timestamps"
             )
 
-        logger.info(f"Batch insert complete: {total_inserted} enrollments processed")
-        return total_inserted
+        logger.debug(f"Timestamp update complete: {total_updated} enrollments updated")
+        return total_updated
