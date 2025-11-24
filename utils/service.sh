@@ -16,7 +16,7 @@ display_menu() {
   echo "=========================================="
   echo ""
   echo "What would you like to do?"
-  echo "(Use ↑/↓ arrows to navigate, Enter to select, q to go back)"
+  echo "(Use ↑/↓ arrows to navigate, Enter to select)"
   echo ""
 
   for i in "${!options[@]}"; do
@@ -67,10 +67,6 @@ while true; do
   elif [[ $key == "" ]]; then
     # Enter key pressed
     break
-  elif [[ $key == "q" ]]; then
-    # q key pressed - go back to parent menu
-    clear
-    exit 0
   fi
 done
 
