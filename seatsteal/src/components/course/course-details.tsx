@@ -47,6 +47,7 @@ interface CourseDetailsProps {
   ) => Promise<void> | void;
   onBack?: () => void;
   className?: string;
+  collegeId?: number;
 }
 
 export function CourseDetails({
@@ -59,6 +60,7 @@ export function CourseDetails({
   onSubscriptionChange,
   onBack,
   className,
+  collegeId,
 }: CourseDetailsProps) {
   const [localCourse, setLocalCourse] = useState<CourseWithClasses | null>(
     course || null,
@@ -225,7 +227,9 @@ export function CourseDetails({
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to="/courses">Courses</Link>
+              <Link to={collegeId ? `/courses?college=${collegeId}` : "/courses"}>
+                Courses
+              </Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

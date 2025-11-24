@@ -51,7 +51,7 @@ const UserDashboard = memo(function UserDashboard({
   itemsPerPage = 10,
   userTier = "free",
 }: UserDashboardProps) {
-  const { user } = useSession();
+  const { user, profile } = useSession();
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithDetails[]>(
     [],
   );
@@ -557,7 +557,7 @@ const UserDashboard = memo(function UserDashboard({
                         className="bg-white text-black hover:bg-white/90 px-6"
                         asChild
                       >
-                        <Link to="/courses">
+                        <Link to={profile?.collegeId ? `/courses?college=${profile.collegeId}` : "/courses"}>
                           <BookOpen className="mr-2 h-4 w-4" />
                           Browse Courses
                         </Link>

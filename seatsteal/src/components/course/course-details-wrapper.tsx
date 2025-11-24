@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useHistory } from "react-router-dom";
-import { useSubscriptionTier } from "@/components/providers/SessionProvider";
+import { useSubscriptionTier, useSession } from "@/components/providers/SessionProvider";
 import { CourseDetails } from "@/components/course/course-details";
 import { Button } from "@/components/ui/button";
 import { UnsubscribeConfirmationModal } from "@/components/ui/unsubscribe-confirmation-modal";
@@ -21,6 +21,7 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
   const history = useHistory();
   const [mounted, setMounted] = useState(false);
   const { subscriptionTier: userTier } = useSubscriptionTier();
+  const { profile } = useSession();
   const [subscriptionsData, setSubscriptionsData] = useState<
     SubscriptionWithDetails[]
   >([]);
@@ -190,8 +191,11 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
   };
 
   const handleBack = () => {
-    // Use Next.js router for smooth client-side navigation
-    history.push("/courses");
+    // Navigate back to courses with college ID if available
+    const coursesPath = profile?.collegeId
+      ? `/courses?college=${profile.collegeId}`
+      : "/courses";
+    history.push(coursesPath);
   };
 
   // Show loading state during SSR/hydration
@@ -233,6 +237,7 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
           subscriptionsLoading={subscriptionsLoading}
           onSubscriptionChange={handleSubscriptionChange}
           onBack={handleBack}
+          collegeId={profile?.collegeId}
         />
       </div>
     </>
