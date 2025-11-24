@@ -228,14 +228,39 @@ setup_dependencies() {
         fi
     fi
 
-    # Check and install docker-compose
-    if ! command -v docker-compose &> /dev/null; then
-        echo "📦 Installing docker-compose..."
-        # Download docker-compose binary from GitHub
-        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
+    # Install docker compose plugin (v2) and buildx
+    echo "📦 Installing Docker Compose plugin and buildx..."
+    
+    # Create docker CLI plugins directory
+    sudo mkdir -p /usr/local/lib/docker/cli-plugins
+    
+    # Install docker-compose V2 as a plugin
+    if ! docker compose version &> /dev/null 2>&1; then
+        echo "📥 Downloading Docker Compose V2..."
+        sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-\$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
+        sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+        echo "✅ Docker Compose V2 installed"
     else
-        echo "✅ docker-compose is already installed"
+        echo "✅ docker compose plugin is already installed"
+    fi
+    
+    # Install docker-buildx plugin
+    if ! docker buildx version &> /dev/null 2>&1; then
+        echo "📥 Downloading Docker Buildx..."
+        BUILDX_VERSION=\$(curl -s https://api.github.com/repos/docker/buildx/releases/latest | grep 'tag_name' | cut -d\" -f4)
+        sudo curl -SL "https://github.com/docker/buildx/releases/download/\${BUILDX_VERSION}/buildx-\${BUILDX_VERSION}.linux-\$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-buildx
+        sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+        echo "✅ Docker Buildx installed"
+    else
+        echo "✅ docker buildx plugin is already installed"
+    fi
+    
+    # Verify and initialize buildx
+    if docker buildx version &> /dev/null 2>&1; then
+        echo "✅ Buildx verified, initializing..."
+        docker buildx create --use --name multiarch 2>/dev/null || docker buildx use multiarch 2>/dev/null || true
+    else
+        echo "⚠️  Warning: Buildx installation may have issues"
     fi
 
     # Clone repository if it doesn't exist
@@ -284,20 +309,20 @@ cp ../.env .env
 # Service-specific deployment
 if [[ "$SERVICE" == "all" ]]; then
     echo "🐳 Stopping all containers..."
-    sg docker -c "docker-compose down" || true
+    sg docker -c "docker compose down" || true
 
     echo "🏗️  Building and starting all services (notifs, scraper)..."
-    sg docker -c "docker-compose up --build -d"
+    sg docker -c "docker compose up --build -d"
 
     echo "⏳ Waiting for services to start..."
     sleep 5
 
     echo "✅ Deployment completed successfully!"
     echo "📊 Container status:"
-    sg docker -c "docker-compose ps"
+    sg docker -c "docker compose ps"
 
     echo "📋 Recent logs:"
-    sg docker -c "docker-compose logs --tail=20"
+    sg docker -c "docker compose logs --tail=20"
 else
     echo "🐳 Stopping $SERVICE container if running..."
     sg docker -c "docker stop seatsteal-$SERVICE" || true

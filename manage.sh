@@ -6,8 +6,8 @@
 set -e  # Exit on error
 
 # Menu options
-options=("Deploy seatsteal (Vercel)" "Manage EC2 services" "Local utils")
-selected=0  # Default to "Deploy seatsteal" (index 0)
+options=("Vercel" "EC2" "Local")
+selected=0  # Default to "Vercel" (index 0)
 
 # Function to display menu
 display_menu() {
@@ -15,7 +15,6 @@ display_menu() {
   echo "  SeatSteal Management"
   echo "=========================================="
   echo ""
-  echo "What would you like to do?"
   echo "(Use ↑/↓ arrows to navigate, Enter to select)"
   echo ""
 

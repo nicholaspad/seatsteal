@@ -17,7 +17,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SSH_KEY="$REPO_ROOT/seatsteal.pem"
 
 # Menu options
-options=("notifs" "scraper" "all (stop docker-compose)")
+options=("notifs" "scraper" "all (stop docker compose)")
 selected=0
 
 # Function to display menu
@@ -145,11 +145,11 @@ set -e
 
 echo "🛑 Stopping all seatsteal services..."
 
-# Stop docker-compose managed containers
+# Stop docker compose managed containers
 if [[ -d ~/seatsteal/webapp ]]; then
-    echo "📦 Stopping docker-compose services..."
+    echo "📦 Stopping docker compose services..."
     cd ~/seatsteal/webapp
-    docker-compose down || true
+    docker compose down || true
 fi
 
 # Stop any individually-run seatsteal containers
