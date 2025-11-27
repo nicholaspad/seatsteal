@@ -4,9 +4,11 @@ import {
   bookOutline,
   gridOutline,
   homeOutline,
+  logInOutline,
   book,
   grid,
   home,
+  logIn,
 } from "ionicons/icons";
 import { useSession } from "@/components/providers/SessionProvider";
 
@@ -35,18 +37,23 @@ export function BottomNav() {
       iconActive: book,
       matchExact: false,
     },
-    ...(user
-      ? [
-          {
-            name: "Dashboard",
-            href: "/dashboard",
-            basePath: "/dashboard",
-            icon: gridOutline,
-            iconActive: grid,
-            matchExact: true,
-          },
-        ]
-      : []),
+    user
+      ? {
+          name: "Dashboard",
+          href: "/dashboard",
+          basePath: "/dashboard",
+          icon: gridOutline,
+          iconActive: grid,
+          matchExact: true,
+        }
+      : {
+          name: "Login",
+          href: "/login",
+          basePath: "/login",
+          icon: logInOutline,
+          iconActive: logIn,
+          matchExact: true,
+        },
   ];
 
   const isActive = (tab: (typeof tabs)[0]) => {
