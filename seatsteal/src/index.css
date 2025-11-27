@@ -168,4 +168,60 @@
     position: relative;
     z-index: 1000;
   }
+
+  /* Bottom Navigation Styles */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    --background: hsl(var(--card));
+    --border: hsl(var(--border));
+    border-top: 1px solid hsl(var(--border));
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(60px + env(safe-area-inset-bottom));
+    backdrop-filter: blur(12px);
+  }
+
+  .bottom-nav ion-tab-button {
+    --color: hsl(var(--muted-foreground));
+    --color-selected: hsl(var(--foreground));
+    --background: transparent;
+    --background-focused: transparent;
+    --ripple-color: transparent;
+    transition: all 0.2s ease;
+  }
+
+  .bottom-nav ion-tab-button.tab-selected {
+    --color: hsl(var(--foreground));
+  }
+
+  .bottom-nav ion-tab-button.tab-selected .tab-icon {
+    transform: scale(1.1);
+  }
+
+  .bottom-nav ion-tab-button ion-icon {
+    font-size: 24px;
+    transition: transform 0.2s ease;
+  }
+
+  .bottom-nav ion-tab-button ion-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+  }
+
+  /* Dark mode adjustments */
+  .dark .bottom-nav {
+    --background: hsl(0 0% 6%);
+    background: hsl(0 0% 6% / 0.95);
+  }
+
+  /* Light mode */
+  :root:not(.dark) .bottom-nav {
+    --background: hsl(0 0% 100%);
+    background: hsl(0 0% 100% / 0.95);
+  }
 }
