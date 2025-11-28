@@ -1,3 +1,12 @@
+# IMPORTANT: Branch Naming
+
+When creating branches for features that will use Vercel preview deployments, use SHORT branch names (<= 20 characters). Long branch names get truncated by Vercel with different hashes per project, breaking the automatic frontend-backend URL matching for preview deployments.
+
+Good: `fix-login`, `add-navbar`, `mobile-ui`
+Bad: `cursor-implement-mobile-bottom-navbar-for-ionic-app`
+
+---
+
 # seatsteal directory (frontend)
 
 ## Code style
