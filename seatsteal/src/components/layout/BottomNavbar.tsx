@@ -1,7 +1,7 @@
 import { useLocation, useHistory } from "react-router-dom";
 import { useSession } from "@/components/providers/SessionProvider";
-import { IonTabBar, IonTabButton, IonIcon, IonLabel } from "@ionic/react";
-import { home, bookOutline, personCircle, logIn } from "ionicons/icons";
+import { IonTabBar, IonTabButton, IonLabel } from "@ionic/react";
+import { Home, BookOpen, LayoutDashboard, LogIn } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { cn } from "@/lib/utils";
@@ -75,7 +75,7 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
             : "tab-inactive"
         )}
       >
-        <IonIcon icon={home} />
+        <Home className="h-6 w-6" />
         <IonLabel>Home</IonLabel>
       </IonTabButton>
 
@@ -88,7 +88,7 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
           isActive("/courses") ? "tab-active" : "tab-inactive"
         )}
       >
-        <IonIcon icon={bookOutline} />
+        <BookOpen className="h-6 w-6" />
         <IonLabel>Courses</IonLabel>
       </IonTabButton>
 
@@ -109,7 +109,7 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
             isActive("/dashboard") ? "tab-active" : "tab-inactive"
           )}
         >
-          <IonIcon icon={personCircle} />
+          <LayoutDashboard className="h-6 w-6" />
           <IonLabel>Dashboard</IonLabel>
         </IonTabButton>
       ) : (
@@ -121,7 +121,7 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
             isActive("/login") ? "tab-active" : "tab-inactive"
           )}
         >
-          <IonIcon icon={logIn} />
+          <LogIn className="h-6 w-6" />
           <IonLabel>Login</IonLabel>
         </IonTabButton>
       )}
