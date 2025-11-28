@@ -148,13 +148,6 @@ export function LoginForm() {
 
   return (
     <>
-      <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Welcome Back</h1>
-        <p className="text-muted-foreground">
-          Sign in to your SeatSteal account
-        </p>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <Alert variant="destructive">
@@ -169,7 +162,7 @@ export function LoginForm() {
 
         <div className="space-y-2">
           <label htmlFor="email" className="text-sm font-medium">
-            Email Address
+            Email
           </label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -200,16 +193,23 @@ export function LoginForm() {
           {isLoading ? (
             <>
               <Spinner className="size-4 mr-2" />
-              Sending Magic Link...
+              Logging in...
             </>
           ) : (
-            "Send Magic Link"
+            "Login"
           )}
         </Button>
 
         <div className="text-center text-xs text-muted-foreground">
-          We&apos;ll send you a secure link to sign in instantly. No password
-          required. Must use a valid .edu email address.
+          Must use a valid .edu address.{" "}
+          <a
+            href="https://form.typeform.com/to/mi3IrgGR"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:no-underline"
+          >
+            Request access
+          </a>
         </div>
       </form>
     </>

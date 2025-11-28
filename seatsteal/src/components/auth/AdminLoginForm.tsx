@@ -139,7 +139,7 @@ export function AdminLoginForm() {
                 validateEmail(email);
               }
             }}
-            placeholder="admin@example.com"
+            placeholder=""
             className="pl-10"
             required
             disabled={isLoading}
@@ -157,10 +157,6 @@ export function AdminLoginForm() {
           <>Login</>
         )}
       </Button>
-
-      <div className="text-center text-xs text-muted-foreground">
-        Admin access only. Your email must be registered as an administrator.
-      </div>
     </form>
   );
 }
