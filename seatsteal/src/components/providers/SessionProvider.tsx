@@ -118,10 +118,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
         fetchUserProfile();
         fetchSubscriptionTier(user.id);
-        
+
         // Initialize push notifications for authenticated user
         PushNotificationService.initialize().catch((error) => {
-          console.error('Failed to initialize push notifications:', error);
+          console.error("Failed to initialize push notifications:", error);
         });
       } catch {
         setUser(null);
@@ -147,10 +147,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setProfileLoading(false);
         setTierLoading(false);
         setLoading(false);
-        
+
         // Cleanup push notifications on sign out
         PushNotificationService.cleanup().catch((error) => {
-          console.error('Failed to cleanup push notifications:', error);
+          console.error("Failed to cleanup push notifications:", error);
         });
         return;
       }
@@ -167,10 +167,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
           fetchUserProfile();
           fetchSubscriptionTier(session.user.id);
-          
+
           // Initialize push notifications for authenticated user
           PushNotificationService.initialize().catch((error) => {
-            console.error('Failed to initialize push notifications:', error);
+            console.error("Failed to initialize push notifications:", error);
           });
           return;
         }
@@ -198,10 +198,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             setUser(user);
             fetchUserProfile();
             fetchSubscriptionTier(user.id);
-            
+
             // Initialize push notifications for authenticated user
             PushNotificationService.initialize().catch((error) => {
-              console.error('Failed to initialize push notifications:', error);
+              console.error("Failed to initialize push notifications:", error);
             });
           }
           setLoading(false);

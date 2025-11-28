@@ -1,8 +1,12 @@
-import { PushNotifications } from '@capacitor/push-notifications';
-import type { Token, ActionPerformed, PushNotificationSchema } from '@capacitor/push-notifications';
-import { Capacitor } from '@capacitor/core';
-import { logger } from './logger';
-import { fetchWithToasts } from './api';
+import { PushNotifications } from "@capacitor/push-notifications";
+import type {
+  Token,
+  ActionPerformed,
+  PushNotificationSchema,
+} from "@capacitor/push-notifications";
+import { Capacitor } from "@capacitor/core";
+import { logger } from "./logger";
+import { fetchWithToasts } from "./api";
 
 /**
  * Push Notification Service for managing FCM push notifications
@@ -24,37 +28,37 @@ export class PushNotificationService {
    */
   static async initialize(): Promise<void> {
     if (this.initialized) {
-      logger.debug('Push notifications already initialized');
+      logger.debug("Push notifications already initialized");
       return;
     }
 
     if (!this.isSupported()) {
-      logger.debug('Push notifications not supported on this platform');
+      logger.debug("Push notifications not supported on this platform");
       return;
     }
 
     try {
       // Request permission
       const permissionStatus = await PushNotifications.requestPermissions();
-      
+
       // Mark as initialized regardless of permission result to prevent repeated prompts
       this.initialized = true;
-      
-      if (permissionStatus.receive === 'granted') {
-        logger.info('Push notification permission granted');
-        
+
+      if (permissionStatus.receive === "granted") {
+        logger.info("Push notification permission granted");
+
         // Register for push notifications
         await PushNotifications.register();
-        
+
         // Set up listeners
         this.setupListeners();
-        
-        logger.info('Push notifications initialized successfully');
+
+        logger.info("Push notifications initialized successfully");
       } else {
-        logger.warn('Push notification permission denied');
+        logger.warn("Push notification permission denied");
       }
     } catch (error) {
-      logger.error('Failed to initialize push notifications', error);
+      logger.error("Failed to initialize push notifications", error);
       // Mark as initialized even on error to prevent repeated attempts
       this.initialized = true;
     }
@@ -65,43 +69,52 @@ export class PushNotificationService {
    */
   private static setupListeners(): void {
     // Handle successful registration
-    PushNotifications.addListener('registration', async (token: Token) => {
-      logger.info('Push notification registration success', token.value.substring(0, 20) + '...');
-      
+    PushNotifications.addListener("registration", async (token: Token) => {
+      logger.info(
+        "Push notification registration success",
+        token.value.substring(0, 20) + "...",
+      );
+
       try {
         // Send token to backend
         await this.registerToken(token.value);
       } catch (error) {
-        logger.error('Failed to register token with backend', error);
+        logger.error("Failed to register token with backend", error);
       }
     });
 
     // Handle registration errors
-    PushNotifications.addListener('registrationError', (error: unknown) => {
-      logger.error('Push notification registration error', error);
+    PushNotifications.addListener("registrationError", (error: unknown) => {
+      logger.error("Push notification registration error", error);
     });
 
     // Handle incoming push notifications (when app is in foreground)
-    PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
-      logger.info('Push notification received', notification);
-      
-      // You can show a custom in-app notification here if desired
-      // For now, we'll let the OS handle it
-    });
+    PushNotifications.addListener(
+      "pushNotificationReceived",
+      (notification: PushNotificationSchema) => {
+        logger.info("Push notification received", notification);
+
+        // You can show a custom in-app notification here if desired
+        // For now, we'll let the OS handle it
+      },
+    );
 
     // Handle notification tap (when user taps on notification)
-    PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
-      logger.info('Push notification action performed', notification);
-      
-      // Handle notification tap - navigate to relevant screen
-      const data = notification.notification.data;
-      
-      if (data && data.type === 'course_notification') {
-        // Navigate to courses page or specific course
-        // You can implement navigation logic here
-        logger.info('Course notification tapped', data);
-      }
-    });
+    PushNotifications.addListener(
+      "pushNotificationActionPerformed",
+      (notification: ActionPerformed) => {
+        logger.info("Push notification action performed", notification);
+
+        // Handle notification tap - navigate to relevant screen
+        const data = notification.notification.data;
+
+        if (data && data.type === "course_notification") {
+          // Navigate to courses page or specific course
+          // You can implement navigation logic here
+          logger.info("Course notification tapped", data);
+        }
+      },
+    );
   }
 
   /**
@@ -110,11 +123,11 @@ export class PushNotificationService {
   private static async registerToken(token: string): Promise<void> {
     try {
       const platform = Capacitor.getPlatform(); // 'ios' or 'android'
-      
-      const response = await fetchWithToasts('/api/device-tokens/register', {
-        method: 'POST',
+
+      const response = await fetchWithToasts("/api/device-tokens/register", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           token,
@@ -123,13 +136,13 @@ export class PushNotificationService {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to register token with backend');
+        throw new Error("Failed to register token with backend");
       }
 
       const data = await response.json();
-      logger.info('Token registered with backend', data);
+      logger.info("Token registered with backend", data);
     } catch (error) {
-      logger.error('Failed to register token', error);
+      logger.error("Failed to register token", error);
       throw error;
     }
   }
@@ -143,17 +156,20 @@ export class PushNotificationService {
     }
 
     try {
-      const response = await fetchWithToasts(`/api/device-tokens/${encodeURIComponent(token)}`, {
-        method: 'DELETE',
-      });
+      const response = await fetchWithToasts(
+        `/api/device-tokens/${encodeURIComponent(token)}`,
+        {
+          method: "DELETE",
+        },
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to unregister token');
+        throw new Error("Failed to unregister token");
       }
 
-      logger.info('Token unregistered from backend');
+      logger.info("Token unregistered from backend");
     } catch (error) {
-      logger.error('Failed to unregister token', error);
+      logger.error("Failed to unregister token", error);
       throw error;
     }
   }
@@ -168,9 +184,9 @@ export class PushNotificationService {
 
     try {
       const status = await PushNotifications.checkPermissions();
-      return status.receive === 'granted';
+      return status.receive === "granted";
     } catch (error) {
-      logger.error('Failed to check permissions', error);
+      logger.error("Failed to check permissions", error);
       return false;
     }
   }
@@ -186,10 +202,9 @@ export class PushNotificationService {
     try {
       await PushNotifications.removeAllListeners();
       this.initialized = false;
-      logger.info('Push notification listeners removed');
+      logger.info("Push notification listeners removed");
     } catch (error) {
-      logger.error('Failed to cleanup push notifications', error);
+      logger.error("Failed to cleanup push notifications", error);
     }
   }
 }
-

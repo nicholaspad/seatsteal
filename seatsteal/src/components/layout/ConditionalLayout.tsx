@@ -1,29 +1,10 @@
 import { useLocation } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
 import { BottomNavbar } from "@/components/layout/BottomNavbar";
-import { useEffect, useState } from "react";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
-}
-
-// Custom hook to detect mobile viewport
-function useIsMobile(breakpoint: number = 768) {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth < breakpoint;
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < breakpoint);
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [breakpoint]);
-
-  return isMobile;
 }
 
 export function ConditionalLayout({ children }: ConditionalLayoutProps) {
