@@ -100,7 +100,7 @@ class EmailService:
                 course_title=course_title,
                 class_section=class_section,
                 college_name=college_name,
-                course_url=f"{settings.FRONTEND_URL}/courses/{course_code}",
+                course_url=f"{settings.effective_frontend_url}/courses/{course_code}",
                 unsubscribe_url=unsubscribe_url,
                 app_name="SeatSteal",
             )
@@ -117,7 +117,7 @@ College: {college_name}
 
 Act fast before it fills up!
 
-View course: {settings.FRONTEND_URL}/courses/{course_code}
+View course: {settings.effective_frontend_url}/courses/{course_code}
 """
 
             response = self.ses_client.send_email(

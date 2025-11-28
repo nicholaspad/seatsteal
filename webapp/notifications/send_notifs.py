@@ -285,7 +285,7 @@ class NotificationJob:
                 course_title="",  # We don't have course title in this query, could add if needed
                 class_section=section_code,
                 college_name=college_name,
-                unsubscribe_url=f"{settings.FRONTEND_URL}/subscriptions/{notification['subscription_id']}/unsubscribe",
+                unsubscribe_url=f"{settings.effective_frontend_url}/subscriptions/{notification['subscription_id']}/unsubscribe",
             )
         )
 

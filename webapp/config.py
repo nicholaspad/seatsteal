@@ -1,3 +1,6 @@
+import os
+import re
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator, computed_field
 from functools import lru_cache
@@ -152,6 +155,24 @@ class Settings(BaseSettings):
     def is_test(self) -> bool:
         """Check if running in test environment"""
         return self.PYTHON_ENV == "test"
+
+    @property
+    def effective_frontend_url(self) -> str:
+        """
+        Get the effective frontend URL, detecting Vercel preview deployments.
+
+        In preview environments, constructs the corresponding frontend preview URL.
+        Otherwise, returns the configured FRONTEND_URL.
+        """
+        vercel_env = os.environ.get("VERCEL_ENV")
+        branch = os.environ.get("VERCEL_GIT_COMMIT_REF")
+
+        if vercel_env == "preview" and branch:
+            # Sanitize branch name to match Vercel's URL format
+            sanitized_branch = re.sub(r"[^a-z0-9-]", "-", branch.lower())
+            return f"https://seatsteal-frontend-git-{sanitized_branch}-seatsteal.vercel.app"
+
+        return self.FRONTEND_URL
 
 
 @lru_cache()
