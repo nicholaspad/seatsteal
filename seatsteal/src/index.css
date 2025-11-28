@@ -175,3 +175,69 @@
     z-index: 1000;
   }
 }
+
+/* Bottom Navbar Styles */
+.bottom-navbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.bottom-navbar ion-tab-button {
+  --color: rgba(255, 255, 255, 0.6);
+  --color-selected: #fff;
+  --padding-top: 8px;
+  --padding-bottom: 4px;
+  --ripple-color: transparent;
+  min-height: 56px;
+  transition: all 0.2s ease;
+}
+
+.bottom-navbar ion-tab-button.tab-selected {
+  --color: #fff;
+}
+
+.bottom-navbar ion-tab-button.tab-selected::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  animation: dot-appear 0.2s ease;
+}
+
+@keyframes dot-appear {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+.bottom-navbar ion-tab-button ion-icon {
+  font-size: 24px;
+  margin-bottom: 2px;
+}
+
+.bottom-navbar ion-tab-button ion-label {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+/* Ensure content doesn't get hidden behind bottom navbar on mobile */
+@media (max-width: 767px) {
+  ion-content {
+    --padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
