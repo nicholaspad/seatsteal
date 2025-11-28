@@ -18,20 +18,30 @@ export class ServerErrorWithToast extends Error {
  * - Relative URLs starting with /api/ → prepend base URL
  * - Absolute URLs (http://, https://) → return as-is
  * - Other URLs → return as-is
+ * Also appends Vercel bypass secret as query param for preview deployments.
  */
 function resolveApiUrl(url: string): string {
-  // If already absolute, return as-is
+  let resolvedUrl: string;
+
+  // If already absolute, use as-is
   if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
+    resolvedUrl = url;
+  } else if (url.startsWith("/api/")) {
+    // If relative API path, prepend base URL
+    resolvedUrl = `${config.api.baseUrl}${url}`;
+  } else {
+    // Otherwise return as-is
+    resolvedUrl = url;
   }
 
-  // If relative API path, prepend base URL
-  if (url.startsWith("/api/")) {
-    return `${config.api.baseUrl}${url}`;
+  // Append Vercel bypass secret as query param for preview deployments
+  // Using query param instead of header to avoid CORS preflight issues
+  if (config.api.vercelBypassSecret) {
+    const separator = resolvedUrl.includes("?") ? "&" : "?";
+    resolvedUrl = `${resolvedUrl}${separator}x-vercel-protection-bypass=${config.api.vercelBypassSecret}`;
   }
 
-  // Otherwise return as-is
-  return url;
+  return resolvedUrl;
 }
 
 /**
@@ -52,14 +62,11 @@ export async function fetchWithToasts(
     data: { session },
   } = await supabase.auth.getSession();
 
-  // Merge headers with auth token and Vercel bypass secret (for preview deployments)
+  // Merge headers with auth token
   const headers: HeadersInit = {
     ...options?.headers,
     ...(session?.access_token && {
       Authorization: `Bearer ${session.access_token}`,
-    }),
-    ...(config.api.vercelBypassSecret && {
-      "x-vercel-protection-bypass": config.api.vercelBypassSecret,
     }),
   };
 
@@ -111,12 +118,6 @@ export async function fetchWithRateLimitSilent(
 }
 
 class ApiClient {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = config.api.baseUrl;
-  }
-
   private async getHeaders(): Promise<HeadersInit> {
     const {
       data: { session },
@@ -127,14 +128,11 @@ class ApiClient {
       ...(session?.access_token && {
         Authorization: `Bearer ${session.access_token}`,
       }),
-      ...(config.api.vercelBypassSecret && {
-        "x-vercel-protection-bypass": config.api.vercelBypassSecret,
-      }),
     };
   }
 
   async get<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(resolveApiUrl(endpoint), {
       method: "GET",
       headers: await this.getHeaders(),
     });
@@ -147,7 +145,7 @@ class ApiClient {
   }
 
   async post<T>(endpoint: string, data: unknown): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(resolveApiUrl(endpoint), {
       method: "POST",
       headers: await this.getHeaders(),
       body: JSON.stringify(data),
@@ -161,7 +159,7 @@ class ApiClient {
   }
 
   async put<T>(endpoint: string, data: unknown): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(resolveApiUrl(endpoint), {
       method: "PUT",
       headers: await this.getHeaders(),
       body: JSON.stringify(data),
@@ -175,7 +173,7 @@ class ApiClient {
   }
 
   async delete<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(resolveApiUrl(endpoint), {
       method: "DELETE",
       headers: await this.getHeaders(),
     });
@@ -188,7 +186,7 @@ class ApiClient {
   }
 
   async patch<T>(endpoint: string, data: unknown): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(resolveApiUrl(endpoint), {
       method: "PATCH",
       headers: await this.getHeaders(),
       body: JSON.stringify(data),
