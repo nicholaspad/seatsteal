@@ -1,4 +1,5 @@
-import { PushNotifications, Token, ActionPerformed, PushNotificationSchema } from '@capacitor/push-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
+import type { Token, ActionPerformed, PushNotificationSchema } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { logger } from './logger';
 import { fetchWithToasts } from './api';
@@ -76,7 +77,7 @@ export class PushNotificationService {
     });
 
     // Handle registration errors
-    PushNotifications.addListener('registrationError', (error) => {
+    PushNotifications.addListener('registrationError', (error: unknown) => {
       logger.error('Push notification registration error', error);
     });
 
