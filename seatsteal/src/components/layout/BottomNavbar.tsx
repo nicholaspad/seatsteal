@@ -1,7 +1,7 @@
 import { useLocation, useHistory } from "react-router-dom";
 import { useSession } from "@/components/providers/SessionProvider";
 import { IonTabBar, IonTabButton, IonLabel } from "@ionic/react";
-import { Home, BookOpen, LayoutDashboard, LogIn } from "lucide-react";
+import { Home, BookOpen, LayoutDashboard } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
 
   const handleNavigation = async (path: string) => {
     await triggerHaptic();
-    
+
     // Handle Home link - scroll to top if already on homepage
     if (path === "/" && location.pathname === "/") {
       const ionContent = document.querySelector("ion-content");
@@ -58,7 +58,7 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
       slot="bottom"
       className={cn(
         "bottom-navbar border-t border-border/40 bg-background/95 backdrop-blur-xl",
-        className
+        className,
       )}
       style={{
         paddingBottom: "env(safe-area-inset-bottom, 8px)",
@@ -70,9 +70,12 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
         onClick={() => handleNavigation("/")}
         className={cn(
           "bottom-nav-tab",
-          isActive("/") && !isActive("/courses") && !isActive("/dashboard") && !isActive("/login")
+          isActive("/") &&
+            !isActive("/courses") &&
+            !isActive("/dashboard") &&
+            !isActive("/login")
             ? "tab-active"
-            : "tab-inactive"
+            : "tab-inactive",
         )}
       >
         <Home className="h-6 w-6" />
@@ -85,14 +88,14 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
         onClick={() => handleNavigation(getCoursesPath())}
         className={cn(
           "bottom-nav-tab",
-          isActive("/courses") ? "tab-active" : "tab-inactive"
+          isActive("/courses") ? "tab-active" : "tab-inactive",
         )}
       >
         <BookOpen className="h-6 w-6" />
         <IonLabel>Courses</IonLabel>
       </IonTabButton>
 
-      {/* Login/Dashboard Tab */}
+      {/* Dashboard Tab */}
       {isLoading ? (
         <IonTabButton tab="account" className="bottom-nav-tab tab-inactive">
           <div className="w-6 h-6 rounded-full bg-muted animate-pulse" />
@@ -100,29 +103,17 @@ export function BottomNavbar({ className }: BottomNavbarProps) {
             <div className="w-12 h-3 rounded bg-muted animate-pulse mt-1" />
           </IonLabel>
         </IonTabButton>
-      ) : user ? (
+      ) : (
         <IonTabButton
           tab="dashboard"
           onClick={() => handleNavigation("/dashboard")}
           className={cn(
             "bottom-nav-tab",
-            isActive("/dashboard") ? "tab-active" : "tab-inactive"
+            isActive("/dashboard") ? "tab-active" : "tab-inactive",
           )}
         >
           <LayoutDashboard className="h-6 w-6" />
           <IonLabel>Dashboard</IonLabel>
-        </IonTabButton>
-      ) : (
-        <IonTabButton
-          tab="login"
-          onClick={() => handleNavigation("/login")}
-          className={cn(
-            "bottom-nav-tab",
-            isActive("/login") ? "tab-active" : "tab-inactive"
-          )}
-        >
-          <LogIn className="h-6 w-6" />
-          <IonLabel>Login</IonLabel>
         </IonTabButton>
       )}
     </IonTabBar>
