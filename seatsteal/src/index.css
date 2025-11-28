@@ -169,9 +169,108 @@
     --padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  /* On mobile viewports, add extra padding for bottom nav */
+  @media (max-width: 767px) {
+    ion-content {
+      --padding-bottom: calc(72px + env(safe-area-inset-bottom, 8px));
+    }
+  }
+
   /* Header positioning to stay above Ionic components */
   header {
     position: relative;
     z-index: 1000;
+  }
+
+  /* Bottom Navigation Styles */
+  .bottom-navbar {
+    --background: hsl(var(--background) / 0.95);
+    --border: hsl(var(--border));
+    height: auto !important;
+    min-height: 56px;
+  }
+
+  .bottom-navbar::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: hsl(var(--border) / 0.5);
+  }
+
+  .bottom-nav-tab {
+    --color: hsl(var(--muted-foreground));
+    --color-selected: hsl(var(--foreground));
+    --background: transparent;
+    --background-focused: transparent;
+    --padding-top: 6px;
+    --padding-bottom: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .bottom-nav-tab ion-icon {
+    font-size: 24px;
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+
+  .bottom-nav-tab ion-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    margin-top: 2px;
+    transition: color 0.2s ease;
+  }
+
+  .tab-active {
+    --color: hsl(var(--foreground));
+  }
+
+  .tab-active ion-icon {
+    color: hsl(var(--foreground));
+    transform: scale(1.05);
+  }
+
+  .tab-active ion-label {
+    color: hsl(var(--foreground));
+  }
+
+  .tab-inactive {
+    --color: hsl(var(--muted-foreground));
+  }
+
+  .tab-inactive ion-icon {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .tab-inactive ion-label {
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* iOS-specific adjustments */
+  .ios .bottom-navbar {
+    --background: hsl(var(--background) / 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* Dark mode adjustments for bottom nav */
+  .dark .bottom-navbar {
+    --background: hsl(0 0% 5% / 0.95);
+  }
+
+  .dark.ios .bottom-navbar {
+    --background: hsl(0 0% 5% / 0.85);
+  }
+
+  /* Add padding to content when bottom nav is present */
+  .has-bottom-nav {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 8px));
+  }
+
+  /* Ensure ion-content respects bottom nav */
+  ion-content.with-bottom-nav {
+    --padding-bottom: calc(56px + env(safe-area-inset-bottom, 8px));
   }
 }
