@@ -32,3 +32,6 @@ stripe==13.0.0
 # Notifications (for reading logs via API)
 boto3==1.34.34
 jinja2==3.1.3
+
+# Push Notifications
+firebase-admin>=6.0.0

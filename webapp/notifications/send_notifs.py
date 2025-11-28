@@ -36,8 +36,10 @@ from models.college import College
 from models.enrollment import Enrollment
 from models.user import Profile
 from models.stripe_subscription import StripeSubscription
+from models.device_token import DeviceToken
 from notifications.email_service import EmailService
 from notifications.constants import NOTIFICATION_CADENCE, USER_TIERS
+from utils.push_notification_service import PushNotificationService
 from config import settings
 
 
@@ -47,6 +49,9 @@ class NotificationJob:
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
         self.email_service = EmailService()
+        
+        # Initialize push notification service
+        PushNotificationService.initialize()
 
     def execute(self) -> Dict:
         """
@@ -250,31 +255,30 @@ class NotificationJob:
         return notifications
 
     def _send_notification(self, notification: Dict) -> None:
-        """Send email notification for a course opening"""
+        """Send email and push notifications for a course opening"""
         course_code = notification["course_code"]
         section_code = notification["section_code"] or notification["class_number"]
         college_name = notification["college_name"]
         user_email = notification["user_email"]
         user_tier = notification["user_tier"]
+        user_id = notification["user_id"]
 
         if self.dry_run:
             logger.info(
-                f"🧪 DRY RUN: Would send email to {user_email} ({user_tier}) - "
+                f"🧪 DRY RUN: Would send notifications to {user_email} ({user_tier}) - "
                 f"{course_code} {section_code} at {college_name} is now OPEN!"
             )
             return
 
         logger.info(
-            f"📧 SENDING EMAIL: To {user_email} ({user_tier}) - "
+            f"📧 SENDING NOTIFICATIONS: To {user_email} ({user_tier}) - "
             f"{course_code} {section_code} at {college_name} is now OPEN!"
         )
 
-        # Send notification using EmailService
-        # Note: EmailService.send_course_notification is async, but we're calling it synchronously
-        # If needed, wrap in asyncio.run() or make this method async
+        # Send email notification
         import asyncio
 
-        success = asyncio.run(
+        email_success = asyncio.run(
             self.email_service.send_course_notification(
                 to_email=user_email,
                 course_code=course_code,
@@ -285,11 +289,74 @@ class NotificationJob:
             )
         )
 
-        if success:
+        if email_success:
             logger.info(f"✅ EMAIL SENT: To {user_email}")
         else:
             logger.error(f"❌ EMAIL FAILED: To {user_email}")
+
+        # Send push notifications to all user's active devices
+        self._send_push_notifications(
+            user_id=user_id,
+            course_code=course_code,
+            section_code=section_code,
+            college_name=college_name,
+        )
+
+        # Raise exception only if email failed (push is optional)
+        if not email_success:
             raise Exception(f"Failed to send email to {user_email}")
+
+    def _send_push_notifications(
+        self, user_id: str, course_code: str, section_code: str, college_name: str
+    ) -> None:
+        """Send push notifications to all user's active devices"""
+        if not PushNotificationService.is_available():
+            logger.debug("Push notification service not available, skipping")
+            return
+
+        try:
+            # Get all active device tokens for the user
+            with SessionLocal() as db:
+                device_tokens = db.execute(
+                    select(DeviceToken).where(
+                        and_(
+                            DeviceToken.user_id == user_id,
+                            DeviceToken.is_active == True,
+                        )
+                    )
+                ).scalars().all()
+
+                if not device_tokens:
+                    logger.debug(f"No device tokens found for user {user_id}")
+                    return
+
+                tokens = [dt.token for dt in device_tokens]
+                logger.info(
+                    f"📱 Sending push notifications to {len(tokens)} device(s) for user {user_id}"
+                )
+
+                # Send push notifications
+                result = PushNotificationService.send_batch_course_notifications(
+                    tokens=tokens,
+                    course_code=course_code,
+                    section_code=section_code,
+                    college_name=college_name,
+                )
+
+                logger.info(
+                    f"✅ Push notifications: {result['success']} successful, {result['failed']} failed"
+                )
+
+                # Update last_used_at for successful sends
+                if result["success"] > 0:
+                    from datetime import datetime
+                    for dt in device_tokens:
+                        dt.last_used_at = datetime.utcnow()
+                    db.commit()
+
+        except Exception as e:
+            logger.error(f"Failed to send push notifications: {e}")
+            # Don't raise - push notifications are optional, don't block email
 
     def _deactivate_subscriptions(
         self, db: Session, subscription_ids: List[int]
@@ -305,7 +372,7 @@ class NotificationJob:
         db.query(Subscription).filter(Subscription.id.in_(subscription_ids)).update(
             {
                 "is_active": False,
-                "last_notified": datetime.now(),
+                "last_notified": datetime.utcnow(),
                 "notification_count": Subscription.notification_count + 1,
             },
             synchronize_session=False,

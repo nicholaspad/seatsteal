@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     STRIPE_PRO_PRICE_ID: str = ""
     """Stripe price ID for Pro tier subscription"""
 
+    # Firebase
+    FIREBASE_CREDENTIALS_PATH: str = ""
+    """Path to Firebase service account credentials JSON file"""
+
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),
         case_sensitive=True,
