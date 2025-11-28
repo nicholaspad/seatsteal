@@ -174,4 +174,32 @@
     position: relative;
     z-index: 1000;
   }
+
+  /* Mobile bottom navbar adjustments */
+  @media (max-width: 767px) {
+    /* Ensure ion-content accounts for bottom navbar */
+    ion-content {
+      --padding-bottom: calc(
+        5rem + env(safe-area-inset-bottom, 0px)
+      ); /* 5rem = h-20 bottom navbar */
+    }
+
+    /* Remove body padding-bottom on mobile since navbar handles it */
+    body {
+      padding-bottom: 0;
+    }
+  }
+
+  /* Smooth touch interactions for native app feel */
+  nav a,
+  nav button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Active state for bottom navbar items on touch */
+  nav a:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+  }
 }
