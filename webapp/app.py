@@ -94,18 +94,16 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS middleware
-# Allow both www and non-www variants in production, localhost in development
+# Allow production domains, Vercel preview deployments, and localhost in development
 cors_origins = []
+cors_origin_regex = None
 
 if settings.is_production:
-    # In production, allow both www and non-www variants
-    # This handles domain redirects and direct access from either variant
-    cors_origins.extend(
-        [
-            "https://seatsteal.app",
-            "https://www.seatsteal.app",
-        ]
-    )
+    # In production, use regex to match:
+    # 1. https://seatsteal.app
+    # 2. https://www.seatsteal.app
+    # 3. https://seatsteal-frontend-git-*-seatsteal.vercel.app (Vercel preview deployments)
+    cors_origin_regex = r"https://(www\.)?seatsteal\.app|https://seatsteal-frontend-git-.*-seatsteal\.vercel\.app"
 else:
     # In development, allow localhost and the configured frontend URL
     cors_origins.extend(
@@ -119,6 +117,7 @@ else:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
