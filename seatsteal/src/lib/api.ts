@@ -52,11 +52,14 @@ export async function fetchWithToasts(
     data: { session },
   } = await supabase.auth.getSession();
 
-  // Merge headers with auth token
+  // Merge headers with auth token and Vercel bypass secret (for preview deployments)
   const headers: HeadersInit = {
     ...options?.headers,
     ...(session?.access_token && {
       Authorization: `Bearer ${session.access_token}`,
+    }),
+    ...(config.api.vercelBypassSecret && {
+      "x-vercel-protection-bypass": config.api.vercelBypassSecret,
     }),
   };
 
@@ -123,6 +126,9 @@ class ApiClient {
       "Content-Type": "application/json",
       ...(session?.access_token && {
         Authorization: `Bearer ${session.access_token}`,
+      }),
+      ...(config.api.vercelBypassSecret && {
+        "x-vercel-protection-bypass": config.api.vercelBypassSecret,
       }),
     };
   }
