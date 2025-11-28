@@ -108,7 +108,7 @@ else:
     # In development, allow localhost and the configured frontend URL
     cors_origins.extend(
         [
-            settings.FRONTEND_URL,
+            settings.effective_frontend_url,
             "http://localhost:5173",
             "http://localhost:3000",
         ]

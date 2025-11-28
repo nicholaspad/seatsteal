@@ -100,7 +100,7 @@ async def admin_signin(
                 {
                     "email": request.email,
                     "options": {
-                        "email_redirect_to": f"{settings.FRONTEND_URL}/auth/callback?admin=true"
+                        "email_redirect_to": f"{settings.effective_frontend_url}/auth/callback?admin=true"
                     },
                 }
             )
