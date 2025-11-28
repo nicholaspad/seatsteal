@@ -17,6 +17,7 @@ import {
 import { Zap, Database, RefreshCw } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
+import { formatLocalDateTime } from "@/lib/date-utils";
 
 interface QueryPerformanceData {
   stats: {
@@ -155,11 +156,13 @@ export function PerformanceDashboardClient() {
                     .reverse()
                     .map((item) => ({
                       ...item,
-                      time: new Date(item.hour).toLocaleString("en-US", {
+                      time: new Intl.DateTimeFormat("en-US", {
                         month: "short",
                         day: "numeric",
                         hour: "numeric",
-                      }),
+                        timeZone:
+                          Intl.DateTimeFormat().resolvedOptions().timeZone,
+                      }).format(new Date(item.hour)),
                     }))}
                 >
                   <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
@@ -363,7 +366,7 @@ export function PerformanceDashboardClient() {
                           {query.query}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(query.timestamp).toLocaleString()}
+                          {formatLocalDateTime(query.timestamp)}
                           {query.resultCount !== undefined && (
                             <span> • {query.resultCount} results</span>
                           )}

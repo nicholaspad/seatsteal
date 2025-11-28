@@ -17,6 +17,7 @@ from api.routes import (
     notifications,
     stripe,
     user,
+    device_tokens,
 )
 from db.connection import init_db, close_db
 from api.middleware.security_headers import SecurityHeadersMiddleware
@@ -93,23 +94,21 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS middleware
-# Allow both www and non-www variants in production, localhost in development
+# Allow production domains, Vercel preview deployments, and localhost in development
 cors_origins = []
+cors_origin_regex = None
 
 if settings.is_production:
-    # In production, allow both www and non-www variants
-    # This handles domain redirects and direct access from either variant
-    cors_origins.extend(
-        [
-            "https://seatsteal.app",
-            "https://www.seatsteal.app",
-        ]
-    )
+    # In production, use regex to match:
+    # 1. https://seatsteal.app
+    # 2. https://www.seatsteal.app
+    # 3. https://seatsteal-frontend-git-*-seatsteal.vercel.app (Vercel preview deployments)
+    cors_origin_regex = r"https://(www\.)?seatsteal\.app|https://seatsteal-frontend-git-.*-seatsteal\.vercel\.app"
 else:
     # In development, allow localhost and the configured frontend URL
     cors_origins.extend(
         [
-            settings.FRONTEND_URL,
+            settings.effective_frontend_url,
             "http://localhost:5173",
             "http://localhost:3000",
         ]
@@ -118,6 +117,7 @@ else:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -133,6 +133,7 @@ app.include_router(admin.router)
 app.include_router(notifications.router)
 app.include_router(stripe.router)
 app.include_router(user.router)
+app.include_router(device_tokens.router)
 
 
 @app.get("/health")

@@ -58,18 +58,16 @@ export default function CourseDetails() {
       <IonPage>
         <IonContent>
           <div className="container mx-auto px-4 py-8">
-            <div className="max-w-4xl mx-auto">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                    <Spinner className="size-12" />
-                    <p className="text-lg text-muted-foreground">
-                      Loading course details...
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <Spinner className="size-12" />
+                  <p className="text-lg text-muted-foreground">
+                    Loading course details...
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </IonContent>
       </IonPage>
@@ -81,24 +79,20 @@ export default function CourseDetails() {
       <IonPage>
         <IonContent>
           <div className="container mx-auto px-4 py-8">
-            <div className="max-w-4xl mx-auto">
-              <Card className="border-destructive">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                    <AlertCircle className="h-12 w-12 text-destructive" />
-                    <h3 className="text-xl font-semibold">
-                      {error || "Course not found"}
-                    </h3>
-                    <p className="text-muted-foreground">
-                      The course you're looking for could not be loaded.
-                    </p>
-                    <Button onClick={() => window.history.back()}>
-                      Go Back
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <Card className="border-destructive">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <AlertCircle className="h-12 w-12 text-destructive" />
+                  <h3 className="text-xl font-semibold">
+                    {error || "Course not found"}
+                  </h3>
+                  <p className="text-muted-foreground">
+                    The course you're looking for could not be loaded.
+                  </p>
+                  <Button onClick={() => window.history.back()}>Go Back</Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </IonContent>
       </IonPage>

@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useHistory } from "react-router-dom";
-import { useSubscriptionTier, useSession } from "@/components/providers/SessionProvider";
+import {
+  useSubscriptionTier,
+  useSession,
+} from "@/components/providers/SessionProvider";
 import { CourseDetails } from "@/components/course/course-details";
 import { Button } from "@/components/ui/button";
 import { UnsubscribeConfirmationModal } from "@/components/ui/unsubscribe-confirmation-modal";

@@ -83,8 +83,8 @@ async def create_stripe_checkout_session(
         session = await create_checkout_session(
             customer_id=stripe_customer.stripe_customer_id,
             price_id=price_id,
-            success_url=f"{settings.FRONTEND_URL}/dashboard?success=true",
-            cancel_url=f"{settings.FRONTEND_URL}/#pricing",
+            success_url=f"{settings.effective_frontend_url}/dashboard?success=true",
+            cancel_url=f"{settings.effective_frontend_url}/#pricing",
             user_id=str(user.id),
         )
 
@@ -139,7 +139,7 @@ async def create_stripe_portal_session(
         # Create portal session
         session = await create_portal_session(
             customer_id=stripe_customer.stripe_customer_id,
-            return_url=f"{settings.FRONTEND_URL}/dashboard",
+            return_url=f"{settings.effective_frontend_url}/dashboard",
         )
 
         return {
