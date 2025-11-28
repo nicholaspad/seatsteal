@@ -43,9 +43,7 @@ export function Header({ className }: HeaderProps) {
         : "/courses",
       icon: BookOpen,
     },
-    ...(user
-      ? [{ name: "Dashboard", href: "/dashboard", icon: LayoutDashboard }]
-      : []),
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   ];
 
   const handleNavClick = async (
@@ -100,13 +98,11 @@ export function Header({ className }: HeaderProps) {
                   <div className="h-4 w-4 rounded bg-muted animate-pulse" />
                   <div className="h-4 w-16 rounded bg-muted animate-pulse" />
                 </div>
-                {/* Dashboard skeleton (conditional) */}
-                {user && (
-                  <div className="flex items-center space-x-2">
-                    <div className="h-4 w-4 rounded bg-muted animate-pulse" />
-                    <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                  </div>
-                )}
+                {/* Dashboard skeleton */}
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-4 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                </div>
               </>
             ) : (
               navigation.map((item) => {
@@ -202,13 +198,11 @@ export function Header({ className }: HeaderProps) {
                     <div className="h-4 w-4 rounded bg-muted animate-pulse" />
                     <div className="h-4 w-16 rounded bg-muted animate-pulse" />
                   </div>
-                  {/* Dashboard skeleton (conditional) */}
-                  {user && (
-                    <div className="flex items-center space-x-3 rounded-md px-3 py-2">
-                      <div className="h-4 w-4 rounded bg-muted animate-pulse" />
-                      <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                    </div>
-                  )}
+                  {/* Dashboard skeleton */}
+                  <div className="flex items-center space-x-3 rounded-md px-3 py-2">
+                    <div className="h-4 w-4 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                  </div>
                   {/* Mobile Authentication skeleton */}
                   <div className="border-t pt-4 mt-4">
                     <div className="flex items-center space-x-3 rounded-md px-3 py-2">
