@@ -1,9 +1,18 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useSession } from "@/components/providers/SessionProvider";
 import { UserDashboard } from "@/components/class/user-dashboard";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { signOut } from "@/lib/supabase";
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const { subscriptionTier, tierLoading } = useSession();
+  const isMobile = useIsMobile();
+
+  const handleLogout = async () => {
+    await signOut();
+  };
 
   return (
     <IonPage>
@@ -23,6 +32,20 @@ export default function Dashboard() {
               itemsPerPage={10}
               userTier={subscriptionTier}
             />
+          )}
+
+          {/* Mobile-only logout button */}
+          {isMobile && (
+            <div className="mt-8 flex justify-center">
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Log out
+              </Button>
+            </div>
           )}
         </div>
       </IonContent>

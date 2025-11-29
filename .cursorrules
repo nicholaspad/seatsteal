@@ -20,7 +20,7 @@ Bad: `cursor-implement-mobile-bottom-navbar-for-ionic-app`
 ## Workflow
 
 - IMPORTANT: Always build after making changes. Fix all build errors.
-- When you're done making changes, run `prettier -w **/*.ts && prettier -w **/*.tsx` from the seatsteal directory to format all code.
+- When you're done making changes, run `npx prettier -w src/**/*.ts src/**/*.tsx` from the seatsteal directory to format all code.
 
 # webapp directory (backend)
 
