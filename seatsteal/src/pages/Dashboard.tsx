@@ -36,7 +36,7 @@ export default function Dashboard() {
 
           {/* Mobile-only logout button */}
           {isMobile && (
-            <div className="mt-8 pb-24 flex justify-center">
+            <div className="mt-8 flex justify-center">
               <Button
                 variant="ghost"
                 onClick={handleLogout}
