@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Minus } from "lucide-react";
 import { getSubscriptionFeatures } from "@/lib/subscription-constants";
@@ -22,7 +23,7 @@ export function FAQSection({ colleges }: FAQSectionProps) {
 
   const faqs: Array<{
     question: string;
-    answer: string;
+    answer: React.ReactNode;
     colleges?: string[];
   }> = [
     {
@@ -49,8 +50,16 @@ export function FAQSection({ colleges }: FAQSectionProps) {
     },
     {
       question: "Is my information secure?",
-      answer:
-        "We collect only the information needed to send notifications and never ask for your university credentials.",
+      answer: (
+        <>
+          Yes. We collect only the information needed to send notifications and
+          never ask for your university credentials. Read our{" "}
+          <Link to="/privacy" className="underline hover:text-foreground">
+            Privacy Policy
+          </Link>{" "}
+          for more details.
+        </>
+      ),
     },
   ];
 
