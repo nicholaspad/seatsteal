@@ -2,6 +2,7 @@ import { IonContent, IonPage } from "@ionic/react";
 import { useEffect, useState } from "react";
 import { FAQSection } from "@/components/home/faq-section";
 import { PricingTiers } from "@/components/home/pricing-tiers";
+import { Footer } from "@/components/layout/Footer";
 import type { College } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -134,32 +135,10 @@ export default function Home() {
               <h2 className="text-3xl md:text-4xl font-bold">FAQs</h2>
             </div>
             <FAQSection colleges={colleges} />
-            <div className="flex justify-center mt-8">
-              <a
-                href="https://form.typeform.com/to/fz0mcjEn"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-300 hover:text-white transition-colors text-base underline"
-              >
-                Feedback
-              </a>
-            </div>
           </section>
 
-          {/* Testimonials */}
-          {/* <section className="bg-muted/30 py-16">
-            <div className="container mx-auto px-4">
-              <div className="text-center space-y-4 mb-12">
-                <h2 className="text-3xl md:text-4xl font-bold">
-                  What Students Say
-                </h2>
-                <p className="text-xl text-muted-foreground">
-                  Real success stories from students who got their courses
-                </p>
-              </div>
-              <Testimonials />
-            </div>
-          </section> */}
+          {/* Footer */}
+          <Footer />
         </div>
       </IonContent>
     </IonPage>

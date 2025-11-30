@@ -22,6 +22,12 @@ export function Footer({ className }: FooterProps) {
 
           {/* Links */}
           <div className="flex items-center space-x-6 text-sm">
+            <Link
+              to="/privacy"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Privacy Policy
+            </Link>
             <a
               href="https://form.typeform.com/to/fz0mcjEn"
               className="text-muted-foreground hover:text-foreground transition-colors"
