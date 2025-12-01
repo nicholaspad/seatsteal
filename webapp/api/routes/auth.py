@@ -141,12 +141,13 @@ async def check_early_access(
 ):
     """Check if email has early access"""
     try:
+        # TEMPORARILY DISABLED: Allow non-.edu addresses
         # Validate .edu domain
-        if not request.email.endswith(".edu"):
-            raise HTTPException(
-                status_code=400,
-                detail="Please use a valid .edu email address",
-            )
+        # if not request.email.endswith(".edu"):
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail="Please use a valid .edu email address",
+        #     )
 
         # TEMPORARILY DISABLED: Allow all users to sign up
         # Check if email is in early access list
