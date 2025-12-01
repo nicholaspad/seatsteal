@@ -11,7 +11,7 @@ export function Footer({ className }: FooterProps) {
 
   return (
     <footer className={cn("border-t bg-black", className)}>
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-6 pb-10 md:pb-6">
         <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
           {/* Brand */}
           <div className="flex items-center space-x-2">
@@ -22,6 +22,12 @@ export function Footer({ className }: FooterProps) {
 
           {/* Links */}
           <div className="flex items-center space-x-6 text-sm">
+            <Link
+              to="/privacy"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Privacy Policy
+            </Link>
             <a
               href="https://form.typeform.com/to/fz0mcjEn"
               className="text-muted-foreground hover:text-foreground transition-colors"

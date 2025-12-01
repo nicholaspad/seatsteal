@@ -21,6 +21,7 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
+import { Footer } from "@/components/layout/Footer";
 import type { College } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { AlertTriangle, Mail, Save, School } from "lucide-react";
@@ -282,6 +283,9 @@ export default function Settings() {
             </Card>
           </div>
         </div>
+
+        {/* Footer */}
+        <Footer className="mt-auto" />
       </IonContent>
     </IonPage>
   );

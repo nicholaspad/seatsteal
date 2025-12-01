@@ -1,6 +1,7 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useSession } from "@/components/providers/SessionProvider";
 import { UserDashboard } from "@/components/class/user-dashboard";
+import { Footer } from "@/components/layout/Footer";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { signOut } from "@/lib/supabase";
 import { LogOut } from "lucide-react";
@@ -48,6 +49,9 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* Footer */}
+        <Footer className="mt-auto" />
       </IonContent>
     </IonPage>
   );
