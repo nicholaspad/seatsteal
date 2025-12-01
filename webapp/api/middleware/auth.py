@@ -62,7 +62,7 @@ async def get_current_user(
 
         # Try to get profile from cache first (300s TTL)
         cached_profile_data = get_cached_user_profile(user_id_str)
-        
+
         if cached_profile_data:
             # Reconstruct Profile object from cached data
             profile = Profile(
@@ -72,6 +72,10 @@ async def get_current_user(
                 role=cached_profile_data.get("role", "user"),
                 college_id=cached_profile_data.get("college_id"),
             )
+            # CRITICAL: Merge the detached object into the current session
+            # This attaches the object to the session and makes it tracked by SQLAlchemy
+            # Without this, any modifications to the profile will not be persisted
+            profile = db.merge(profile, load=False)
             return profile
 
         # Cache miss - get user profile from database

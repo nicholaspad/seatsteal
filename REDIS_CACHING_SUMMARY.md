@@ -203,6 +203,17 @@ redis-cli DEL "user_tier:{user-uuid}"
 - Single `invalidate_user_caches()` call handles both
 - Simplifies cache management in application code
 
+## Critical Bug Fix (December 2025)
+
+**Issue**: Cached user profiles were reconstructed as detached SQLAlchemy objects, causing:
+- 500 errors when updating user settings (college selection)
+- Courses/dashboard pages failing to load for new users
+- Profile modifications not persisting to database
+
+**Fix**: Added `db.merge(profile, load=False)` in auth middleware to attach cached profiles to the session.
+
+**Details**: See [REDIS_CACHING_BUG_FIX.md](./REDIS_CACHING_BUG_FIX.md) for complete analysis and fix.
+
 ## Production Deployment Checklist
 
 - [x] Redis caching utilities implemented
@@ -212,6 +223,7 @@ redis-cli DEL "user_tier:{user-uuid}"
 - [x] Comprehensive test coverage
 - [x] Error handling and graceful degradation
 - [x] Documentation complete
+- [x] **CRITICAL BUG FIX**: SQLAlchemy session merge for cached profiles
 
 ### Pre-Deployment
 - [ ] Verify Redis is running and accessible
