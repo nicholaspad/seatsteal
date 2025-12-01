@@ -43,7 +43,7 @@ async def update_college(
         user.college_id = request.college_id
         db.commit()
         db.refresh(user)
-        
+
         # Invalidate user caches (profile and tier) after update
         invalidate_user_caches(str(user.id))
 
@@ -148,19 +148,20 @@ async def check_early_access(
                 detail="Please use a valid .edu email address",
             )
 
+        # TEMPORARILY DISABLED: Allow all users to sign up
         # Check if email is in early access list
-        result = db.execute(
-            select(EarlyAccessEmail).where(
-                and_(
-                    EarlyAccessEmail.email == request.email,
-                    EarlyAccessEmail.is_active == True,
-                )
-            )
-        )
-        early_access = result.scalar_one_or_none()
+        # result = db.execute(
+        #     select(EarlyAccessEmail).where(
+        #         and_(
+        #             EarlyAccessEmail.email == request.email,
+        #             EarlyAccessEmail.is_active == True,
+        #         )
+        #     )
+        # )
+        # early_access = result.scalar_one_or_none()
 
         return {
-            "hasEarlyAccess": early_access is not None,
+            "hasEarlyAccess": True,  # Temporarily allow all users
             "email": request.email,
         }
 
