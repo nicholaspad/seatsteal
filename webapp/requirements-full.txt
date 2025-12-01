@@ -11,7 +11,7 @@ psycopg2-binary==2.9.9
 
 # Scraping
 beautifulsoup4==4.12.3
-requests==2.31.0
+requests==2.32.4
 lxml==5.1.0
 
 # Notifications

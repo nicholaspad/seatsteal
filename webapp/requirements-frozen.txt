@@ -61,7 +61,7 @@ python-jose==3.3.0
 python-multipart==0.0.6
 PyYAML==6.0.3
 realtime==2.5.3
-requests==2.31.0
+requests==2.32.4
 rsa==4.9.1
 s3transfer==0.10.4
 setuptools==65.5.0
