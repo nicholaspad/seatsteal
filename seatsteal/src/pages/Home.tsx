@@ -59,7 +59,13 @@ export default function Home() {
                   size="lg"
                   className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
                 >
-                  <a href="/login">Get started →</a>
+                  <a
+                    href="https://form.typeform.com/to/mi3IrgGR"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Request early access
+                  </a>
                 </Button>
                 <Button
                   asChild
