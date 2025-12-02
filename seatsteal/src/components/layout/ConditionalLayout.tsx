@@ -36,10 +36,10 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
       <Header className="flex-shrink-0 z-50" />
-      <main className="flex-1 relative" style={{ minHeight: 0 }}>
+      <main className="flex-1 relative">
         {children}
       </main>
-      <Footer className="flex-shrink-0 sticky bottom-0 z-40" />
+      <Footer className="flex-shrink-0" />
     </div>
   );
 }
