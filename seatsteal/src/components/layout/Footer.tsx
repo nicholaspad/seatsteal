@@ -14,19 +14,19 @@ export function Footer({ className }: FooterProps) {
           <div className="flex items-center space-x-6 text-xs">
             <Link
               to="/privacy"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-gray-400 hover:text-white transition-colors"
             >
               Privacy
             </Link>
             <Link
               to="/terms"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-gray-400 hover:text-white transition-colors"
             >
               Terms
             </Link>
             <a
               href="https://form.typeform.com/to/fz0mcjEn"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-gray-400 hover:text-white transition-colors"
               target="_blank"
               rel="noopener noreferrer"
             >
