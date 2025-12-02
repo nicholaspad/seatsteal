@@ -1,0 +1,25 @@
+# Dockerfile for running pytest with PostgreSQL
+FROM python:3.11-slim
+
+WORKDIR /webapp
+
+# Install system dependencies for psycopg2
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY requirements-full.txt .
+RUN pip install --no-cache-dir -r requirements-full.txt
+
+# Copy the webapp source code
+COPY . .
+
+# Set environment variables for testing
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHON_ENV=test
+
+# Default command runs pytest
+CMD ["pytest", "--tb=short"]
