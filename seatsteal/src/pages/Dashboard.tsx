@@ -1,6 +1,7 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useSession } from "@/components/providers/SessionProvider";
 import { UserDashboard } from "@/components/class/user-dashboard";
+import { Footer } from "@/components/layout/Footer";
 
 export default function Dashboard() {
   const { subscriptionTier, tierLoading } = useSession();
@@ -25,6 +26,9 @@ export default function Dashboard() {
             />
           )}
         </div>
+
+        {/* Footer */}
+        <Footer className="mt-auto" />
       </IonContent>
     </IonPage>
   );
