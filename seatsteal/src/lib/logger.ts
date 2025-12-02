@@ -53,27 +53,3 @@ export function logInfo(message: string, data?: unknown): void {
     console.info(message, data);
   }
 }
-
-/**
- * Log a debug message. Only logs in development.
- *
- * @param message - The debug message
- * @param data - Additional data
- */
-export function logDebug(message: string, data?: unknown): void {
-  if (isDevelopment) {
-    console.debug(message, data);
-  }
-}
-
-/**
- * Logger object that provides a unified logging interface.
- * Safe for production as it prevents information leakage.
- */
-export const logger = {
-  error: logError,
-  warn: logWarning,
-  warning: logWarning,
-  info: logInfo,
-  debug: logDebug,
-};

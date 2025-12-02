@@ -68,9 +68,6 @@ export function Header({ className }: HeaderProps) {
         "border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
         className,
       )}
-      style={{
-        paddingTop: "env(safe-area-inset-top, 0px)",
-      }}
     >
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">

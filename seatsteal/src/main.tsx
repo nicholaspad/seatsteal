@@ -9,8 +9,6 @@ import { Route, Redirect } from "react-router-dom";
 import { Toaster } from "sonner";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Analytics } from "@vercel/analytics/react";
-import { Capacitor } from "@capacitor/core";
-import { StatusBar, Style } from "@capacitor/status-bar";
 
 /* Core Ionic framework styles */
 import "@ionic/react/css/core.css";
@@ -66,16 +64,6 @@ import AdminNotifications from "@/pages/admin/AdminNotifications";
 import { ConditionalLayout } from "@/components/layout/ConditionalLayout";
 
 setupIonicReact();
-
-// Configure status bar for iOS devices with notch/Dynamic Island
-if (Capacitor.isNativePlatform()) {
-  StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {
-    // Ignore errors on platforms that don't support status bar
-  });
-  StatusBar.setStyle({ style: Style.Dark }).catch(() => {
-    // Ignore errors on platforms that don't support status bar
-  });
-}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -14,7 +14,6 @@ from models.early_access_email import EarlyAccessEmail
 from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
 from models.query_performance_metric import QueryPerformanceMetric
-from models.device_token import DeviceToken
 
 __all__ = [
     "Base",
@@ -31,5 +30,4 @@ __all__ = [
     "StripeCustomer",
     "StripeSubscription",
     "QueryPerformanceMetric",
-    "DeviceToken",
 ]

@@ -17,7 +17,6 @@ from api.routes import (
     notifications,
     stripe,
     user,
-    device_tokens,
 )
 from db.connection import init_db, close_db
 from api.middleware.security_headers import SecurityHeadersMiddleware
@@ -133,7 +132,6 @@ app.include_router(admin.router)
 app.include_router(notifications.router)
 app.include_router(stripe.router)
 app.include_router(user.router)
-app.include_router(device_tokens.router)
 
 
 @app.get("/health")
