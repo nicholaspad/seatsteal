@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, make_transient_to_detached
 from sqlalchemy import select
 from supabase import create_client, Client
 from typing import Optional
@@ -75,6 +75,7 @@ async def get_current_user(
             # CRITICAL: Merge the detached object into the current session
             # This attaches the object to the session and makes it tracked by SQLAlchemy
             # Without this, any modifications to the profile will not be persisted
+            make_transient_to_detached(profile)
             profile = db.merge(profile, load=False)
             return profile
 
