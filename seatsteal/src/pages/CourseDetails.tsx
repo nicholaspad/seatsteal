@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { IonPage, IonContent } from "@ionic/react";
 import { CourseDetailsClient } from "@/components/course/course-details-client";
+import { Footer } from "@/components/layout/Footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
@@ -103,6 +104,7 @@ export default function CourseDetails() {
     <IonPage>
       <IonContent>
         <CourseDetailsClient course={course} />
+        <Footer />
       </IonContent>
     </IonPage>
   );
