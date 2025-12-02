@@ -216,10 +216,10 @@ export function ClassCard({
                 {buttonLoading
                   ? "Processing..."
                   : isOpen
-                    ? "Get Notified"
+                    ? "Subscribe"
                     : isSubscribed
                       ? "Unsubscribe"
-                      : "Get Notified"}
+                      : "Subscribe"}
               </button>
             </div>
           )}
@@ -241,7 +241,6 @@ export function ClassCard({
         onClose={() => setShowConfirmModal(false)}
         onConfirm={handleConfirmSubscribe}
         isLoading={buttonLoading}
-        sectionCode={classData.sectionCode}
       />
     </Card>
   );

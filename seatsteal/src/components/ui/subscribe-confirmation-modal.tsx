@@ -7,16 +7,14 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
-import { Bell, Mail, MessageSquare } from "lucide-react";
+import { Mail, MessageSquare } from "lucide-react";
 
 interface SubscribeConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   isLoading: boolean;
-  sectionCode?: string | null;
 }
 
 export function SubscribeConfirmationModal({
@@ -24,23 +22,11 @@ export function SubscribeConfirmationModal({
   onClose,
   onConfirm,
   isLoading,
-  sectionCode,
 }: SubscribeConfirmationModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="p-6 max-w-md">
         <DialogHeader className="space-y-3">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Bell className="h-6 w-6 text-primary" />
-          </div>
-          <DialogTitle className="text-center">
-            Subscribe to Notifications
-            {sectionCode && (
-              <span className="block text-sm font-normal text-muted-foreground mt-1">
-                Section {sectionCode}
-              </span>
-            )}
-          </DialogTitle>
           <DialogDescription className="text-center">
             By subscribing, you agree to receive notifications when a seat
             becomes available in this class section.

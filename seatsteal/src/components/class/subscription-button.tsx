@@ -221,7 +221,7 @@ export function SubscriptionButton({
               className={cn("mr-2", size === "sm" ? "h-3 w-3" : "h-4 w-4")}
             />
           )}
-          Login to Get Notified
+          Login to Subscribe
         </>
       );
     }
@@ -234,7 +234,7 @@ export function SubscriptionButton({
               className={cn("mr-2", size === "sm" ? "h-3 w-3" : "h-4 w-4")}
             />
           )}
-          Get Notified
+          Subscribe
         </>
       );
     }
@@ -257,7 +257,7 @@ export function SubscriptionButton({
         {showIcon && (
           <Bell className={cn("mr-2", size === "sm" ? "h-3 w-3" : "h-4 w-4")} />
         )}
-        Get Notified
+        Subscribe
       </>
     );
   };
@@ -286,7 +286,7 @@ export function SubscriptionButton({
         )}
         aria-label={
           !user && isClosed
-            ? "Login required to get notified"
+            ? "Login required to subscribe"
             : !canSubscribe
               ? "Class is open, notifications not available"
               : optimisticState
@@ -307,7 +307,7 @@ export function SubscriptionButton({
       {(!canSubscribe || (!user && isClosed)) && (
         <p className="text-xs text-muted-foreground">
           {!user && isClosed
-            ? "Login required to get notified"
+            ? "Login required to subscribe"
             : isOpen
               ? "Class is currently open for enrollment"
               : "Notifications not available for this class"}
@@ -319,7 +319,6 @@ export function SubscriptionButton({
         onClose={() => setShowConfirmModal(false)}
         onConfirm={performSubscribe}
         isLoading={loading}
-        sectionCode={classData.sectionCode}
       />
     </div>
   );
