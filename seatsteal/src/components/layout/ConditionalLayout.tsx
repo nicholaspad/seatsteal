@@ -36,8 +36,8 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
       <Header className="flex-shrink-0 z-50" />
-      <main className="flex-1 relative">{children}</main>
-      <Footer className="mt-auto" />
+      <main className="flex-1 relative overflow-hidden">{children}</main>
+      <Footer className="flex-shrink-0 mt-auto" />
     </div>
   );
 }

@@ -7,26 +7,26 @@ interface FooterProps {
 
 export function Footer({ className }: FooterProps) {
   return (
-    <footer className={cn("border-t bg-black", className)}>
+    <footer className={cn("border-t bg-black pb-safe", className)}>
       <div className="container mx-auto px-4 py-2">
-        <div className="flex justify-center items-center">
+        <div className="flex justify-center items-center min-h-[40px]">
           {/* Links */}
-          <div className="flex items-center space-x-6 text-xs">
+          <div className="flex items-center gap-4 sm:gap-6 text-xs flex-wrap justify-center">
             <Link
               to="/privacy"
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-gray-400 hover:text-white transition-colors whitespace-nowrap"
             >
               Privacy
             </Link>
             <Link
               to="/terms"
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-gray-400 hover:text-white transition-colors whitespace-nowrap"
             >
               Terms
             </Link>
             <a
               href="https://form.typeform.com/to/fz0mcjEn"
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-gray-400 hover:text-white transition-colors whitespace-nowrap"
               target="_blank"
               rel="noopener noreferrer"
             >
