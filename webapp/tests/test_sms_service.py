@@ -186,81 +186,63 @@ class TestSMSServiceSending:
     """Test SMS sending with mocked Twilio client."""
 
     def test_send_success(self):
-        """Test successful SMS sending."""
-        os.environ["TWILIO_ACCOUNT_SID"] = "test_sid"
-        os.environ["TWILIO_AUTH_TOKEN"] = "test_token"
-        os.environ["TWILIO_FROM_NUMBER"] = "+15559999999"
-
-        with patch.dict("sys.modules", {"twilio.rest": MagicMock()}):
-            # Mock the Twilio Client
-            mock_client = MagicMock()
-            mock_message = MagicMock()
-            mock_message.sid = "SM123456"
-            mock_client.messages.create.return_value = mock_message
-
-            with patch("twilio.rest.Client", return_value=mock_client):
-                import importlib
-                import notifications.sms_service
-
-                importlib.reload(notifications.sms_service)
-                from notifications.sms_service import SMSService
-
-                service = SMSService()
-                # Manually set the client and from_number for testing
-                service.client = mock_client
-                service.from_number = "+15559999999"
-
-                result = service.send_course_notification(
-                    to_phone="+15551234567",
-                    course_code="CS101",
-                    section_code="A",
-                    college_name="Test University",
-                )
-
-                assert result is True
-                mock_client.messages.create.assert_called_once()
-                call_kwargs = mock_client.messages.create.call_args[1]
-                assert "+15551234567" == call_kwargs["to"]
-                assert "+15559999999" == call_kwargs["from_"]
-                assert "CS101" in call_kwargs["body"]
-                assert "SeatSteal" in call_kwargs["body"]
-
-        # Clean up
+        """Test successful SMS sending by directly injecting a mock client."""
         os.environ["TWILIO_ACCOUNT_SID"] = ""
         os.environ["TWILIO_AUTH_TOKEN"] = ""
         os.environ["TWILIO_FROM_NUMBER"] = ""
+
+        from notifications.sms_service import SMSService
+
+        # Create service (will be disabled since env vars are empty)
+        service = SMSService()
+
+        # Manually inject mock client to simulate enabled state
+        mock_client = MagicMock()
+        mock_message = MagicMock()
+        mock_message.sid = "SM123456"
+        mock_client.messages.create.return_value = mock_message
+
+        service.client = mock_client
+        service.from_number = "+15559999999"
+
+        result = service.send_course_notification(
+            to_phone="+15551234567",
+            course_code="CS101",
+            section_code="A",
+            college_name="Test University",
+        )
+
+        assert result is True
+        mock_client.messages.create.assert_called_once()
+        call_kwargs = mock_client.messages.create.call_args[1]
+        assert "+15551234567" == call_kwargs["to"]
+        assert "+15559999999" == call_kwargs["from_"]
+        assert "CS101" in call_kwargs["body"]
+        assert "SeatSteal" in call_kwargs["body"]
 
     def test_send_failure(self):
         """Test SMS sending failure."""
-        os.environ["TWILIO_ACCOUNT_SID"] = "test_sid"
-        os.environ["TWILIO_AUTH_TOKEN"] = "test_token"
-        os.environ["TWILIO_FROM_NUMBER"] = "+15559999999"
-
-        with patch.dict("sys.modules", {"twilio.rest": MagicMock()}):
-            mock_client = MagicMock()
-            mock_client.messages.create.side_effect = Exception("Twilio error")
-
-            with patch("twilio.rest.Client", return_value=mock_client):
-                import importlib
-                import notifications.sms_service
-
-                importlib.reload(notifications.sms_service)
-                from notifications.sms_service import SMSService
-
-                service = SMSService()
-                # Manually set the client for testing
-                service.client = mock_client
-
-                result = service.send_course_notification(
-                    to_phone="+15551234567",
-                    course_code="CS101",
-                    section_code="A",
-                    college_name="Test University",
-                )
-
-                assert result is False
-
-        # Clean up
         os.environ["TWILIO_ACCOUNT_SID"] = ""
         os.environ["TWILIO_AUTH_TOKEN"] = ""
         os.environ["TWILIO_FROM_NUMBER"] = ""
+
+        from notifications.sms_service import SMSService
+
+        # Create service (will be disabled since env vars are empty)
+        service = SMSService()
+
+        # Manually inject mock client that raises an exception
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = Exception("Twilio error")
+
+        service.client = mock_client
+        service.from_number = "+15559999999"
+
+        result = service.send_course_notification(
+            to_phone="+15551234567",
+            course_code="CS101",
+            section_code="A",
+            college_name="Test University",
+        )
+
+        assert result is False
