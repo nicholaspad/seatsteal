@@ -105,6 +105,52 @@
     }
     </script>
     
+    <!-- WebSite Schema with Sitelinks Search Box -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "SeatSteal",
+      "url": "https://seatsteal.com",
+      "description": "Course enrollment notification service - get notified when seats open",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://seatsteal.com/courses?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    
+    <!-- Site Navigation Schema for Sitelinks -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Courses",
+          "description": "Browse and search available courses at your university",
+          "url": "https://seatsteal.com/courses"
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Pricing",
+          "description": "View pricing plans - Free, Plus ($2/mo), and Pro ($5/mo)",
+          "url": "https://seatsteal.com/#pricing"
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Login",
+          "description": "Sign in to your SeatSteal account",
+          "url": "https://seatsteal.com/login"
+        }
+      ]
+    }
+    </script>
+    
     <!-- FAQ Schema for rich snippets -->
     <script type="application/ld+json">
     {

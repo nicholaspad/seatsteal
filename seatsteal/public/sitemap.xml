@@ -8,7 +8,7 @@
     <priority>1.0</priority>
   </url>
   
-  <!-- Courses page - main feature -->
+  <!-- Courses page - main feature (Sitelink) -->
   <url>
     <loc>https://seatsteal.com/courses</loc>
     <lastmod>2025-12-02</lastmod>
@@ -16,12 +16,20 @@
     <priority>0.9</priority>
   </url>
   
-  <!-- Login page -->
+  <!-- Pricing section (Sitelink) -->
+  <url>
+    <loc>https://seatsteal.com/#pricing</loc>
+    <lastmod>2025-12-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- Login page (Sitelink) -->
   <url>
     <loc>https://seatsteal.com/login</loc>
     <lastmod>2025-12-02</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
   
   <!-- Privacy Policy -->
