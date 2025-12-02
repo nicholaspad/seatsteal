@@ -48,7 +48,7 @@ async def get_courses(
     - Filter by college
     - Pagination
 
-    Caching: Results cached for 5 minutes (search queries) or 10 minutes (no search)
+    Caching: Results cached for 3 minutes (search queries) or 15 minutes (no search)
     """
     # Try to get from cache first
     cache_client = CacheClient.get_client()
@@ -246,8 +246,8 @@ async def get_courses(
         # Store in cache
         if cache_client and cache_key:
             try:
-                # Use shorter TTL for search queries (2 min), longer for listings (10 min)
-                ttl = 120 if q else 600
+                # Use shorter TTL for search queries (3 min), longer for listings (15 min)
+                ttl = 180 if q else 900
                 serialized = _serialize_for_cache(response)
                 cache_client.setex(cache_key, ttl, json.dumps(serialized))
                 logger.debug(f"Cached courses result: {cache_key} (TTL: {ttl}s)")
