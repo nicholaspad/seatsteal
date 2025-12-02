@@ -127,7 +127,7 @@ class ScraperCLI:
     ) -> Dict[str, int]:
         """
         Run scraper jobs for all active colleges concurrently.
-        
+
         Each scraper gets its own database session to prevent blocking.
         Connection pool is sized to handle concurrent scrapers (see db/connection.py).
 
@@ -175,7 +175,7 @@ class ScraperCLI:
         """
         Reset all scraper statuses to idle.
         This is useful on startup to clear any stuck or stale states.
-        
+
         Forces release of ALL database row locks by disposing of the connection pool
         and reinitializing it, ensuring a clean slate.
         """
@@ -185,7 +185,7 @@ class ScraperCLI:
             logger.info("🔓 Forcing release of all database row locks...")
             engine.dispose()
             logger.info("✅ All database connections disposed and locks released")
-            
+
             # Now proceed with resetting scrapers using a fresh connection
             with SessionLocal() as db:
                 # Use bulk update to avoid row-level locks
@@ -195,13 +195,13 @@ class ScraperCLI:
                     .values(status="idle", updated_at=datetime.now())
                 )
                 db.commit()
-                
+
                 reset_count = result.rowcount
                 if reset_count > 0:
                     logger.info(f"🔄 Reset {reset_count} scraper(s) to idle status")
                 else:
                     logger.info("✅ All scrapers already in idle status")
-                    
+
         except Exception as e:
             logger.error(f"❌ Error resetting scrapers: {e}")
             # Don't fail the startup, just log the error

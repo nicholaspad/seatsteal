@@ -75,7 +75,7 @@ async def create_stripe_checkout_session(
             db.add(stripe_customer)
             db.commit()
             db.refresh(stripe_customer)
-            
+
             # Invalidate user caches (profile and tier) after creating stripe customer
             invalidate_user_caches(str(user.id))
 
@@ -199,7 +199,7 @@ async def stripe_webhooks(
                         )
                         db.add(stripe_customer)
                         db.commit()
-                        
+
                         # Invalidate user caches (profile and tier) after creating stripe customer
                         invalidate_user_caches(str(user.id))
 
@@ -250,7 +250,7 @@ async def stripe_webhooks(
                         db.add(stripe_subscription)
 
                     db.commit()
-                    
+
                     # Invalidate user caches (profile and tier) after subscription change
                     invalidate_user_caches(str(stripe_customer.user_id))
 
@@ -268,7 +268,7 @@ async def stripe_webhooks(
             if stripe_subscription:
                 stripe_subscription.status = "canceled"
                 db.commit()
-                
+
                 # Invalidate user caches (profile and tier) after subscription cancellation
                 invalidate_user_caches(str(stripe_subscription.user_id))
 

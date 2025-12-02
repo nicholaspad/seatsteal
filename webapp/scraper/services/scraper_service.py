@@ -550,8 +550,8 @@ class ScraperService:
     ) -> int:
         """
         Batch insert or update enrollments with status-change detection.
-        
-        Only inserts new enrollment records when status changes. When status is 
+
+        Only inserts new enrollment records when status changes. When status is
         unchanged, updates the existing enrollment's scraped_at timestamp.
 
         Args:
@@ -568,22 +568,22 @@ class ScraperService:
             return 0
 
         scraped_at = datetime.now()
-        
+
         # Extract unique class_ids from enrollment data
         class_ids = list(set(e["class_id"] for e in enrollment_data_list))
-        
+
         # Fetch the most recent enrollment for each class_id (batch query)
         logger.debug(f"Fetching latest enrollments for {len(class_ids)} classes")
         latest_enrollments = self._get_latest_enrollments(class_ids)
-        
+
         # Separate enrollments into inserts (status changed) and updates (status unchanged)
         to_insert = []
         to_update_ids = []
-        
+
         for enrollment_data in enrollment_data_list:
             class_id = enrollment_data["class_id"]
             new_status = enrollment_data["enrollment_status"]
-            
+
             if class_id not in latest_enrollments:
                 # First enrollment for this class - insert it
                 enrollment_data["scraped_at"] = scraped_at
@@ -595,14 +595,14 @@ class ScraperService:
             else:
                 # Status unchanged - update existing record's timestamp
                 to_update_ids.append(latest_enrollments[class_id]["id"])
-        
+
         logger.info(
             f"Status-change detection: {len(to_insert)} inserts, "
             f"{len(to_update_ids)} timestamp updates"
         )
-        
+
         total_inserted = 0
-        
+
         # Process inserts in batches using bulk_insert_mappings
         if to_insert:
             for i in range(0, len(to_insert), batch_size):
@@ -641,18 +641,22 @@ class ScraperService:
                 logger.debug(
                     f"Inserted batch {i // batch_size + 1}: {len(batch)} enrollments"
                 )
-        
+
         # Process timestamp updates in batches
         if to_update_ids:
-            self._batch_update_enrollment_timestamps(to_update_ids, scraped_at, batch_size)
+            self._batch_update_enrollment_timestamps(
+                to_update_ids, scraped_at, batch_size
+            )
 
         logger.info(
             f"Batch processing complete: {total_inserted} enrollments inserted, "
             f"{len(to_update_ids)} timestamps updated"
         )
         return total_inserted
-    
-    def _get_latest_enrollments(self, class_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+
+    def _get_latest_enrollments(
+        self, class_ids: List[int]
+    ) -> Dict[int, Dict[str, Any]]:
         """
         Fetch the most recent enrollment for each class_id.
 
@@ -669,25 +673,27 @@ class ScraperService:
 
         # Use DISTINCT ON to get the most recent enrollment per class
         # This is a PostgreSQL-specific feature that's very efficient
-        query = text("""
+        query = text(
+            """
             SELECT DISTINCT ON (class_id) class_id, id, enrollment_status
             FROM enrollments
             WHERE class_id = ANY(:class_ids)
             ORDER BY class_id, scraped_at DESC
-        """)
+        """
+        )
 
         result = self._execute_with_retry(query, {"class_ids": class_ids})
-        
+
         latest_enrollments = {}
         for row in result:
             latest_enrollments[row[0]] = {  # class_id
                 "id": row[1],  # enrollment id
                 "status": row[2],  # enrollment_status
             }
-        
+
         logger.debug(f"Found {len(latest_enrollments)} existing enrollments")
         return latest_enrollments
-    
+
     def _batch_update_enrollment_timestamps(
         self, enrollment_ids: List[int], scraped_at: datetime, batch_size: int = 100
     ) -> int:
@@ -714,11 +720,13 @@ class ScraperService:
         for i in range(0, len(enrollment_ids), batch_size):
             batch_ids = enrollment_ids[i : i + batch_size]
 
-            query = text("""
+            query = text(
+                """
                 UPDATE enrollments
                 SET scraped_at = :scraped_at
                 WHERE id = ANY(:enrollment_ids)
-            """)
+            """
+            )
 
             result = self._execute_with_retry(
                 query, {"scraped_at": scraped_at, "enrollment_ids": batch_ids}

@@ -1025,7 +1025,7 @@ async def update_user(
 
         db.commit()
         db.refresh(user)
-        
+
         # Invalidate user caches (profile and tier) after update
         invalidate_user_caches(str(user.id))
 

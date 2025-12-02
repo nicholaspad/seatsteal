@@ -20,7 +20,7 @@ class TestCacheKeyGeneration:
         """Test that cache key has correct format."""
         user_id = str(uuid4())
         key = get_user_profile_cache_key(user_id)
-        
+
         assert key == f"user_profile:{user_id}"
         assert key.startswith("user_profile:")
 
@@ -28,10 +28,10 @@ class TestCacheKeyGeneration:
     def test_cache_key_consistency(self):
         """Test that same user_id always generates same key."""
         user_id = str(uuid4())
-        
+
         key1 = get_user_profile_cache_key(user_id)
         key2 = get_user_profile_cache_key(user_id)
-        
+
         assert key1 == key2
 
 
@@ -44,7 +44,7 @@ class TestCacheUserProfile:
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_redis = MagicMock()
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             profile_data = {
                 "id": user_id,
@@ -52,13 +52,13 @@ class TestCacheUserProfile:
                 "role": "user",
                 "college_id": 1,
             }
-            
+
             cache_user_profile(user_id, profile_data, ttl=300)
-            
+
             # Verify Redis setex was called with correct parameters
             mock_redis.setex.assert_called_once()
             call_args = mock_redis.setex.call_args
-            
+
             # Verify cache key
             assert call_args[0][0] == f"user_profile:{user_id}"
             # Verify TTL
@@ -72,10 +72,10 @@ class TestCacheUserProfile:
         """Test that caching gracefully handles Redis unavailability."""
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_get_client.return_value = None
-            
+
             user_id = str(uuid4())
             profile_data = {"id": user_id, "email": "test@example.com"}
-            
+
             # Should not raise exception
             cache_user_profile(user_id, profile_data, ttl=300)
 
@@ -86,10 +86,10 @@ class TestCacheUserProfile:
             mock_redis = MagicMock()
             mock_redis.setex.side_effect = Exception("Redis connection failed")
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             profile_data = {"id": user_id, "email": "test@example.com"}
-            
+
             # Should not raise exception
             cache_user_profile(user_id, profile_data, ttl=300)
 
@@ -106,13 +106,13 @@ class TestGetCachedUserProfile:
             cached_json = f'{{"id": "{user_id}", "email": "test@example.com"}}'
             mock_redis.get.return_value = cached_json
             mock_get_client.return_value = mock_redis
-            
+
             result = get_cached_user_profile(user_id)
-            
+
             assert result is not None
             assert result["id"] == user_id
             assert result["email"] == "test@example.com"
-            
+
             # Verify correct cache key was used
             mock_redis.get.assert_called_once_with(f"user_profile:{user_id}")
 
@@ -123,10 +123,10 @@ class TestGetCachedUserProfile:
             mock_redis = MagicMock()
             mock_redis.get.return_value = None
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             result = get_cached_user_profile(user_id)
-            
+
             assert result is None
 
     @pytest.mark.unit
@@ -134,10 +134,10 @@ class TestGetCachedUserProfile:
         """Test that retrieval handles Redis unavailability."""
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_get_client.return_value = None
-            
+
             user_id = str(uuid4())
             result = get_cached_user_profile(user_id)
-            
+
             assert result is None
 
     @pytest.mark.unit
@@ -147,10 +147,10 @@ class TestGetCachedUserProfile:
             mock_redis = MagicMock()
             mock_redis.get.side_effect = Exception("Redis connection failed")
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             result = get_cached_user_profile(user_id)
-            
+
             # Should return None instead of raising exception
             assert result is None
 
@@ -164,10 +164,10 @@ class TestInvalidateUserProfileCache:
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_redis = MagicMock()
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             invalidate_user_profile_cache(user_id)
-            
+
             # Verify Redis delete was called with correct key
             mock_redis.delete.assert_called_once_with(f"user_profile:{user_id}")
 
@@ -176,7 +176,7 @@ class TestInvalidateUserProfileCache:
         """Test that invalidation handles Redis unavailability."""
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_get_client.return_value = None
-            
+
             user_id = str(uuid4())
             # Should not raise exception
             invalidate_user_profile_cache(user_id)
@@ -188,7 +188,7 @@ class TestInvalidateUserProfileCache:
             mock_redis = MagicMock()
             mock_redis.delete.side_effect = Exception("Redis connection failed")
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             # Should not raise exception
             invalidate_user_profile_cache(user_id)
@@ -199,13 +199,13 @@ class TestInvalidateUserProfileCache:
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_redis = MagicMock()
             mock_get_client.return_value = mock_redis
-            
+
             user_id1 = str(uuid4())
             user_id2 = str(uuid4())
-            
+
             invalidate_user_profile_cache(user_id1)
             invalidate_user_profile_cache(user_id2)
-            
+
             # Verify both users were invalidated with correct keys
             assert mock_redis.delete.call_count == 2
             calls = [call[0][0] for call in mock_redis.delete.call_args_list]
@@ -222,31 +222,31 @@ class TestCacheInvalidationIntegration:
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_redis = MagicMock()
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             profile_data = {
                 "id": user_id,
                 "email": "test@example.com",
                 "role": "user",
             }
-            
+
             # Write to cache
             cache_user_profile(user_id, profile_data, ttl=300)
             assert mock_redis.setex.called
-            
+
             # Simulate read (mock Redis returning cached data)
             import json
+
             mock_redis.get.return_value = json.dumps(profile_data)
             cached = get_cached_user_profile(user_id)
             assert cached is not None
             assert cached["id"] == user_id
-            
+
             # Invalidate
             invalidate_user_profile_cache(user_id)
             assert mock_redis.delete.called
-            
+
             # Simulate cache miss after invalidation
             mock_redis.get.return_value = None
             cached_after = get_cached_user_profile(user_id)
             assert cached_after is None
-
