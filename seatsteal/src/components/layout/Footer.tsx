@@ -10,13 +10,14 @@ export function Footer({ className }: FooterProps) {
     <footer
       className={cn("border-t bg-black", className)}
       style={{
-        paddingBottom: "max(2rem, env(safe-area-inset-bottom, 2rem))",
+        paddingTop: "0.5rem",
+        paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))",
       }}
     >
-      <div className="container mx-auto px-4 pt-2">
-        <div className="flex justify-center items-center min-h-[40px]">
+      <div className="container mx-auto px-4">
+        <div className="flex justify-center items-center">
           {/* Links */}
-          <div className="flex items-center gap-4 sm:gap-6 text-xs flex-wrap justify-center">
+          <div className="flex items-center gap-4 sm:gap-6 text-xs flex-wrap justify-center py-1">
             <Link
               to="/privacy"
               className="text-gray-400 hover:text-white transition-colors whitespace-nowrap"
