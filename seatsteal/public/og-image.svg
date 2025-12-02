@@ -1,0 +1,37 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#000000"/>
+      <stop offset="100%" style="stop-color:#111111"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  
+  <!-- Decorative circles -->
+  <circle cx="100" cy="100" r="200" fill="#22c55e" opacity="0.1"/>
+  <circle cx="1100" cy="530" r="300" fill="#22c55e" opacity="0.05"/>
+  
+  <!-- Main content -->
+  <text x="600" y="220" text-anchor="middle" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="bold">
+    SeatSteal
+  </text>
+  
+  <text x="600" y="320" text-anchor="middle" fill="#9ca3af" font-family="system-ui, -apple-system, sans-serif" font-size="36">
+    Course Enrollment Notifications
+  </text>
+  
+  <!-- Tagline -->
+  <text x="600" y="420" text-anchor="middle" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="28">
+    Never miss a spot in your dream class.
+  </text>
+  
+  <!-- Notification indicator -->
+  <circle cx="600" cy="500" r="8" fill="#22c55e">
+    <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="600" y="545" text-anchor="middle" fill="#22c55e" font-family="system-ui, -apple-system, sans-serif" font-size="18">
+    Get notified when seats open
+  </text>
+</svg>

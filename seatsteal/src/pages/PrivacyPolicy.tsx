@@ -1,7 +1,11 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { Link } from "react-router-dom";
+import { useDocumentTitle, SEO_CONFIGS } from "@/hooks/use-document-title";
 
 export default function PrivacyPolicy() {
+  // SEO: Set document title and meta description
+  useDocumentTitle(SEO_CONFIGS.privacy);
+
   return (
     <IonPage>
       <IonContent>
