@@ -7,8 +7,13 @@ interface FooterProps {
 
 export function Footer({ className }: FooterProps) {
   return (
-    <footer className={cn("border-t bg-black pb-safe", className)}>
-      <div className="container mx-auto px-4 py-2">
+    <footer
+      className={cn("border-t bg-black", className)}
+      style={{
+        paddingBottom: "max(2rem, env(safe-area-inset-bottom, 2rem))",
+      }}
+    >
+      <div className="container mx-auto px-4 pt-2">
         <div className="flex justify-center items-center min-h-[40px]">
           {/* Links */}
           <div className="flex items-center gap-4 sm:gap-6 text-xs flex-wrap justify-center">

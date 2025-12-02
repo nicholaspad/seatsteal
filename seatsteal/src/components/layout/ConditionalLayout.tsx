@@ -1,5 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -31,11 +32,14 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
     return <main className="h-screen">{children}</main>;
   }
 
-  // Standard layout with header for both mobile and desktop
+  // Standard layout with header and footer for both mobile and desktop
   return (
     <div className="min-h-screen flex flex-col">
       <Header className="flex-shrink-0 z-50" />
-      <main className="flex-1 relative">{children}</main>
+      <main className="flex-1 relative" style={{ minHeight: 0 }}>
+        {children}
+      </main>
+      <Footer className="flex-shrink-0 sticky bottom-0 z-40" />
     </div>
   );
 }

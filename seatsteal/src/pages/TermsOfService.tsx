@@ -1,6 +1,5 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { Link } from "react-router-dom";
-import { Footer } from "@/components/layout/Footer";
 
 export default function TermsOfService() {
   return (
@@ -388,9 +387,6 @@ export default function TermsOfService() {
               </section>
             </div>
           </div>
-
-          {/* Footer */}
-          <Footer />
         </div>
       </IonContent>
     </IonPage>
