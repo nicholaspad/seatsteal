@@ -11,6 +11,8 @@ dist-ssr
 *.local
 */venv
 .coverage
+htmlcov/
+.pytest_cache/
 *.pem
 .vscode/*
 !.vscode/extensions.json
