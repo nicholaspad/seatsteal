@@ -15,7 +15,7 @@ export function Footer({ className }: FooterProps) {
     >
       <div className="container mx-auto px-4 py-3">
         <div className="flex justify-center items-center">
-          <div className="flex items-center space-x-6 text-sm">
+          <div className="flex items-center space-x-6 text-xs">
             <Link
               to="/privacy"
               className="text-muted-foreground hover:text-foreground transition-colors"
