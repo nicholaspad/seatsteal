@@ -4,13 +4,20 @@
 User-agent: *
 Allow: /
 
-# Disallow private routes
+# Block all admin routes (including subpaths)
 Disallow: /admin
+Disallow: /admin/
+
+# Block auth and login routes
 Disallow: /auth/
 Disallow: /login-admin
+
+# Block protected user routes
 Disallow: /dashboard
 Disallow: /settings
 Disallow: /select-college
+
+# Block utility/error pages
 Disallow: /verify-request
 Disallow: /error
 Disallow: /offline
