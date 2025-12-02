@@ -95,7 +95,9 @@ def test_first_enrollment_insert(
     assert inserted == 1
 
     # Check database
-    enrollments = test_db.query(Enrollment).filter_by(class_id=test_class.class_id).all()
+    enrollments = (
+        test_db.query(Enrollment).filter_by(class_id=test_class.class_id).all()
+    )
     assert len(enrollments) == 1
     assert enrollments[0].enrollment_status == "closed"
 
@@ -226,7 +228,9 @@ def test_status_unchanged_updates_timestamp(
     assert inserted == 0
 
     # Check database - should still have only 1 enrollment
-    enrollments = test_db.query(Enrollment).filter_by(class_id=test_class.class_id).all()
+    enrollments = (
+        test_db.query(Enrollment).filter_by(class_id=test_class.class_id).all()
+    )
     assert len(enrollments) == 1
 
     # But timestamp should be updated
@@ -272,7 +276,9 @@ def test_status_unchanged_open_updates_timestamp(
     assert inserted == 0
 
     # Check database - should still have only 1 enrollment
-    enrollments = test_db.query(Enrollment).filter_by(class_id=test_class.class_id).all()
+    enrollments = (
+        test_db.query(Enrollment).filter_by(class_id=test_class.class_id).all()
+    )
     assert len(enrollments) == 1
 
     # But timestamp should be updated
@@ -374,14 +380,20 @@ def test_batch_with_mixed_scenarios(
     assert class1_enrollments[1].enrollment_status == "open"
 
     # Verify class2 - should still have 1 enrollment with updated timestamp
-    class2_enrollments = test_db.query(Enrollment).filter_by(class_id=class2.class_id).all()
+    class2_enrollments = (
+        test_db.query(Enrollment).filter_by(class_id=class2.class_id).all()
+    )
     assert len(class2_enrollments) == 1
     test_db.refresh(class2_enrollments[0])
     assert class2_enrollments[0].enrollment_status == "open"
-    assert class2_enrollments[0].scraped_at > datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    assert class2_enrollments[0].scraped_at > datetime(
+        2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc
+    )
 
     # Verify class3 - should have 1 enrollment (first insert)
-    class3_enrollments = test_db.query(Enrollment).filter_by(class_id=class3.class_id).all()
+    class3_enrollments = (
+        test_db.query(Enrollment).filter_by(class_id=class3.class_id).all()
+    )
     assert len(class3_enrollments) == 1
     assert class3_enrollments[0].enrollment_status == "closed"
 
@@ -440,4 +452,3 @@ def test_get_latest_enrollments_empty_list(
     """Test _get_latest_enrollments with empty list."""
     latest = scraper_service._get_latest_enrollments([])
     assert latest == {}
-

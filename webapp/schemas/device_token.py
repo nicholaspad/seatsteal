@@ -28,4 +28,3 @@ class DeviceTokenResponse(DeviceTokenBase):
     updated_at: datetime = Field(..., alias="updatedAt")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-

@@ -15,11 +15,11 @@ class DeviceToken(Base):
     )
     token = Column(String, nullable=False, unique=True, index=True)
     platform = Column(String, nullable=False)  # 'ios' or 'android'
-    
+
     # Status tracking
     is_active = Column(Boolean, default=True, nullable=False)
     last_used_at = Column(DateTime(timezone=True))
-    
+
     # Metadata
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -36,4 +36,3 @@ class DeviceToken(Base):
         Index("device_tokens_user_active_idx", "user_id", "is_active"),
         Index("device_tokens_token_idx", "token", unique=True),
     )
-

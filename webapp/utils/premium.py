@@ -39,12 +39,12 @@ TIER_FEATURES = {
 def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
     """Get the subscription tier for a user based on their active Stripe subscription"""
     user_id_str = str(user_id)
-    
+
     # Try to get tier from cache first (300s TTL)
     cached_tier = get_cached_user_tier(user_id_str)
     if cached_tier:
         return cached_tier  # type: ignore
-    
+
     # Cache miss - query for active Stripe subscription
     result = db.execute(
         select(StripeSubscription)
@@ -63,10 +63,10 @@ def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
         tier = "free"
     else:
         tier = subscription.tier  # type: ignore
-    
+
     # Cache the tier for future requests (300s TTL)
     cache_user_tier(user_id_str, tier, ttl=300)
-    
+
     return tier  # type: ignore
 
 

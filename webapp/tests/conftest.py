@@ -56,7 +56,7 @@ import getpass
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    f"postgresql+psycopg2://{getpass.getuser()}@localhost:5432/seatsteal_test",
+    f"postgresql+psycopg2://{getpass.getuser()}:test@localhost:5432/seatsteal_test",
 )
 
 

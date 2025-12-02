@@ -21,7 +21,7 @@ class TestTierCacheKeyGeneration:
         """Test that tier cache key has correct format."""
         user_id = str(uuid4())
         key = get_user_tier_cache_key(user_id)
-        
+
         assert key == f"user_tier:{user_id}"
         assert key.startswith("user_tier:")
 
@@ -29,10 +29,10 @@ class TestTierCacheKeyGeneration:
     def test_tier_cache_key_consistency(self):
         """Test that same user_id always generates same key."""
         user_id = str(uuid4())
-        
+
         key1 = get_user_tier_cache_key(user_id)
         key2 = get_user_tier_cache_key(user_id)
-        
+
         assert key1 == key2
 
 
@@ -45,16 +45,16 @@ class TestCacheUserTier:
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_redis = MagicMock()
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             tier = "pro"
-            
+
             cache_user_tier(user_id, tier, ttl=300)
-            
+
             # Verify Redis setex was called with correct parameters
             mock_redis.setex.assert_called_once()
             call_args = mock_redis.setex.call_args
-            
+
             # Verify cache key
             assert call_args[0][0] == f"user_tier:{user_id}"
             # Verify TTL
@@ -68,12 +68,12 @@ class TestCacheUserTier:
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_redis = MagicMock()
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
-            
+
             for tier in ["free", "plus", "pro"]:
                 cache_user_tier(user_id, tier, ttl=300)
-                
+
                 # Get the last call
                 call_args = mock_redis.setex.call_args
                 assert call_args[0][2] == tier
@@ -83,7 +83,7 @@ class TestCacheUserTier:
         """Test that caching gracefully handles Redis unavailability."""
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_get_client.return_value = None
-            
+
             user_id = str(uuid4())
             # Should not raise exception
             cache_user_tier(user_id, "pro", ttl=300)
@@ -95,7 +95,7 @@ class TestCacheUserTier:
             mock_redis = MagicMock()
             mock_redis.setex.side_effect = Exception("Redis connection failed")
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             # Should not raise exception
             cache_user_tier(user_id, "plus", ttl=300)
@@ -112,11 +112,11 @@ class TestGetCachedUserTier:
             user_id = str(uuid4())
             mock_redis.get.return_value = "pro"
             mock_get_client.return_value = mock_redis
-            
+
             result = get_cached_user_tier(user_id)
-            
+
             assert result == "pro"
-            
+
             # Verify correct cache key was used
             mock_redis.get.assert_called_once_with(f"user_tier:{user_id}")
 
@@ -127,10 +127,10 @@ class TestGetCachedUserTier:
             mock_redis = MagicMock()
             mock_redis.get.return_value = None
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             result = get_cached_user_tier(user_id)
-            
+
             assert result is None
 
     @pytest.mark.unit
@@ -138,10 +138,10 @@ class TestGetCachedUserTier:
         """Test that retrieval handles Redis unavailability."""
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_get_client.return_value = None
-            
+
             user_id = str(uuid4())
             result = get_cached_user_tier(user_id)
-            
+
             assert result is None
 
     @pytest.mark.unit
@@ -151,10 +151,10 @@ class TestGetCachedUserTier:
             mock_redis = MagicMock()
             mock_redis.get.side_effect = Exception("Redis connection failed")
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             result = get_cached_user_tier(user_id)
-            
+
             # Should return None instead of raising exception
             assert result is None
 
@@ -168,10 +168,10 @@ class TestInvalidateUserTierCache:
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_redis = MagicMock()
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             invalidate_user_tier_cache(user_id)
-            
+
             # Verify Redis delete was called with correct key
             mock_redis.delete.assert_called_once_with(f"user_tier:{user_id}")
 
@@ -180,7 +180,7 @@ class TestInvalidateUserTierCache:
         """Test that invalidation handles Redis unavailability."""
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_get_client.return_value = None
-            
+
             user_id = str(uuid4())
             # Should not raise exception
             invalidate_user_tier_cache(user_id)
@@ -192,7 +192,7 @@ class TestInvalidateUserTierCache:
             mock_redis = MagicMock()
             mock_redis.delete.side_effect = Exception("Redis connection failed")
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             # Should not raise exception
             invalidate_user_tier_cache(user_id)
@@ -204,12 +204,15 @@ class TestInvalidateUserCaches:
     @pytest.mark.unit
     def test_invalidate_user_caches_invalidates_both(self):
         """Test that invalidate_user_caches invalidates both profile and tier."""
-        with patch("utils.cache.invalidate_user_profile_cache") as mock_invalidate_profile, \
-             patch("utils.cache.invalidate_user_tier_cache") as mock_invalidate_tier:
-            
+        with patch(
+            "utils.cache.invalidate_user_profile_cache"
+        ) as mock_invalidate_profile, patch(
+            "utils.cache.invalidate_user_tier_cache"
+        ) as mock_invalidate_tier:
+
             user_id = str(uuid4())
             invalidate_user_caches(user_id)
-            
+
             # Verify both invalidation functions were called
             mock_invalidate_profile.assert_called_once_with(user_id)
             mock_invalidate_tier.assert_called_once_with(user_id)
@@ -217,17 +220,20 @@ class TestInvalidateUserCaches:
     @pytest.mark.unit
     def test_invalidate_user_caches_continues_on_error(self):
         """Test that invalidate_user_caches continues even if one fails."""
-        with patch("utils.cache.invalidate_user_profile_cache") as mock_invalidate_profile, \
-             patch("utils.cache.invalidate_user_tier_cache") as mock_invalidate_tier:
-            
+        with patch(
+            "utils.cache.invalidate_user_profile_cache"
+        ) as mock_invalidate_profile, patch(
+            "utils.cache.invalidate_user_tier_cache"
+        ) as mock_invalidate_tier:
+
             # Make profile invalidation raise an error
             mock_invalidate_profile.side_effect = Exception("Profile cache error")
-            
+
             user_id = str(uuid4())
-            
+
             # Should not raise exception, and should still call tier invalidation
             invalidate_user_caches(user_id)
-            
+
             # Both should have been called
             mock_invalidate_profile.assert_called_once_with(user_id)
             mock_invalidate_tier.assert_called_once_with(user_id)
@@ -242,25 +248,24 @@ class TestTierCacheIntegration:
         with patch("utils.cache.CacheClient.get_client") as mock_get_client:
             mock_redis = MagicMock()
             mock_get_client.return_value = mock_redis
-            
+
             user_id = str(uuid4())
             tier = "plus"
-            
+
             # Write to cache
             cache_user_tier(user_id, tier, ttl=300)
             assert mock_redis.setex.called
-            
+
             # Simulate read (mock Redis returning cached tier)
             mock_redis.get.return_value = tier
             cached = get_cached_user_tier(user_id)
             assert cached == tier
-            
+
             # Invalidate
             invalidate_user_tier_cache(user_id)
             assert mock_redis.delete.called
-            
+
             # Simulate cache miss after invalidation
             mock_redis.get.return_value = None
             cached_after = get_cached_user_tier(user_id)
             assert cached_after is None
-

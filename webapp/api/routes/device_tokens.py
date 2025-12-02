@@ -121,16 +121,20 @@ async def get_device_tokens(
 ):
     """Get all active device tokens for the authenticated user"""
     try:
-        tokens = db.execute(
-            select(DeviceToken)
-            .where(
-                and_(
-                    DeviceToken.user_id == user.id,
-                    DeviceToken.is_active == True,
+        tokens = (
+            db.execute(
+                select(DeviceToken)
+                .where(
+                    and_(
+                        DeviceToken.user_id == user.id,
+                        DeviceToken.is_active == True,
+                    )
                 )
+                .order_by(DeviceToken.created_at.desc())
             )
-            .order_by(DeviceToken.created_at.desc())
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         return {
             "success": True,
@@ -139,4 +143,3 @@ async def get_device_tokens(
 
     except Exception as e:
         log_and_raise_500("Failed to fetch device tokens", e)
-

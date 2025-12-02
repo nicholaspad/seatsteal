@@ -218,7 +218,7 @@ class ScraperJob:
                     logger.error(
                         f"❌ Attempt {attempt}/{self.config.retry_attempts} failed for {self.college.name}: {last_error}"
                     )
-                    
+
                     # Don't wait after the last attempt
                     if attempt < self.config.retry_attempts:
                         # Exponential backoff

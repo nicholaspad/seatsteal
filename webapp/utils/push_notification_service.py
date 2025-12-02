@@ -254,4 +254,3 @@ class PushNotificationService:
         }
 
         return cls.send_batch_push_notifications(tokens, title, body, data)
-

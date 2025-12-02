@@ -210,7 +210,10 @@ class TestCheckEarlyAccess:
         client: AsyncClient,
         test_db: Session,
     ):
-        """Test checking early access for user without access."""
+        """Test checking early access for user without access.
+
+        Note: Early access checks are currently disabled - all users have access.
+        """
         email = "nouser@example.edu"
 
         response = await client.post(
@@ -220,7 +223,8 @@ class TestCheckEarlyAccess:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["hasEarlyAccess"] is False
+        # Early access is temporarily disabled - all users have access
+        assert data["hasEarlyAccess"] is True
         assert data["email"] == email
 
     @pytest.mark.unit
@@ -229,7 +233,10 @@ class TestCheckEarlyAccess:
         client: AsyncClient,
         test_db: Session,
     ):
-        """Test checking early access for inactive entry."""
+        """Test checking early access for inactive entry.
+
+        Note: Early access checks are currently disabled - all users have access.
+        """
         email = "inactive@example.edu"
 
         # Create inactive early access entry
@@ -247,21 +254,27 @@ class TestCheckEarlyAccess:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["hasEarlyAccess"] is False
+        # Early access is temporarily disabled - all users have access
+        assert data["hasEarlyAccess"] is True
 
     @pytest.mark.unit
     async def test_check_early_access_invalid_email(
         self,
         client: AsyncClient,
     ):
-        """Test checking early access with non-.edu email."""
+        """Test checking early access with non-.edu email.
+
+        Note: .edu validation is currently disabled - all emails are accepted.
+        """
         response = await client.post(
             "/api/auth/check-early-access",
             json={"email": "notanedu@gmail.com"},
         )
 
-        assert response.status_code == 400
-        assert ".edu" in response.json()["detail"]
+        # .edu validation is temporarily disabled - all emails are accepted
+        assert response.status_code == 200
+        data = response.json()
+        assert data["hasEarlyAccess"] is True
 
     @pytest.mark.unit
     async def test_check_early_access_invalid_email_format(

@@ -47,15 +47,13 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    
+
     # Create indexes
     op.create_index(op.f("ix_device_tokens_id"), "device_tokens", ["id"], unique=False)
     op.create_index(
         op.f("ix_device_tokens_user_id"), "device_tokens", ["user_id"], unique=False
     )
-    op.create_index(
-        "device_tokens_token_idx", "device_tokens", ["token"], unique=True
-    )
+    op.create_index("device_tokens_token_idx", "device_tokens", ["token"], unique=True)
     op.create_index(
         "device_tokens_user_active_idx",
         "device_tokens",
@@ -70,7 +68,6 @@ def downgrade() -> None:
     op.drop_index("device_tokens_token_idx", table_name="device_tokens")
     op.drop_index(op.f("ix_device_tokens_user_id"), table_name="device_tokens")
     op.drop_index(op.f("ix_device_tokens_id"), table_name="device_tokens")
-    
+
     # Drop table
     op.drop_table("device_tokens")
-

@@ -35,7 +35,7 @@ def upgrade() -> None:
         table growth by ~90% while preserving all meaningful status transitions.'
         """
     )
-    
+
     # Add comment to scraped_at column explaining its dual purpose
     op.execute(
         """
@@ -50,4 +50,3 @@ def downgrade() -> None:
     # Remove comments
     op.execute("COMMENT ON TABLE enrollments IS NULL")
     op.execute("COMMENT ON COLUMN enrollments.scraped_at IS NULL")
-

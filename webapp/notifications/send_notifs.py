@@ -49,7 +49,7 @@ class NotificationJob:
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
         self.email_service = EmailService()
-        
+
         # Initialize push notification service
         PushNotificationService.initialize()
 
@@ -317,14 +317,18 @@ class NotificationJob:
         try:
             # Get all active device tokens for the user
             with SessionLocal() as db:
-                device_tokens = db.execute(
-                    select(DeviceToken).where(
-                        and_(
-                            DeviceToken.user_id == user_id,
-                            DeviceToken.is_active == True,
+                device_tokens = (
+                    db.execute(
+                        select(DeviceToken).where(
+                            and_(
+                                DeviceToken.user_id == user_id,
+                                DeviceToken.is_active == True,
+                            )
                         )
                     )
-                ).scalars().all()
+                    .scalars()
+                    .all()
+                )
 
                 if not device_tokens:
                     logger.debug(f"No device tokens found for user {user_id}")
@@ -350,6 +354,7 @@ class NotificationJob:
                 # Update last_used_at for successful sends
                 if result["success"] > 0:
                     from datetime import datetime
+
                     for dt in device_tokens:
                         dt.last_used_at = datetime.utcnow()
                     db.commit()
