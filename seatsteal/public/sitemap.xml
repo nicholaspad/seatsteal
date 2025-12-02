@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- Homepage - highest priority -->
+  <!-- Homepage (includes Pricing section) -->
   <url>
     <loc>https://seatsteal.com/</loc>
     <lastmod>2025-12-02</lastmod>
@@ -8,7 +8,7 @@
     <priority>1.0</priority>
   </url>
   
-  <!-- Courses page - main feature (Sitelink) -->
+  <!-- Courses page - main feature -->
   <url>
     <loc>https://seatsteal.com/courses</loc>
     <lastmod>2025-12-02</lastmod>
@@ -16,15 +16,7 @@
     <priority>0.9</priority>
   </url>
   
-  <!-- Pricing section (Sitelink) -->
-  <url>
-    <loc>https://seatsteal.com/#pricing</loc>
-    <lastmod>2025-12-02</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  
-  <!-- Login page (Sitelink) -->
+  <!-- Login page -->
   <url>
     <loc>https://seatsteal.com/login</loc>
     <lastmod>2025-12-02</lastmod>

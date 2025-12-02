@@ -230,4 +230,32 @@ The main areas for improvement are:
 
 ---
 
+---
+
+## Action Item: Create OG Image
+
+The SEO implementation references `og-image.png` for social sharing. You need to create this image:
+
+1. **Source file:** `seatsteal/public/og-image.svg` (template provided)
+2. **Required output:** `seatsteal/public/og-image.png` (1200x630 pixels)
+
+**To convert:**
+```bash
+# Using Inkscape
+inkscape og-image.svg -w 1200 -h 630 -o og-image.png
+
+# Using ImageMagick
+convert -background none -size 1200x630 og-image.svg og-image.png
+
+# Or use online tools like Cloudconvert, SVG2PNG, etc.
+```
+
+Alternatively, design a custom OG image using Figma, Canva, or similar tools with:
+- Dimensions: 1200 x 630 pixels
+- Brand name "SeatSteal" prominently displayed
+- Tagline: "Get notified when seats open"
+- Dark background matching the site theme
+
+---
+
 *This analysis is based on publicly available information and industry knowledge as of December 2025. Competitor pricing and features may have changed.*

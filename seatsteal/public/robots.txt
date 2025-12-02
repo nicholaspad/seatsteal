@@ -3,14 +3,10 @@
 
 User-agent: *
 Allow: /
-Allow: /courses
-Allow: /privacy
-Allow: /terms
 
-# Disallow admin and auth routes
+# Disallow private routes
 Disallow: /admin
-Disallow: /admin/*
-Disallow: /auth/*
+Disallow: /auth/
 Disallow: /login-admin
 Disallow: /dashboard
 Disallow: /settings
@@ -21,16 +17,3 @@ Disallow: /offline
 
 # Sitemap location
 Sitemap: https://seatsteal.com/sitemap.xml
-
-# Crawl-delay for respectful crawling
-Crawl-delay: 1
-
-# Google specific
-User-agent: Googlebot
-Allow: /
-Crawl-delay: 0
-
-# Bing specific
-User-agent: Bingbot
-Allow: /
-Crawl-delay: 1

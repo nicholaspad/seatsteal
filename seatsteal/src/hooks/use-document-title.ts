@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 
 const BASE_TITLE = "SeatSteal";
-const DEFAULT_DESCRIPTION =
-  "Never miss a spot in your dream class. SeatSteal monitors college course availability and sends instant notifications when seats open.";
 
 interface DocumentMetaOptions {
   title: string;
@@ -11,7 +9,11 @@ interface DocumentMetaOptions {
 }
 
 /**
- * Updates the document title and meta description for SEO
+ * Updates the document title and meta description for SEO.
+ * Note: For SPAs, search engines primarily use the initial HTML meta tags.
+ * This hook improves user experience by updating the browser tab title
+ * and can help with social sharing if users share from specific pages.
+ *
  * @param options - Title and optional description
  */
 export function useDocumentTitle({
@@ -58,14 +60,8 @@ export function useDocumentTitle({
       twitterDescription.setAttribute("content", description);
     }
 
-    // Cleanup - restore defaults on unmount
-    return () => {
-      document.title = `${BASE_TITLE} - Course Enrollment Notifications | Get Notified When Seats Open`;
-      const metaDesc = document.querySelector('meta[name="description"]');
-      if (metaDesc) {
-        metaDesc.setAttribute("content", DEFAULT_DESCRIPTION);
-      }
-    };
+    // No cleanup needed - let each page set its own title
+    // The initial HTML already has good defaults for crawlers
   }, [title, description, suffix]);
 }
 
