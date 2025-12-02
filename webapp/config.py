@@ -80,6 +80,16 @@ class Settings(BaseSettings):
     STRIPE_PRO_PRICE_ID: str = ""
     """Stripe price ID for Pro tier subscription"""
 
+    # Twilio SMS
+    TWILIO_ACCOUNT_SID: str = ""
+    """Twilio account SID for SMS notifications"""
+
+    TWILIO_AUTH_TOKEN: str = ""
+    """Twilio auth token for SMS notifications"""
+
+    TWILIO_FROM_NUMBER: str = ""
+    """Twilio phone number to send SMS from (E.164 format, e.g., +15551234567)"""
+
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),
         case_sensitive=True,
@@ -151,6 +161,15 @@ class Settings(BaseSettings):
     def is_test(self) -> bool:
         """Check if running in test environment"""
         return self.PYTHON_ENV == "test"
+
+    @property
+    def twilio_enabled(self) -> bool:
+        """Check if Twilio SMS is configured"""
+        return bool(
+            self.TWILIO_ACCOUNT_SID
+            and self.TWILIO_AUTH_TOKEN
+            and self.TWILIO_FROM_NUMBER
+        )
 
     @property
     def effective_frontend_url(self) -> str:
