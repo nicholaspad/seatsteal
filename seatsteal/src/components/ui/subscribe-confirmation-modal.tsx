@@ -33,7 +33,7 @@ export function SubscribeConfirmationModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-4">
+        <div className="space-y-3 pt-3">
           <div className="flex items-start gap-3 text-sm">
             <Mail className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
             <p className="text-muted-foreground">
