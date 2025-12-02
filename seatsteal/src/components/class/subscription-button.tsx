@@ -8,6 +8,7 @@ import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Bell, BellOff, AlertCircle, LogIn, ExternalLink } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { SubscribeConfirmationModal } from "@/components/ui/subscribe-confirmation-modal";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { ClassWithEnrollment, SubscriptionRequest } from "@/types/api";
@@ -39,6 +40,7 @@ export function SubscriptionButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optimisticState, setOptimisticState] = useState(isSubscribed);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const enrollment = classData.currentEnrollment;
   const isOpen = enrollment?.enrollmentStatus.toLowerCase() === "open";
@@ -58,95 +60,128 @@ export function SubscriptionButton({
 
     if (!canSubscribe) return;
 
+    // If subscribing, show confirmation modal first
+    if (!optimisticState) {
+      setShowConfirmModal(true);
+      return;
+    }
+
+    // If unsubscribing, proceed directly
+    await performUnsubscribe();
+  };
+
+  const performSubscribe = async () => {
+    setLoading(true);
+    setError(null);
+    setShowConfirmModal(false);
+
+    // Optimistic update
+    setOptimisticState(true);
+
+    try {
+      const request: SubscriptionRequest = {
+        classId: classData.classId,
+        collegeId,
+      };
+
+      const response = await fetchWithToasts("/api/subscriptions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        // Check if this is a subscription limit error
+        if (response.status === 400) {
+          const errorData = await response.json();
+          const errorMessage =
+            errorData.error || errorData.message || "Failed to subscribe";
+
+          // Check if the error message contains subscription limit information
+          if (errorMessage.includes("subscription limit")) {
+            // Customize message based on user's current tier
+            let upgradeMessage = "";
+            let showUpgradeButton = true;
+
+            if (userTier === "free") {
+              upgradeMessage = "Upgrade to Plus/Pro for more!";
+            } else if (userTier === "plus") {
+              upgradeMessage = "Upgrade to Pro for more!";
+            } else if (userTier === "pro") {
+              upgradeMessage = "";
+              showUpgradeButton = false;
+            }
+
+            // Show custom toast with tier-specific upgrade message
+            toast.error(
+              <div className="space-y-2">
+                <p className="font-medium text-sm">
+                  You've reached your subscription limit. {upgradeMessage}
+                </p>
+                {showUpgradeButton && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-1 text-xs"
+                    onClick={() => window.open("/#pricing", "_blank")}
+                  >
+                    View pricing <ExternalLink className="ml-1 h-3 w-3" />
+                  </Button>
+                )}
+              </div>,
+              {
+                duration: 5000,
+              },
+            );
+
+            // Revert optimistic update
+            setOptimisticState(isSubscribed);
+            return;
+          }
+        }
+        throw new Error("Failed to subscribe");
+      }
+
+      // Notify parent component of successful change
+      onSubscriptionChange?.(classData.classId, true);
+    } catch (err) {
+      if (err instanceof ServerErrorWithToast) {
+        // Revert optimistic update on error
+        setOptimisticState(isSubscribed);
+        return; // Toast already shown
+      }
+      setError(err instanceof Error ? err.message : "An error occurred");
+
+      // Revert optimistic update on error
+      setOptimisticState(isSubscribed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const performUnsubscribe = async () => {
     setLoading(true);
     setError(null);
 
     // Optimistic update
-    const newSubscriptionState = !optimisticState;
-    setOptimisticState(newSubscriptionState);
+    setOptimisticState(false);
 
     try {
-      if (newSubscriptionState) {
-        // Subscribe
-        const request: SubscriptionRequest = {
-          classId: classData.classId,
-          collegeId,
-        };
+      const response = await fetchWithToasts(
+        `/api/subscriptions/${classData.classId}`,
+        {
+          method: "DELETE",
+        },
+      );
 
-        const response = await fetchWithToasts("/api/subscriptions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(request),
-        });
-
-        if (!response.ok) {
-          // Check if this is a subscription limit error
-          if (response.status === 400) {
-            const errorData = await response.json();
-            const errorMessage =
-              errorData.error || errorData.message || "Failed to subscribe";
-
-            // Check if the error message contains subscription limit information
-            if (errorMessage.includes("subscription limit")) {
-              // Customize message based on user's current tier
-              let upgradeMessage = "";
-              let showUpgradeButton = true;
-
-              if (userTier === "free") {
-                upgradeMessage = "Upgrade to Plus/Pro for more!";
-              } else if (userTier === "plus") {
-                upgradeMessage = "Upgrade to Pro for more!";
-              } else if (userTier === "pro") {
-                upgradeMessage = "";
-                showUpgradeButton = false;
-              }
-
-              // Show custom toast with tier-specific upgrade message
-              toast.error(
-                <div className="space-y-2">
-                  <p className="font-medium text-sm">
-                    You've reached your subscription limit. {upgradeMessage}
-                  </p>
-                  {showUpgradeButton && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto p-1 text-xs"
-                      onClick={() => window.open("/#pricing", "_blank")}
-                    >
-                      View pricing <ExternalLink className="ml-1 h-3 w-3" />
-                    </Button>
-                  )}
-                </div>,
-                {
-                  duration: 5000,
-                },
-              );
-
-              // Revert optimistic update
-              setOptimisticState(isSubscribed);
-              return;
-            }
-          }
-          throw new Error("Failed to subscribe");
-        }
-      } else {
-        const response = await fetchWithToasts(
-          `/api/subscriptions/${classData.classId}`,
-          {
-            method: "DELETE",
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to unsubscribe");
-        }
+      if (!response.ok) {
+        throw new Error("Failed to unsubscribe");
       }
 
       // Notify parent component of successful change
-      onSubscriptionChange?.(classData.classId, newSubscriptionState);
+      onSubscriptionChange?.(classData.classId, false);
     } catch (err) {
       if (err instanceof ServerErrorWithToast) {
         // Revert optimistic update on error
@@ -278,6 +313,14 @@ export function SubscriptionButton({
               : "Notifications not available for this class"}
         </p>
       )}
+
+      <SubscribeConfirmationModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={performSubscribe}
+        isLoading={loading}
+        sectionCode={classData.sectionCode}
+      />
     </div>
   );
 }

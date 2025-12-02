@@ -52,6 +52,7 @@ import Dashboard from "@/pages/Dashboard";
 import Settings from "@/pages/Settings";
 import Offline from "@/pages/Offline";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import TermsOfService from "@/pages/TermsOfService";
 
 /* Admin Pages */
 import Admin from "@/pages/admin/Admin";
@@ -79,6 +80,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route exact path="/courses" component={Courses} />
                   <Route exact path="/offline" component={Offline} />
                   <Route exact path="/privacy" component={PrivacyPolicy} />
+                  <Route exact path="/terms" component={TermsOfService} />
 
                   {/* Protected course detail route */}
                   <Route

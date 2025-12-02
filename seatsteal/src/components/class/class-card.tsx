@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip";
 import { EnrollmentBadge } from "./enrollment-badge";
 import { EnrollmentAnalysisModal } from "./enrollment-analysis-modal";
+import { SubscribeConfirmationModal } from "@/components/ui/subscribe-confirmation-modal";
 import { Bell, Sparkles, ExternalLink } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,7 @@ export function ClassCard({
 }: ClassCardProps) {
   const [buttonLoading, setButtonLoading] = useState(false);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const { subscriptionTier: userTier, tierLoading } = useSubscriptionTier();
   const enrollment = classData.currentEnrollment;
@@ -55,9 +57,27 @@ export function ClassCard({
 
   const handleSubscriptionClick = async () => {
     if (onSubscriptionChange && !buttonLoading) {
+      // Show confirmation modal when subscribing (not unsubscribing)
+      if (!isSubscribed) {
+        setShowConfirmModal(true);
+        return;
+      }
+      // Proceed directly for unsubscribe
       setButtonLoading(true);
       try {
-        await onSubscriptionChange(classData.classId, !isSubscribed);
+        await onSubscriptionChange(classData.classId, false);
+      } finally {
+        setButtonLoading(false);
+      }
+    }
+  };
+
+  const handleConfirmSubscribe = async () => {
+    if (onSubscriptionChange && !buttonLoading) {
+      setButtonLoading(true);
+      setShowConfirmModal(false);
+      try {
+        await onSubscriptionChange(classData.classId, true);
       } finally {
         setButtonLoading(false);
       }
@@ -214,6 +234,15 @@ export function ClassCard({
           classData={classData}
         />
       )}
+
+      {/* Subscribe Confirmation Modal */}
+      <SubscribeConfirmationModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={handleConfirmSubscribe}
+        isLoading={buttonLoading}
+        sectionCode={classData.sectionCode}
+      />
     </Card>
   );
 }

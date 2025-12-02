@@ -150,10 +150,16 @@ export default function PrivacyPolicy() {
                   </li>
                   <li>
                     <strong className="text-foreground">
-                      No Sharing for Marketing:
+                      No Sharing of Mobile Information:
                     </strong>{" "}
-                    We will never sell, rent, or share your phone number with
-                    third parties for marketing purposes.
+                    We will never sell, rent, or share your mobile phone number
+                    or any mobile information with third parties or affiliates
+                    for marketing or promotional purposes. Your SMS opt-in data
+                    and consent information will not be shared with any third
+                    parties. We may share information with service providers who
+                    assist us in operating our service (such as Twilio for
+                    message delivery), but only as necessary to provide the
+                    service to you.
                   </li>
                 </ul>
               </section>
