@@ -18,11 +18,17 @@ from pathlib import Path
 
 # Set environment variables for testing BEFORE any imports
 os.environ["VITE_SUPABASE_URL"] = "https://test.supabase.co"
+os.environ["VITE_SUPABASE_ANON_KEY"] = "test_anon_key"
 os.environ["SUPABASE_SERVICE_ROLE_KEY"] = "test_key"
 os.environ["FRONTEND_URL"] = "http://localhost:3000"
 os.environ["STRIPE_SECRET_KEY"] = "sk_test_123"
 os.environ["STRIPE_WEBHOOK_SECRET"] = "whsec_test_123"
 os.environ["PYTHON_ENV"] = "test"
+os.environ["DATABASE_URL"] = "postgresql://test@localhost:5432/seatsteal_test"
+os.environ["AWS_REGION"] = "us-east-1"
+os.environ["AWS_ACCESS_KEY_ID"] = "test_access_key"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "test_secret_key"
+os.environ["AWS_SES_FROM_EMAIL"] = "test@example.com"
 
 # Add webapp directory to path so we can use relative imports
 webapp_dir = Path(__file__).parent.parent
