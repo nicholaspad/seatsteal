@@ -37,6 +37,7 @@ from models.enrollment import Enrollment
 from models.user import Profile
 from models.stripe_subscription import StripeSubscription
 from notifications.email_service import EmailService
+from notifications.sms_service import SMSService
 from notifications.constants import NOTIFICATION_CADENCE, USER_TIERS
 from config import settings
 
@@ -47,6 +48,7 @@ class NotificationJob:
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
         self.email_service = EmailService()
+        self.sms_service = SMSService()
 
     def execute(self) -> Dict:
         """
@@ -198,6 +200,7 @@ class NotificationJob:
                 College.id.label("college_id"),
                 College.name.label("college_name"),
                 Profile.email.label("user_email"),
+                Profile.phone.label("user_phone"),
             )
             .select_from(Subscription)
             .join(
@@ -250,11 +253,12 @@ class NotificationJob:
         return notifications
 
     def _send_notification(self, notification: Dict) -> None:
-        """Send email notification for a course opening"""
+        """Send email and SMS notifications for a course opening"""
         course_code = notification["course_code"]
         section_code = notification["section_code"] or notification["class_number"]
         college_name = notification["college_name"]
         user_email = notification["user_email"]
+        user_phone = notification.get("user_phone")
         user_tier = notification["user_tier"]
 
         if self.dry_run:
@@ -262,19 +266,22 @@ class NotificationJob:
                 f"🧪 DRY RUN: Would send email to {user_email} ({user_tier}) - "
                 f"{course_code} {section_code} at {college_name} is now OPEN!"
             )
+            if user_phone:
+                logger.info(
+                    f"🧪 DRY RUN: Would send SMS to {user_phone} ({user_tier}) - "
+                    f"{course_code} {section_code} at {college_name} is now OPEN!"
+                )
             return
 
+        # Send email notification
         logger.info(
             f"📧 SENDING EMAIL: To {user_email} ({user_tier}) - "
             f"{course_code} {section_code} at {college_name} is now OPEN!"
         )
 
-        # Send notification using EmailService
-        # Note: EmailService.send_course_notification is async, but we're calling it synchronously
-        # If needed, wrap in asyncio.run() or make this method async
         import asyncio
 
-        success = asyncio.run(
+        email_success = asyncio.run(
             self.email_service.send_course_notification(
                 to_email=user_email,
                 course_code=course_code,
@@ -285,10 +292,33 @@ class NotificationJob:
             )
         )
 
-        if success:
+        if email_success:
             logger.info(f"✅ EMAIL SENT: To {user_email}")
         else:
             logger.error(f"❌ EMAIL FAILED: To {user_email}")
+
+        # Send SMS notification if user has phone on file
+        sms_success = False
+        if user_phone and self.sms_service.is_enabled:
+            logger.info(
+                f"📱 SENDING SMS: To {user_phone} ({user_tier}) - "
+                f"{course_code} {section_code} at {college_name} is now OPEN!"
+            )
+
+            sms_success = self.sms_service.send_course_notification(
+                to_phone=user_phone,
+                course_code=course_code,
+                section_code=section_code,
+                college_name=college_name,
+            )
+
+            if sms_success:
+                logger.info(f"✅ SMS SENT: To {user_phone}")
+            else:
+                logger.error(f"❌ SMS FAILED: To {user_phone}")
+
+        # Consider notification successful if email succeeds (SMS is best-effort)
+        if not email_success:
             raise Exception(f"Failed to send email to {user_email}")
 
     def _deactivate_subscriptions(
