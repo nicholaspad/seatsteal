@@ -1,8 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
-import { BottomNavbar } from "@/components/layout/BottomNavbar";
 import { Footer } from "@/components/layout/Footer";
-import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -10,9 +8,8 @@ interface ConditionalLayoutProps {
 
 export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   const location = useLocation();
-  const isMobile = useIsMobile();
 
-  // Hide header and footer on auth pages (but not login for bottom nav)
+  // Hide header and footer on auth pages
   const isAuthPage =
     location.pathname.startsWith("/login") ||
     location.pathname.startsWith("/select-college") ||
@@ -30,22 +27,12 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
     return <main className="h-screen">{children}</main>;
   }
 
-  // Mobile layout: bottom navbar, no top header
-  if (isMobile) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <main className="flex-1 relative">{children}</main>
-        <BottomNavbar className="fixed bottom-0 left-0 right-0 z-50" />
-      </div>
-    );
-  }
-
-  // Desktop layout: top header, no bottom navbar
   if (isAuthPage) {
-    // For auth pages on desktop, render without header
+    // For auth pages (like login), render without header/footer
     return <main className="h-screen">{children}</main>;
   }
 
+  // Standard layout with header and footer for both mobile and desktop
   return (
     <div className="min-h-screen flex flex-col">
       <Header className="flex-shrink-0 z-50" />
