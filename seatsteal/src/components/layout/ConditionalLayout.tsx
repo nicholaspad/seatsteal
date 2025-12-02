@@ -1,6 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
 import { BottomNavbar } from "@/components/layout/BottomNavbar";
+import { Footer } from "@/components/layout/Footer";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface ConditionalLayoutProps {
@@ -49,6 +50,7 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
     <div className="min-h-screen flex flex-col">
       <Header className="flex-shrink-0 z-50" />
       <main className="flex-1 relative">{children}</main>
+      <Footer className="mt-auto" />
     </div>
   );
 }

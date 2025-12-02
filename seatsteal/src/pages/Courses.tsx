@@ -16,7 +16,6 @@ import { CourseCard } from "@/components/course/course-card";
 import { BlurredCourseCard } from "@/components/course/blurred-course-card";
 import { FullWidthCTA } from "@/components/course/full-width-cta";
 import { CourseFilters } from "@/components/course/course-filters";
-import { Footer } from "@/components/layout/Footer";
 import { PaginationLinks } from "@/components/layout/PaginationLinks";
 import { BookOpen } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -357,9 +356,6 @@ export default function Courses() {
             </div>
           </div>
         </div>
-
-        {/* Footer */}
-        <Footer className="mt-auto" />
       </IonContent>
     </IonPage>
   );

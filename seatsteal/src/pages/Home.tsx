@@ -2,7 +2,6 @@ import { IonContent, IonPage } from "@ionic/react";
 import { useEffect, useState } from "react";
 import { FAQSection } from "@/components/home/faq-section";
 import { PricingTiers } from "@/components/home/pricing-tiers";
-import { Footer } from "@/components/layout/Footer";
 import type { College } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -130,9 +129,6 @@ export default function Home() {
             </div>
             <FAQSection colleges={colleges} />
           </section>
-
-          {/* Footer */}
-          <Footer />
         </div>
       </IonContent>
     </IonPage>
