@@ -33,11 +33,13 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   }
 
   // Standard layout with header and footer for both mobile and desktop
+  // Using min-h-dvh (dynamic viewport height) to account for mobile browser UI
+  // Footer uses safe-area-inset-bottom to avoid being covered by mobile bottom bars
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-dvh flex flex-col">
       <Header className="flex-shrink-0 z-50" />
       <main className="flex-1 relative">{children}</main>
-      <Footer className="mt-auto" />
+      <Footer className="flex-shrink-0" />
     </div>
   );
 }
