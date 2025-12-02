@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Index
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.sql import func
 from models.base import Base
 
@@ -8,6 +8,7 @@ class College(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    # unique=True creates an implicit unique index, no need for explicit index
     short_name = Column(String, nullable=False, unique=True)
     domain = Column(String)
 
@@ -24,5 +25,3 @@ class College(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     is_active = Column(Boolean, default=True, nullable=False)
-
-    __table_args__ = (Index("colleges_short_name_idx", "short_name", unique=True),)

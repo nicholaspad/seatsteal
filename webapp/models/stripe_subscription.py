@@ -34,10 +34,9 @@ class StripeSubscription(Base):
         nullable=False,
     )
 
+    # Note: stripe_subscription_id has unique=True which creates implicit unique index
+    # Only explicit indexes needed are for non-unique columns used in queries
     __table_args__ = (
         Index("stripe_subscriptions_user_id_idx", "user_id"),
-        Index(
-            "stripe_subscriptions_stripe_id_idx", "stripe_subscription_id", unique=True
-        ),
         Index("stripe_subscriptions_status_idx", "status"),
     )

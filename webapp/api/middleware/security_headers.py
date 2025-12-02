@@ -32,9 +32,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Content Security Policy - restrictive by default
         # Note: This is for API responses. Frontend should have its own CSP.
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; frame-ancestors 'none'"
-        )
+        response.headers[
+            "Content-Security-Policy"
+        ] = "default-src 'none'; frame-ancestors 'none'"
 
         # Prevent browsers from performing DNS prefetching
         response.headers["X-DNS-Prefetch-Control"] = "off"
@@ -42,9 +42,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Disable client-side caching for sensitive API responses
         # Individual endpoints can override this for static content
         if "Cache-Control" not in response.headers:
-            response.headers["Cache-Control"] = (
-                "no-store, no-cache, must-revalidate, private"
-            )
+            response.headers[
+                "Cache-Control"
+            ] = "no-store, no-cache, must-revalidate, private"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
 

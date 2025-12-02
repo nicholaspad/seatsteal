@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from models.base import Base
@@ -10,6 +10,7 @@ class StripeCustomer(Base):
     __tablename__ = "stripe_customers"
 
     id = Column(Integer, primary_key=True, index=True)
+    # unique=True creates implicit unique indexes, no need for explicit indexes
     user_id = Column(
         UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=False, unique=True
     )  # One-to-one relationship with users
@@ -23,9 +24,4 @@ class StripeCustomer(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
-    )
-
-    __table_args__ = (
-        Index("stripe_customers_user_id_idx", "user_id", unique=True),
-        Index("stripe_customers_stripe_id_idx", "stripe_customer_id", unique=True),
     )
