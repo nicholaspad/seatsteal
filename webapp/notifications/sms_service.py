@@ -82,6 +82,11 @@ class SMSService:
         """
         Wait if necessary to comply with rate limiting.
 
+        This method is thread-safe: it acquires a lock, waits if needed,
+        and reserves the current time slot before releasing the lock.
+        This prevents race conditions where multiple threads could
+        bypass the rate limit.
+
         Returns:
             The time waited in seconds (0 if no wait was needed)
         """
@@ -93,14 +98,12 @@ class SMSService:
             if wait_time > 0:
                 logger.debug(f"Rate limiting: waiting {wait_time:.3f}s before next SMS")
                 time.sleep(wait_time)
-                return wait_time
 
-            return 0.0
-
-    def _update_last_send_time(self) -> None:
-        """Update the last send time after successfully sending a message"""
-        with self._rate_limit_lock:
+            # Reserve this time slot immediately to prevent race conditions
+            # Even if the send fails, we've consumed the rate limit slot
             self._last_send_time = time.time()
+
+            return max(wait_time, 0.0)
 
     def _send_raw(self, to_phone: str, body: str) -> bool:
         """
@@ -170,7 +173,7 @@ class SMSService:
             course_code, section_code, college_name
         )
 
-        # Apply rate limiting before sending
+        # Apply rate limiting before sending (also reserves the time slot)
         wait_time = self._wait_for_rate_limit()
         if wait_time > 0:
             logger.info(f"Rate limited: waited {wait_time:.2f}s before sending SMS")
@@ -178,9 +181,7 @@ class SMSService:
         # Send the message
         success = self._send_raw(normalized_phone, message)
 
-        # Update last send time on success
         if success:
-            self._update_last_send_time()
             logger.info(f"SMS sent to {normalized_phone} for {course_code}")
 
         return success
@@ -257,13 +258,12 @@ class SMSService:
         while self._message_queue:
             msg = self._message_queue.popleft()
 
-            # Apply rate limiting
+            # Apply rate limiting (also reserves the time slot)
             self._wait_for_rate_limit()
 
             # Send the message
             if self._send_raw(msg.to_phone, msg.body):
                 sent += 1
-                self._update_last_send_time()
             else:
                 failed += 1
 
