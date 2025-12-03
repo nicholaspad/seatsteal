@@ -11,7 +11,7 @@ This migration fixes security warnings from Supabase linter:
    - public.handle_user_update
    - public.handle_user_delete
    - public.sync_user_to_custom_table
-   
+
    Fix: Set search_path = '' to prevent search path manipulation attacks.
 
 2. Extension in Public (pg_trgm):

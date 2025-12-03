@@ -1,3 +1,29 @@
+"""
+AWS SES Email Service
+
+Sends email notifications to users via AWS Simple Email Service.
+
+Rate Limits (AWS SES):
+- Sandbox mode: 1 email/second, max 200 emails per 24 hours
+- Production mode: Varies by account reputation, typically:
+  - Starting rate: 14 emails/second
+  - Max daily: 50,000 emails (can be increased)
+
+To check your current SES limits:
+  aws ses get-send-quota
+
+To request production access (removes sandbox limits):
+  1. Go to AWS SES console
+  2. Click "Request production access"
+  3. Fill out the form with your use case
+
+Current implementation notes:
+- Emails are sent one at a time with no explicit rate limiting
+- AWS SES will return a Throttling error if limits are exceeded
+- Production accounts (14/sec) are well above typical notification volumes
+- If in sandbox mode, ensure you've moved to production for real usage
+"""
+
 import boto3
 from botocore.exceptions import ClientError
 from jinja2 import Template, Environment, FileSystemLoader
@@ -9,7 +35,25 @@ from config import settings
 
 
 class EmailService:
-    """AWS SES email service for sending notifications and auth emails"""
+    """AWS SES email service for sending notifications and auth emails
+
+    AWS SES Rate Limits:
+    - Sandbox: 1 email/second, 200 emails/day
+    - Production: ~14 emails/second (typically sufficient for notification workloads)
+
+    The service does not implement client-side rate limiting because:
+    1. Production SES accounts have generous throughput (14/sec)
+    2. Notification volumes are typically much lower than email limits
+    3. AWS returns Throttling errors if limits are exceeded
+
+    If you need stricter client-side rate limiting, consider adding
+    a similar mechanism to the SMSService rate limiter.
+    """
+
+    # Email rate limits (for reference/documentation)
+    # These are approximate AWS SES limits
+    SES_SANDBOX_RATE_PER_SECOND = 1
+    SES_PRODUCTION_RATE_PER_SECOND = 14  # Default, can be higher
 
     def __init__(self):
         """Initialize AWS SES client and load email templates"""
