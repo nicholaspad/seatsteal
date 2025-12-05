@@ -115,8 +115,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
         setUser(user);
         setLoading(false);
-        fetchUserProfile();
-        fetchSubscriptionTier(user.id);
+        // Fetch profile and tier in parallel for better performance
+        Promise.all([fetchUserProfile(), fetchSubscriptionTier(user.id)]);
       } catch {
         setUser(null);
         setProfile(null);
@@ -154,8 +154,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setUser(session.user);
           setLoading(false);
-          fetchUserProfile();
-          fetchSubscriptionTier(session.user.id);
+          // Fetch profile and tier in parallel for better performance
+          Promise.all([
+            fetchUserProfile(),
+            fetchSubscriptionTier(session.user.id),
+          ]);
           return;
         }
 
@@ -180,8 +183,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             setTierLoading(false);
           } else {
             setUser(user);
-            fetchUserProfile();
-            fetchSubscriptionTier(user.id);
+            // Fetch profile and tier in parallel for better performance
+            Promise.all([fetchUserProfile(), fetchSubscriptionTier(user.id)]);
           }
           setLoading(false);
         } catch (error) {

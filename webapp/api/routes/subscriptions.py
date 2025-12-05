@@ -19,6 +19,7 @@ from schemas.course import CourseWithCollege
 from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
 from utils.errors import log_and_raise_500
+from utils.cache import invalidate_user_caches
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 
@@ -136,6 +137,9 @@ async def create_subscription(
         db.commit()
         db.refresh(new_subscription)
 
+        # Invalidate user caches after subscription change
+        invalidate_user_caches(str(user.id))
+
         return {
             "success": True,
             "data": SubscriptionResponse.model_validate(new_subscription),
@@ -172,6 +176,9 @@ async def delete_subscription(
         # Deactivate instead of delete
         subscription.is_active = False
         db.commit()
+
+        # Invalidate user caches after subscription change
+        invalidate_user_caches(str(user.id))
 
         return None
 

@@ -294,16 +294,24 @@ class NotificationJob:
 
         import asyncio
 
-        email_success = asyncio.run(
-            self.email_service.send_course_notification(
-                to_email=user_email,
-                course_code=course_code,
-                course_title=course_title,
-                class_section=section_code,
-                college_name=college_name,
-                unsubscribe_url=f"{settings.effective_frontend_url}/subscriptions/{notification['subscription_id']}/unsubscribe",
+        # Use timeout protection to prevent blocking if email service hangs
+        try:
+            email_success = asyncio.run(
+                asyncio.wait_for(
+                    self.email_service.send_course_notification(
+                        to_email=user_email,
+                        course_code=course_code,
+                        course_title=course_title,
+                        class_section=section_code,
+                        college_name=college_name,
+                        unsubscribe_url=f"{settings.effective_frontend_url}/subscriptions/{notification['subscription_id']}/unsubscribe",
+                    ),
+                    timeout=30.0,  # 30 second timeout
+                )
             )
-        )
+        except asyncio.TimeoutError:
+            email_success = False
+            logger.error(f"⏰ EMAIL TIMEOUT: To {user_email} (exceeded 30s)")
 
         if email_success:
             logger.info(f"✅ EMAIL SENT: To {user_email}")
