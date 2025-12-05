@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import type { College } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
-import { AlertTriangle, Mail, Save, School } from "lucide-react";
+import { AlertTriangle, Mail, Phone, Save, School } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -45,9 +45,11 @@ export default function Settings() {
     collegeName: "",
   });
   const [originalCollegeId, setOriginalCollegeId] = useState<number>(0);
+  const [originalPhone, setOriginalPhone] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -77,6 +79,7 @@ export default function Settings() {
           const userSettings: UserSettings = settingsData.data;
           setSettings(userSettings);
           setOriginalCollegeId(userSettings.collegeId);
+          setOriginalPhone(userSettings.phone);
         }
       } else {
         throw new Error("Failed to load user settings");
@@ -109,7 +112,32 @@ export default function Settings() {
     });
   };
 
+  const handlePhoneChange = (value: string) => {
+    // Only allow digits
+    const digitsOnly = value.replace(/\D/g, "");
+    // Limit to 10 digits
+    const phone = digitsOnly.slice(0, 10);
+
+    setSettings({
+      ...settings,
+      phone,
+    });
+
+    // Validate phone number
+    if (phone.length > 0 && phone.length !== 10) {
+      setPhoneError("Phone number must be exactly 10 digits");
+    } else {
+      setPhoneError(null);
+    }
+  };
+
   const handleSave = async () => {
+    // Validate phone before saving
+    if (settings.phone && settings.phone.length !== 10) {
+      setPhoneError("Phone number must be exactly 10 digits");
+      return;
+    }
+
     try {
       setSaving(true);
       setError(null);
@@ -122,6 +150,7 @@ export default function Settings() {
         },
         body: JSON.stringify({
           collegeId: settings.collegeId,
+          phone: settings.phone,
         }),
       });
 
@@ -136,12 +165,15 @@ export default function Settings() {
       const updatedSettings: UserSettings = result.data;
       setSettings(updatedSettings);
       setOriginalCollegeId(updatedSettings.collegeId);
+      setOriginalPhone(updatedSettings.phone);
 
       // Show success message
       toast.success("Settings saved successfully");
 
-      // Reload the page to refresh session context
-      window.location.reload();
+      // Only reload if college changed (to refresh session context)
+      if (settings.collegeId !== originalCollegeId) {
+        window.location.reload();
+      }
     } catch (err) {
       if (err instanceof ServerErrorWithToast) {
         return; // Toast already shown
@@ -152,7 +184,11 @@ export default function Settings() {
     }
   };
 
-  const hasChanges = settings.collegeId !== originalCollegeId;
+  const hasChanges =
+    settings.collegeId !== originalCollegeId ||
+    settings.phone !== originalPhone;
+
+  const isValid = !phoneError;
 
   if (loading) {
     return (
@@ -201,7 +237,7 @@ export default function Settings() {
                 <CardTitle>Account Settings</CardTitle>
               </CardHeader>
 
-              <CardContent className="space-y-6 pt-2">
+              <CardContent className="space-y-5 pt-2">
                 {error && (
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
@@ -210,7 +246,7 @@ export default function Settings() {
                 )}
 
                 {/* Email (Read-only) */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="email" className="flex items-center gap-2">
                     <Mail className="h-4 w-4" />
                     Email Address
@@ -232,8 +268,33 @@ export default function Settings() {
                   </div>
                 </div>
 
+                {/* Phone Number */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone" className="flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    Phone Number
+                  </Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={settings.phone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="1234567890"
+                    maxLength={10}
+                    className={phoneError ? "border-destructive" : ""}
+                  />
+                  {phoneError ? (
+                    <p className="text-xs text-destructive">{phoneError}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      US phone number only (10 digits). Used for SMS
+                      notifications.
+                    </p>
+                  )}
+                </div>
+
                 {/* College Selection */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="college" className="flex items-center gap-2">
                     <School className="h-4 w-4" />
                     College/University
@@ -259,10 +320,10 @@ export default function Settings() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-4">
+                <div className="flex gap-4 pt-2">
                   <Button
                     onClick={handleSave}
-                    disabled={!hasChanges || saving}
+                    disabled={!hasChanges || !isValid || saving}
                     className="flex-1"
                   >
                     {saving ? (

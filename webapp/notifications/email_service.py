@@ -149,7 +149,7 @@ class EmailService:
                 app_name="SeatSteal",
             )
 
-            subject = f"🎉 Seat available in {course_code}!"
+            subject = f"🎉 Seat available in {course_title}!"
 
             # Plain text fallback
             text_body = f"""

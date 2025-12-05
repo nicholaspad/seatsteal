@@ -134,7 +134,7 @@ class SMSService:
     def send_course_notification(
         self,
         to_phone: str,
-        course_code: str,
+        course_name: str,
         section_code: str,
         college_name: str,
     ) -> bool:
@@ -147,7 +147,7 @@ class SMSService:
 
         Args:
             to_phone: Recipient phone number (E.164 format, e.g., +15551234567)
-            course_code: Course code (e.g., 'CS 101')
+            course_name: Course name/title (e.g., 'Introduction to Computer Science')
             section_code: Section identifier
             college_name: Name of the college
 
@@ -170,7 +170,7 @@ class SMSService:
 
         # Build message that fits in one SMS segment (160 chars)
         message = self._build_notification_message(
-            course_code, section_code, college_name
+            course_name, section_code, college_name
         )
 
         # Apply rate limiting before sending (also reserves the time slot)
@@ -182,14 +182,14 @@ class SMSService:
         success = self._send_raw(normalized_phone, message)
 
         if success:
-            logger.info(f"SMS sent to {normalized_phone} for {course_code}")
+            logger.info(f"SMS sent to {normalized_phone} for {course_name}")
 
         return success
 
     def queue_course_notification(
         self,
         to_phone: str,
-        course_code: str,
+        course_name: str,
         section_code: str,
         college_name: str,
     ) -> bool:
@@ -201,7 +201,7 @@ class SMSService:
 
         Args:
             to_phone: Recipient phone number (E.164 format)
-            course_code: Course code
+            course_name: Course name/title
             section_code: Section identifier
             college_name: Name of the college
 
@@ -218,7 +218,7 @@ class SMSService:
             return False
 
         message = self._build_notification_message(
-            course_code, section_code, college_name
+            course_name, section_code, college_name
         )
 
         self._message_queue.append(SMSMessage(to_phone=normalized_phone, body=message))
@@ -280,36 +280,47 @@ class SMSService:
         return len(self._message_queue)
 
     def _build_notification_message(
-        self, course_code: str, section_code: str, college_name: str
+        self, course_name: str, section_code: str, college_name: str
     ) -> str:
         """
         Build SMS message that fits within one segment (160 chars).
 
-        Template: "SeatSteal: {course} {section} at {college} is OPEN! Register now."
-        If too long, truncates college name with ellipsis.
+        Template: "SeatSteal: {course} {section} at {college} is OPEN!"
+        Course name is truncated if needed to fit within the limit.
+        College name and section code are never truncated.
         """
-        # Base template with placeholders
-        # "SeatSteal: " = 11 chars
-        # " at " = 4 chars
-        # " is OPEN! Register now." = 23 chars
-        # Total overhead: 38 chars
-        # Available for course+section+college: 122 chars
+        # Sanitize inputs - strip whitespace and handle empty values
+        course_name = (course_name or "").strip()
+        section_code = (section_code or "").strip()
+        college_name = (college_name or "").strip()
 
         base_prefix = "SeatSteal: "
-        course_section = f"{course_code} {section_code}"
-        base_suffix = " is OPEN! Register now."
+        base_suffix = " is OPEN!"
 
-        # Calculate available space for college name
-        fixed_length = (
-            len(base_prefix) + len(course_section) + len(" at ") + len(base_suffix)
+        # Build section and college parts
+        # Section only gets leading space if course_name exists
+        section_part = f" {section_code}" if section_code else ""
+        college_part = f" at {college_name}" if college_name else ""
+
+        # Calculate space available for course name
+        fixed_overhead = (
+            len(base_prefix) + len(section_part) + len(college_part) + len(base_suffix)
         )
-        available_for_college = self.MAX_SMS_LENGTH - fixed_length
+        available_for_course = self.MAX_SMS_LENGTH - fixed_overhead
 
-        # Truncate college name if needed
-        if len(college_name) > available_for_college:
-            college_name = college_name[: available_for_college - 3] + "..."
+        # Truncate course name if needed (only if non-empty)
+        if course_name and len(course_name) > available_for_course:
+            course_name = course_name[: available_for_course - 3] + "..."
 
-        message = f"{base_prefix}{course_section} at {college_name}{base_suffix}"
+        # Build message - adjust section_part spacing if course_name is empty
+        if course_name:
+            message = (
+                f"{base_prefix}{course_name}{section_part}{college_part}{base_suffix}"
+            )
+        else:
+            # Remove leading space from section_part when course_name is empty
+            section_part_trimmed = section_part.lstrip()
+            message = f"{base_prefix}{section_part_trimmed}{college_part}{base_suffix}"
 
         # Final safety check - truncate if still too long
         if len(message) > self.MAX_SMS_LENGTH:
