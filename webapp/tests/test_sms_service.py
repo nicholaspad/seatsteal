@@ -43,7 +43,8 @@ class TestSMSServiceMessageBuilding:
         assert len(message) <= 160
         assert "SeatSteal:" in message
         assert "Intro to CS" in message
-        assert "A" in message
+        assert " A " in message
+        assert "at Test University" in message
         assert "is OPEN!" in message
 
     def test_build_notification_message_truncates_long_course_name(self):
@@ -55,16 +56,17 @@ class TestSMSServiceMessageBuilding:
         from notifications.sms_service import SMSService
 
         service = SMSService()
-        # This course name is long enough to require truncation
-        long_course_name = "Introduction to Computer Science and Programming with Applications in Data Science and Machine Learning and Advanced Statistical Methods"
+        # This course name is long enough to require truncation (120+ chars)
+        long_course_name = "Introduction to Computer Science and Programming with Applications in Data Science and Machine Learning and Advanced Statistical Methods for Research"
         message = service._build_notification_message(
             long_course_name, "A", "Test University"
         )
 
         assert len(message) <= 160
         assert "SeatSteal:" in message
+        assert "at Test University" in message  # College name should NOT be truncated
         assert "is OPEN!" in message
-        # Long name should be truncated with ellipsis
+        # Long course name should be truncated with ellipsis
         assert "..." in message
 
     def test_build_notification_message_max_length(self):

@@ -285,35 +285,34 @@ class SMSService:
         """
         Build SMS message that fits within one segment (160 chars).
 
-        Template: "SeatSteal: {course} {section} is OPEN! Register now."
+        Template: "SeatSteal: {course} {section} at {college} is OPEN!"
         Course name is truncated if needed to fit within the limit.
-        College name is omitted to prioritize showing the course name.
+        College name and section code are never truncated.
         """
         # Base template structure:
         # "SeatSteal: " = 11 chars
         # " " (space before section) = 1 char
-        # " is OPEN! Register now." = 23 chars
-        # Total overhead: 35 chars
-        # Available for course_name + section_code: 125 chars
+        # " at " = 4 chars
+        # " is OPEN!" = 9 chars
+        # Total overhead: 25 chars
 
         base_prefix = "SeatSteal: "
-        base_suffix = " is OPEN! Register now."
+        base_suffix = " is OPEN!"
 
-        # Calculate space available for course name and section
-        fixed_overhead = (
-            len(base_prefix) + len(base_suffix) + 1
-        )  # +1 for space before section
-        available_for_content = self.MAX_SMS_LENGTH - fixed_overhead
-
-        # Section code is kept intact, truncate course name if needed
+        # Calculate space available for course name
+        # Section and college are kept intact
         section_part = f" {section_code}"
-        available_for_course = available_for_content - len(section_part)
+        college_part = f" at {college_name}"
+        fixed_overhead = (
+            len(base_prefix) + len(section_part) + len(college_part) + len(base_suffix)
+        )
+        available_for_course = self.MAX_SMS_LENGTH - fixed_overhead
 
         # Truncate course name if needed
         if len(course_name) > available_for_course:
             course_name = course_name[: available_for_course - 3] + "..."
 
-        message = f"{base_prefix}{course_name}{section_part}{base_suffix}"
+        message = f"{base_prefix}{course_name}{section_part}{college_part}{base_suffix}"
 
         # Final safety check - truncate if still too long
         if len(message) > self.MAX_SMS_LENGTH:
