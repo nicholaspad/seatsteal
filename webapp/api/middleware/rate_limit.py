@@ -5,8 +5,10 @@ from typing import Optional, Callable
 import time
 from functools import wraps
 import hashlib
+from loguru import logger
 
 from config import settings
+from utils.cache import CacheClient
 
 
 class RateLimiter:
@@ -20,12 +22,29 @@ class RateLimiter:
         """
         Initialize rate limiter.
 
+        Uses shared CacheClient connection pool for efficiency.
+        Falls back to direct connection if CacheClient unavailable.
+
         Args:
             redis_url: Redis connection URL (uses settings.REDIS_URL if not provided)
         """
-        self.redis_url = redis_url or settings.REDIS_URL
-        self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
         self.key_prefix = "seatsteal:ratelimit:"
+
+        # Try to use shared CacheClient connection pool first
+        self.redis_client = CacheClient.get_client()
+
+        if self.redis_client is None:
+            # Fallback to direct connection if CacheClient unavailable
+            url = redis_url or settings.REDIS_URL
+            if url:
+                try:
+                    self.redis_client = redis.from_url(url, decode_responses=True)
+                    logger.info("Rate limiter using direct Redis connection")
+                except Exception as e:
+                    logger.warning(f"Rate limiter Redis connection failed: {e}")
+                    self.redis_client = None
+            else:
+                logger.warning("Rate limiter disabled: no Redis URL configured")
 
     def _get_client_key(
         self, request: Request, identifier: Optional[str] = None
@@ -88,6 +107,15 @@ class RateLimiter:
             Tuple of (is_allowed, info_dict)
             info_dict contains: remaining, reset_time, retry_after
         """
+        # Gracefully allow all requests if Redis unavailable
+        if self.redis_client is None:
+            current_time = time.time()
+            return True, {
+                "remaining": max_requests,
+                "reset_time": int(current_time + window_seconds),
+                "retry_after": 0,
+            }
+
         key = self._get_client_key(request, identifier)
         tokens_key, timestamp_key = self._get_bucket_key(key)
 
