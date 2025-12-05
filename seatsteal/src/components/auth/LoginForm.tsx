@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { EmailSchema } from "@/lib/validation";
+import { EduEmailSchema } from "@/lib/validation";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 
 export function LoginForm() {
@@ -17,8 +17,7 @@ export function LoginForm() {
 
   const validateEmail = (email: string) => {
     try {
-      // TEMPORARILY DISABLED: Allow non-.edu addresses
-      EmailSchema.parse(email);
+      EduEmailSchema.parse(email);
       setValidationError("");
       return true;
     } catch (error) {
@@ -182,7 +181,7 @@ export function LoginForm() {
                   validateEmail(email);
                 }
               }}
-              placeholder="john@example.com"
+              placeholder="john@university.edu"
               className="pl-10"
               required
               disabled={isLoading}
@@ -201,7 +200,6 @@ export function LoginForm() {
           )}
         </Button>
 
-        {/* TEMPORARILY DISABLED: .edu requirement hint
         <div className="text-center text-xs text-muted-foreground">
           Must use a valid .edu address.{" "}
           <a
@@ -213,7 +211,6 @@ export function LoginForm() {
             Request access
           </a>
         </div>
-*/}
       </form>
     </>
   );
