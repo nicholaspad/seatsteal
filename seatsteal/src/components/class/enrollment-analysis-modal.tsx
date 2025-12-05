@@ -264,11 +264,8 @@ export function EnrollmentAnalysisModal({
 
               {/* Competition Level Explanation */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Competition Level Guide</CardTitle>
-                </CardHeader>
                 <CardContent>
-                  <p className="text-sm italic mb-3">
+                  <p className="text-sm mb-3">
                     Competition level is calculated based on number of
                     subscriptions, recent notification activity, opening
                     frequency, and how quickly classes typically open.
