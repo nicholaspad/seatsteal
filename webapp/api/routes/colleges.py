@@ -8,6 +8,7 @@ from db.session import get_db
 from models.college import College
 from schemas.college import CollegeResponse
 from utils.cache import CacheClient, _make_cache_key, _serialize_for_cache
+from utils.errors import log_and_raise_500
 from loguru import logger
 
 router = APIRouter(prefix="/api/colleges", tags=["colleges"])
@@ -59,9 +60,7 @@ async def get_colleges(db: Session = Depends(get_db)):
         return response
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch colleges: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch colleges", e)
 
 
 @router.get("/{college_id}")

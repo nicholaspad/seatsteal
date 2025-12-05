@@ -213,8 +213,11 @@ def rate_limit(
                     break
 
             if not request:
-                # Check kwargs
-                request = kwargs.get("request")
+                # Check kwargs for FastAPI Request object by type
+                for value in kwargs.values():
+                    if isinstance(value, Request):
+                        request = value
+                        break
 
             if not request:
                 # No request object found, skip rate limiting
