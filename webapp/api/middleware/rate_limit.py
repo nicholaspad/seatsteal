@@ -197,8 +197,11 @@ def rate_limit(
                     break
 
             if not request:
-                # Check kwargs
-                request = kwargs.get("request")
+                # Check kwargs for a Request object
+                for kwarg_value in kwargs.values():
+                    if isinstance(kwarg_value, Request):
+                        request = kwarg_value
+                        break
 
             if not request:
                 # No request object found, skip rate limiting
