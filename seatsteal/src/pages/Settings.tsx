@@ -1,6 +1,6 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useSession } from "@/components/providers/SessionProvider";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import type { College } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
-import { AlertTriangle, Mail, Phone, Save, School } from "lucide-react";
+import { AlertTriangle, Info, Mail, Phone, Save, School } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -238,6 +238,32 @@ export default function Settings() {
               </CardHeader>
 
               <CardContent className="space-y-5 pt-2">
+                {/* Notification sender contact info */}
+                <Alert className="border-primary/30 bg-primary/5">
+                  <Info className="h-4 w-4 text-primary" />
+                  <AlertTitle className="text-primary">
+                    Avoid Missing Notifications
+                  </AlertTitle>
+                  <AlertDescription>
+                    To ensure notifications don't go to spam, save these
+                    contacts:
+                    <ul className="mt-2 space-y-1 text-foreground">
+                      <li>
+                        <strong>Email:</strong>{" "}
+                        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                          alerts@seatsteal.app
+                        </code>
+                      </li>
+                      <li>
+                        <strong>SMS:</strong>{" "}
+                        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                          (551) 265-4189
+                        </code>
+                      </li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+
                 {error && (
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
