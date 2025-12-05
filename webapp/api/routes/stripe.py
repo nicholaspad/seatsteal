@@ -22,6 +22,7 @@ from utils.stripe_utils import (
 )
 from config import settings
 from utils.errors import log_and_raise_500
+from loguru import logger
 from utils.cache import invalidate_user_caches
 
 router = APIRouter(prefix="/api/stripe", tags=["stripe"])
@@ -99,19 +100,22 @@ async def create_stripe_checkout_session(
     except HTTPException:
         raise
     except stripe.AuthenticationError as e:
+        logger.error(f"Stripe authentication failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Stripe authentication failed. Check STRIPE_SECRET_KEY. Error: {str(e)}",
+            detail="Payment service configuration error. Please contact support.",
         )
     except stripe.InvalidRequestError as e:
+        logger.error(f"Stripe invalid request error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Invalid Stripe request. This usually means the price ID is invalid or doesn't exist in your Stripe account. Error: {str(e)}",
+            detail="Payment service configuration error. Please contact support.",
         )
     except stripe.StripeError as e:
+        logger.error(f"Stripe API error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Stripe API error: {str(e)}",
+            detail="Payment service error. Please try again later.",
         )
     except Exception as e:
         log_and_raise_500("Failed to create checkout session", e)

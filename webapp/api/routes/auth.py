@@ -8,6 +8,7 @@ from models.user import Profile
 from models.college import College
 from models.early_access_email import EarlyAccessEmail
 from api.middleware.auth import require_auth, supabase
+from api.middleware.rate_limit import rate_limit
 from config import settings
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches
@@ -72,6 +73,7 @@ class AdminSignInRequest(BaseModel):
 
 
 @router.post("/admin-signin")
+@rate_limit(max_requests=10, window_seconds=60)
 async def admin_signin(
     request: AdminSignInRequest,
     db: Session = Depends(get_db),
@@ -135,6 +137,7 @@ class CheckEarlyAccessRequest(BaseModel):
 
 
 @router.post("/check-early-access")
+@rate_limit(max_requests=10, window_seconds=60)
 async def check_early_access(
     request: CheckEarlyAccessRequest,
     db: Session = Depends(get_db),

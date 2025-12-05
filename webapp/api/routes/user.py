@@ -12,6 +12,7 @@ from models.college import College
 from api.middleware.auth import require_auth
 from utils.premium import get_user_subscription_tier
 from utils.cache import invalidate_user_caches
+from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -52,9 +53,7 @@ async def get_user_settings(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch user settings: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch user settings", e)
 
 
 class UpdateUserSettingsRequest(BaseModel):
@@ -116,9 +115,7 @@ async def update_user_settings(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500, detail=f"Failed to update user settings: {str(e)}"
-        )
+        log_and_raise_500("Failed to update user settings", e)
 
 
 @router.get("/subscription-tier")
@@ -138,6 +135,4 @@ async def get_subscription_tier(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch subscription tier: {str(e)}"
-        )
+        log_and_raise_500("Failed to fetch subscription tier", e)

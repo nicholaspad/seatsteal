@@ -24,7 +24,11 @@ class RateLimiter:
             redis_url: Redis connection URL (uses settings.REDIS_URL if not provided)
         """
         self.redis_url = redis_url or settings.REDIS_URL
-        self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
+        if self.redis_url:
+            self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
+        else:
+            # Redis not configured - rate limiting will be disabled
+            self.redis_client = None
         self.key_prefix = "seatsteal:ratelimit:"
 
     def _get_client_key(
@@ -88,6 +92,14 @@ class RateLimiter:
             Tuple of (is_allowed, info_dict)
             info_dict contains: remaining, reset_time, retry_after
         """
+        # If Redis is not configured, skip rate limiting
+        if self.redis_client is None:
+            return True, {
+                "remaining": max_requests,
+                "reset_time": int(time.time() + window_seconds),
+                "retry_after": 0,
+            }
+
         key = self._get_client_key(request, identifier)
         tokens_key, timestamp_key = self._get_bucket_key(key)
 
