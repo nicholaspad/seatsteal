@@ -96,6 +96,26 @@ class TestSMSServiceMessageBuilding:
                 len(message) <= 160
             ), f"Message too long ({len(message)} chars): {message}"
 
+    def test_build_notification_message_handles_empty_course_name(self):
+        """Test message handles empty course name without double spacing."""
+        os.environ["TWILIO_ACCOUNT_SID"] = ""
+        os.environ["TWILIO_AUTH_TOKEN"] = ""
+        os.environ["TWILIO_FROM_NUMBER"] = ""
+
+        from notifications.sms_service import SMSService
+
+        service = SMSService()
+
+        # Test with empty course name
+        message = service._build_notification_message("", "A", "Test University")
+        assert "  " not in message, f"Double spacing found in message: {message}"
+        assert "SeatSteal:" in message
+        assert "is OPEN!" in message
+
+        # Test with None-like empty values
+        message = service._build_notification_message("  ", "A", "Test University")
+        assert "  " not in message, f"Double spacing found in message: {message}"
+
 
 class TestSMSServicePhoneNormalization:
     """Test phone number normalization."""

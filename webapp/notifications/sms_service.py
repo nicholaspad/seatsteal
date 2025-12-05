@@ -289,30 +289,38 @@ class SMSService:
         Course name is truncated if needed to fit within the limit.
         College name and section code are never truncated.
         """
-        # Base template structure:
-        # "SeatSteal: " = 11 chars
-        # " " (space before section) = 1 char
-        # " at " = 4 chars
-        # " is OPEN!" = 9 chars
-        # Total overhead: 25 chars
+        # Sanitize inputs - strip whitespace and handle empty values
+        course_name = (course_name or "").strip()
+        section_code = (section_code or "").strip()
+        college_name = (college_name or "").strip()
 
         base_prefix = "SeatSteal: "
         base_suffix = " is OPEN!"
 
+        # Build section and college parts
+        # Section only gets leading space if course_name exists
+        section_part = f" {section_code}" if section_code else ""
+        college_part = f" at {college_name}" if college_name else ""
+
         # Calculate space available for course name
-        # Section and college are kept intact
-        section_part = f" {section_code}"
-        college_part = f" at {college_name}"
         fixed_overhead = (
             len(base_prefix) + len(section_part) + len(college_part) + len(base_suffix)
         )
         available_for_course = self.MAX_SMS_LENGTH - fixed_overhead
 
-        # Truncate course name if needed
-        if len(course_name) > available_for_course:
+        # Truncate course name if needed (only if non-empty)
+        if course_name and len(course_name) > available_for_course:
             course_name = course_name[: available_for_course - 3] + "..."
 
-        message = f"{base_prefix}{course_name}{section_part}{college_part}{base_suffix}"
+        # Build message - adjust section_part spacing if course_name is empty
+        if course_name:
+            message = (
+                f"{base_prefix}{course_name}{section_part}{college_part}{base_suffix}"
+            )
+        else:
+            # Remove leading space from section_part when course_name is empty
+            section_part_trimmed = section_part.lstrip()
+            message = f"{base_prefix}{section_part_trimmed}{college_part}{base_suffix}"
 
         # Final safety check - truncate if still too long
         if len(message) > self.MAX_SMS_LENGTH:
