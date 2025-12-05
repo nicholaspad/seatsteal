@@ -267,8 +267,8 @@ export default function Settings() {
                         To ensure notifications don't go to spam, save these
                         contacts:
                         <ul className="mt-2 space-y-1.5 text-foreground">
-                          <li className="flex items-center justify-between gap-2">
-                            <div>
+                          <li className="flex items-center gap-2">
+                            <div className="flex-1">
                               <strong>Email:</strong>{" "}
                               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
                                 notifications@seatsteal.app
@@ -277,7 +277,7 @@ export default function Settings() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 px-2"
+                              className="h-7 px-2 flex-shrink-0"
                               onClick={() =>
                                 copyToClipboard(
                                   "notifications@seatsteal.app",
@@ -288,8 +288,8 @@ export default function Settings() {
                               <Copy className="h-3.5 w-3.5" />
                             </Button>
                           </li>
-                          <li className="flex items-center justify-between gap-2">
-                            <div>
+                          <li className="flex items-center gap-2">
+                            <div className="flex-1">
                               <strong>SMS:</strong>{" "}
                               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
                                 (415) 909-5191
@@ -298,7 +298,7 @@ export default function Settings() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 px-2"
+                              className="h-7 px-2 flex-shrink-0"
                               onClick={() =>
                                 copyToClipboard(
                                   "(415) 909-5191",
