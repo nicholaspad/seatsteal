@@ -39,7 +39,7 @@ mypy==1.8.0
 mypy_extensions==1.1.0
 packaging==25.0
 pathspec==0.12.1
-pip==25.2
+pip==25.3
 platformdirs==4.4.0
 pluggy==1.6.0
 postgrest==0.17.0
