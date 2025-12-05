@@ -256,14 +256,14 @@ export default function Settings() {
 
               <CardContent className="space-y-5 pt-2">
                 {/* Notification sender contact info */}
-                <Alert className="border-primary/30 bg-primary/5">
-                  <div className="flex gap-2">
+                <Alert className="border-primary/30 bg-primary/5 !flex">
+                  <div className="flex gap-2 w-full">
                     <Info className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <AlertTitle className="text-primary">
                         Avoid Missing Notifications
                       </AlertTitle>
-                      <AlertDescription>
+                      <AlertDescription className="!block">
                         To ensure notifications don't go to spam, save these
                         contacts:
                         <ul className="mt-2 space-y-1.5 text-foreground">
