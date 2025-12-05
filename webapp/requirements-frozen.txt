@@ -57,7 +57,7 @@ pytest==7.4.4
 pytest-asyncio==0.23.3
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
-python-jose==3.3.0
+python-jose==3.4.0
 python-multipart==0.0.6
 PyYAML==6.0.3
 realtime==2.5.3
