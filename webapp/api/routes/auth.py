@@ -44,7 +44,7 @@ async def update_college(
         user.college_id = request.college_id
         db.commit()
         db.refresh(user)
-        
+
         # Invalidate user caches (profile and tier) after update
         invalidate_user_caches(str(user.id))
 
