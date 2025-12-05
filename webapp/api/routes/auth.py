@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
@@ -75,6 +75,7 @@ class AdminSignInRequest(BaseModel):
 @router.post("/admin-signin")
 @rate_limit(max_requests=10, window_seconds=60)
 async def admin_signin(
+    http_request: Request,
     request: AdminSignInRequest,
     db: Session = Depends(get_db),
 ):
@@ -139,6 +140,7 @@ class CheckEarlyAccessRequest(BaseModel):
 @router.post("/check-early-access")
 @rate_limit(max_requests=10, window_seconds=60)
 async def check_early_access(
+    http_request: Request,
     request: CheckEarlyAccessRequest,
     db: Session = Depends(get_db),
 ):
