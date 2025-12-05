@@ -195,6 +195,7 @@ class NotificationJob:
                 Subscription.user_id,
                 Subscription.class_id,
                 Course.course_code,
+                Course.title.label("course_title"),
                 Class.class_number,
                 Class.section_code,
                 College.id.label("college_id"),
@@ -255,6 +256,7 @@ class NotificationJob:
     def _send_notification(self, notification: Dict) -> None:
         """Send email and SMS notifications for a course opening"""
         course_code = notification["course_code"]
+        course_title = notification["course_title"]
         section_code = notification["section_code"] or notification["class_number"]
         college_name = notification["college_name"]
         user_email = notification["user_email"]
@@ -264,19 +266,19 @@ class NotificationJob:
         if self.dry_run:
             logger.info(
                 f"🧪 DRY RUN: Would send email to {user_email} ({user_tier}) - "
-                f"{course_code} {section_code} at {college_name} is now OPEN!"
+                f"{course_title} {section_code} at {college_name} is now OPEN!"
             )
             if user_phone:
                 logger.info(
                     f"🧪 DRY RUN: Would send SMS to {user_phone} ({user_tier}) - "
-                    f"{course_code} {section_code} at {college_name} is now OPEN!"
+                    f"{course_title} {section_code} at {college_name} is now OPEN!"
                 )
             return
 
         # Send email notification
         logger.info(
             f"📧 SENDING EMAIL: To {user_email} ({user_tier}) - "
-            f"{course_code} {section_code} at {college_name} is now OPEN!"
+            f"{course_title} {section_code} at {college_name} is now OPEN!"
         )
 
         import asyncio
@@ -285,7 +287,7 @@ class NotificationJob:
             self.email_service.send_course_notification(
                 to_email=user_email,
                 course_code=course_code,
-                course_title="",  # We don't have course title in this query, could add if needed
+                course_title=course_title,
                 class_section=section_code,
                 college_name=college_name,
                 unsubscribe_url=f"{settings.effective_frontend_url}/subscriptions/{notification['subscription_id']}/unsubscribe",
@@ -302,12 +304,12 @@ class NotificationJob:
         if user_phone and self.sms_service.is_enabled:
             logger.info(
                 f"📱 SENDING SMS: To {user_phone} ({user_tier}) - "
-                f"{course_code} {section_code} at {college_name} is now OPEN!"
+                f"{course_title} {section_code} at {college_name} is now OPEN!"
             )
 
             sms_success = self.sms_service.send_course_notification(
                 to_phone=user_phone,
-                course_code=course_code,
+                course_name=course_title,
                 section_code=section_code,
                 college_name=college_name,
             )

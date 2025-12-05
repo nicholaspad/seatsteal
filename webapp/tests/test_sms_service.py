@@ -27,7 +27,7 @@ class TestSMSServiceMessageBuilding:
     """Test SMS message building functionality."""
 
     def test_build_notification_message_short(self):
-        """Test message building with short college name."""
+        """Test message building with short course name."""
         # Set Twilio env vars temporarily to empty (service will be disabled)
         os.environ["TWILIO_ACCOUNT_SID"] = ""
         os.environ["TWILIO_AUTH_TOKEN"] = ""
@@ -36,16 +36,18 @@ class TestSMSServiceMessageBuilding:
         from notifications.sms_service import SMSService
 
         service = SMSService()
-        message = service._build_notification_message("CS101", "A", "Test University")
+        message = service._build_notification_message(
+            "Intro to CS", "A", "Test University"
+        )
 
         assert len(message) <= 160
         assert "SeatSteal:" in message
-        assert "CS101 A" in message
-        assert "Test University" in message
+        assert "Intro to CS" in message
+        assert "A" in message
         assert "is OPEN!" in message
 
-    def test_build_notification_message_truncates_long_college(self):
-        """Test message truncates long college names to fit in one segment."""
+    def test_build_notification_message_truncates_long_course_name(self):
+        """Test message truncates long course names to fit in one segment."""
         os.environ["TWILIO_ACCOUNT_SID"] = ""
         os.environ["TWILIO_AUTH_TOKEN"] = ""
         os.environ["TWILIO_FROM_NUMBER"] = ""
@@ -53,15 +55,17 @@ class TestSMSServiceMessageBuilding:
         from notifications.sms_service import SMSService
 
         service = SMSService()
-        long_college = "The University of California San Diego School of Engineering and Applied Sciences Extended Name"
-        message = service._build_notification_message("CS101", "A", long_college)
+        # This course name is long enough to require truncation
+        long_course_name = "Introduction to Computer Science and Programming with Applications in Data Science and Machine Learning and Advanced Statistical Methods"
+        message = service._build_notification_message(
+            long_course_name, "A", "Test University"
+        )
 
         assert len(message) <= 160
         assert "SeatSteal:" in message
-        assert "CS101 A" in message
         assert "is OPEN!" in message
         # Long name should be truncated with ellipsis
-        assert "..." in message or len(long_college) <= 100
+        assert "..." in message
 
     def test_build_notification_message_max_length(self):
         """Test message never exceeds 160 characters."""
@@ -73,15 +77,19 @@ class TestSMSServiceMessageBuilding:
 
         service = SMSService()
 
-        # Test with various inputs
+        # Test with various inputs (course_name, section, college)
         test_cases = [
-            ("CS101", "A", "MIT"),
-            ("CSCI-UA.0101-001", "LAB-A1", "New York University"),
-            ("INTRODUCTION TO COMPUTER SCIENCE", "SECTION-001", "Harvard University"),
+            ("Introduction to Computer Science", "A", "MIT"),
+            ("Data Structures and Algorithms", "LAB-A1", "New York University"),
+            (
+                "Advanced Topics in Machine Learning and Artificial Intelligence",
+                "SECTION-001",
+                "Harvard University",
+            ),
         ]
 
-        for course, section, college in test_cases:
-            message = service._build_notification_message(course, section, college)
+        for course_name, section, college in test_cases:
+            message = service._build_notification_message(course_name, section, college)
             assert (
                 len(message) <= 160
             ), f"Message too long ({len(message)} chars): {message}"
@@ -175,7 +183,7 @@ class TestSMSServiceEnabled:
         service = SMSService()
         result = service.send_course_notification(
             to_phone="+15551234567",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
@@ -207,7 +215,7 @@ class TestSMSServiceSending:
 
         result = service.send_course_notification(
             to_phone="+15551234567",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
@@ -217,7 +225,7 @@ class TestSMSServiceSending:
         call_kwargs = mock_client.messages.create.call_args[1]
         assert "+15551234567" == call_kwargs["to"]
         assert "+15559999999" == call_kwargs["from_"]
-        assert "CS101" in call_kwargs["body"]
+        assert "Introduction to Computer Science" in call_kwargs["body"]
         assert "SeatSteal" in call_kwargs["body"]
 
     def test_send_failure(self):
@@ -240,7 +248,7 @@ class TestSMSServiceSending:
 
         result = service.send_course_notification(
             to_phone="+15551234567",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
@@ -286,7 +294,7 @@ class TestSMSServiceRateLimiting:
         start_time = time.time()
         service.send_course_notification(
             to_phone="+15551234567",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
@@ -295,7 +303,7 @@ class TestSMSServiceRateLimiting:
         # Send second message - should be rate limited
         service.send_course_notification(
             to_phone="+15551234568",
-            course_code="CS102",
+            course_name="Data Structures",
             section_code="B",
             college_name="Test University",
         )
@@ -332,7 +340,7 @@ class TestSMSServiceRateLimiting:
         start_time = time.time()
         service.send_course_notification(
             to_phone="+15551234567",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
@@ -361,7 +369,7 @@ class TestSMSServiceQueue:
         # Queue a message
         result = service.queue_course_notification(
             to_phone="+15551234567",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
@@ -372,7 +380,7 @@ class TestSMSServiceQueue:
         # Queue another message
         service.queue_course_notification(
             to_phone="+15551234568",
-            course_code="CS102",
+            course_name="Data Structures",
             section_code="B",
             college_name="Test University",
         )
@@ -392,7 +400,7 @@ class TestSMSServiceQueue:
         # Empty phone
         result = service.queue_course_notification(
             to_phone="",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
@@ -402,7 +410,7 @@ class TestSMSServiceQueue:
         # Invalid phone
         result = service.queue_course_notification(
             to_phone="123",  # Too short
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
@@ -422,13 +430,13 @@ class TestSMSServiceQueue:
         # Queue some messages
         service.queue_course_notification(
             to_phone="+15551234567",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
         service.queue_course_notification(
             to_phone="+15551234568",
-            course_code="CS102",
+            course_name="Data Structures",
             section_code="B",
             college_name="Test University",
         )
@@ -464,13 +472,13 @@ class TestSMSServiceQueue:
         # Queue messages
         service.queue_course_notification(
             to_phone="+15551234567",
-            course_code="CS101",
+            course_name="Introduction to Computer Science",
             section_code="A",
             college_name="Test University",
         )
         service.queue_course_notification(
             to_phone="+15551234568",
-            course_code="CS102",
+            course_name="Data Structures",
             section_code="B",
             college_name="Test University",
         )
