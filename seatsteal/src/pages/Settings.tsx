@@ -1,6 +1,6 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useSession } from "@/components/providers/SessionProvider";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,15 @@ import {
 } from "@/components/ui/breadcrumb";
 import type { College } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
-import { AlertTriangle, Mail, Phone, Save, School } from "lucide-react";
+import {
+  AlertTriangle,
+  Copy,
+  Info,
+  Mail,
+  Phone,
+  Save,
+  School,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -128,6 +136,15 @@ export default function Settings() {
       setPhoneError("Phone number must be exactly 10 digits");
     } else {
       setPhoneError(null);
+    }
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copied to clipboard`);
+    } catch (err) {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
@@ -238,6 +255,66 @@ export default function Settings() {
               </CardHeader>
 
               <CardContent className="space-y-5 pt-2">
+                {/* Notification sender contact info */}
+                <Alert className="border-primary/30 bg-primary/5 !flex">
+                  <div className="flex gap-2 w-full">
+                    <Info className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <AlertTitle className="text-primary">
+                        Avoid Missing Notifications
+                      </AlertTitle>
+                      <AlertDescription className="!block">
+                        To ensure notifications don't go to spam, save these
+                        contacts:
+                        <ul className="mt-2 space-y-1.5 text-foreground">
+                          <li className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <strong>Email:</strong>{" "}
+                              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                                notifications@seatsteal.app
+                              </code>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 flex-shrink-0"
+                              onClick={() =>
+                                copyToClipboard(
+                                  "notifications@seatsteal.app",
+                                  "Email",
+                                )
+                              }
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <strong>SMS:</strong>{" "}
+                              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                                (415) 909-5191
+                              </code>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 flex-shrink-0"
+                              onClick={() =>
+                                copyToClipboard(
+                                  "(415) 909-5191",
+                                  "Phone number",
+                                )
+                              }
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </li>
+                        </ul>
+                      </AlertDescription>
+                    </div>
+                  </div>
+                </Alert>
+
                 {error && (
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
