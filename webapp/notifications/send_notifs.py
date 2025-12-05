@@ -36,6 +36,7 @@ from models.college import College
 from models.enrollment import Enrollment
 from models.user import Profile
 from models.stripe_subscription import StripeSubscription
+from models.notification_log import NotificationLog
 from notifications.email_service import EmailService
 from notifications.sms_service import SMSService
 from notifications.constants import NOTIFICATION_CADENCE, USER_TIERS
@@ -97,7 +98,7 @@ class NotificationJob:
 
                 for notification in notifications:
                     try:
-                        self._send_notification(notification)
+                        self._send_notification(notification, db)
                         sent_count += 1
                         subscription_ids.append(notification["subscription_id"])
                     except Exception as e:
@@ -109,6 +110,9 @@ class NotificationJob:
                 # Deactivate subscriptions (skip in dry-run mode)
                 if not self.dry_run and subscription_ids:
                     self._deactivate_subscriptions(db, subscription_ids)
+
+                # Commit all notification logs and subscription updates
+                if not self.dry_run:
                     db.commit()
 
                 if self.dry_run:
@@ -253,12 +257,14 @@ class NotificationJob:
 
         return notifications
 
-    def _send_notification(self, notification: Dict) -> None:
-        """Send email and SMS notifications for a course opening"""
+    def _send_notification(self, notification: Dict, db: Session) -> None:
+        """Send email and SMS notifications for a course opening and log them"""
         course_code = notification["course_code"]
         course_title = notification["course_title"]
         section_code = notification["section_code"] or notification["class_number"]
         college_name = notification["college_name"]
+        college_id = notification["college_id"]
+        subscription_id = notification["subscription_id"]
         user_email = notification["user_email"]
         user_phone = notification.get("user_phone")
         user_tier = notification["user_tier"]
@@ -274,6 +280,11 @@ class NotificationJob:
                     f"{course_title} {section_code} at {college_name} is now OPEN!"
                 )
             return
+
+        # Build notification message for logging
+        notification_message = (
+            f"{course_title} ({course_code}) {section_code} at {college_name} is OPEN!"
+        )
 
         # Send email notification
         logger.info(
@@ -299,9 +310,21 @@ class NotificationJob:
         else:
             logger.error(f"❌ EMAIL FAILED: To {user_email}")
 
+        # Log email notification
+        email_log = NotificationLog(
+            college_id=college_id,
+            subscription_id=subscription_id,
+            notification_type="email",
+            message=notification_message,
+            status="sent" if email_success else "failed",
+        )
+        db.add(email_log)
+
         # Send SMS notification if user has phone on file
         sms_success = False
+        sms_attempted = False
         if user_phone and self.sms_service.is_enabled:
+            sms_attempted = True
             logger.info(
                 f"📱 SENDING SMS: To {user_phone} ({user_tier}) - "
                 f"{course_title} {section_code} at {college_name} is now OPEN!"
@@ -318,6 +341,16 @@ class NotificationJob:
                 logger.info(f"✅ SMS SENT: To {user_phone}")
             else:
                 logger.error(f"❌ SMS FAILED: To {user_phone}")
+
+            # Log SMS notification
+            sms_log = NotificationLog(
+                college_id=college_id,
+                subscription_id=subscription_id,
+                notification_type="sms",
+                message=notification_message,
+                status="sent" if sms_success else "failed",
+            )
+            db.add(sms_log)
 
         # Consider notification successful if email succeeds (SMS is best-effort)
         if not email_success:

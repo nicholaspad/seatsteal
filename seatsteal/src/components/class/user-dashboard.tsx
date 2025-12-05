@@ -469,78 +469,74 @@ const UserDashboard = memo(function UserDashboard({
           )}
 
           {/* Weekly Notifications Trend */}
-          {subscriptions.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Past Week Notifications
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end justify-between h-32 gap-2 relative">
-                  {weeklyTrend.map((day) => (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Past Week Notifications
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end justify-between h-32 gap-2 relative">
+                {weeklyTrend.map((day) => (
+                  <div
+                    key={day.day}
+                    className="flex flex-col items-center flex-1 relative"
+                  >
                     <div
-                      key={day.day}
-                      className="flex flex-col items-center flex-1 relative"
+                      className="flex flex-col items-center justify-end h-24 w-full cursor-pointer"
+                      onMouseEnter={() => setHoveredTrendDay(day.day)}
+                      onMouseLeave={() => setHoveredTrendDay(null)}
                     >
                       <div
-                        className="flex flex-col items-center justify-end h-24 w-full cursor-pointer"
-                        onMouseEnter={() => setHoveredTrendDay(day.day)}
-                        onMouseLeave={() => setHoveredTrendDay(null)}
-                      >
-                        <div
-                          className="bg-primary/80 rounded-t w-full transition-all hover:bg-primary"
-                          style={{
-                            height: `${day.notifications > 0 ? Math.max((day.notifications / 4) * 100, 10) : 0}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs text-muted-foreground mt-2">
-                        {day.day}
-                      </span>
-                      <span className="text-xs font-medium">
-                        {day.notifications}
-                      </span>
-
-                      {/* Tooltip */}
-                      {hoveredTrendDay === day.day && day.notifications > 0 && (
-                        <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground p-2 rounded-md shadow-lg border z-10 min-w-max">
-                          <div className="text-xs font-medium mb-1">
-                            {day.notifications} notification
-                            {day.notifications !== 1 ? "s" : ""}
-                          </div>
-                          <div className="text-xs text-muted-foreground space-y-1">
-                            {day.courses.map((course, index) => (
-                              <div key={index}>{course}</div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                        className="bg-primary/80 rounded-t w-full transition-all hover:bg-primary"
+                        style={{
+                          height: `${day.notifications > 0 ? Math.max((day.notifications / 4) * 100, 10) : 0}%`,
+                        }}
+                      />
                     </div>
-                  ))}
-                </div>
-                <div className="text-center mt-4">
-                  {weeklyTrend.reduce(
-                    (sum, day) => sum + day.notifications,
-                    0,
-                  ) > 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Total notifications this week:{" "}
-                      {weeklyTrend.reduce(
-                        (sum, day) => sum + day.notifications,
-                        0,
-                      )}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No notifications this week.
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    <span className="text-xs text-muted-foreground mt-2">
+                      {day.day}
+                    </span>
+                    <span className="text-xs font-medium">
+                      {day.notifications}
+                    </span>
+
+                    {/* Tooltip */}
+                    {hoveredTrendDay === day.day && day.notifications > 0 && (
+                      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground p-2 rounded-md shadow-lg border z-10 min-w-max">
+                        <div className="text-xs font-medium mb-1">
+                          {day.notifications} notification
+                          {day.notifications !== 1 ? "s" : ""}
+                        </div>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          {day.courses.map((course, index) => (
+                            <div key={index}>{course}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="text-center mt-4">
+                {weeklyTrend.reduce((sum, day) => sum + day.notifications, 0) >
+                0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Total notifications this week:{" "}
+                    {weeklyTrend.reduce(
+                      (sum, day) => sum + day.notifications,
+                      0,
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No notifications this week.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Subscriptions List */}
           {paginatedSubscriptions.length === 0 ? (
