@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     VITE_SUPABASE_URL: str
     """Supabase project URL (e.g., https://your-project.supabase.co)"""
 
-    VITE_SUPABASE_ANON_KEY: str
+    VITE_SUPABASE_ANON_KEY: str | None = None
     """Supabase anonymous/public API key"""
 
     SUPABASE_SERVICE_ROLE_KEY: str
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str
     """AWS secret access key for SES"""
 
-    AWS_SES_FROM_EMAIL: str
+    AWS_SES_FROM_EMAIL: str = "notifications@seatsteal.app"
     """Email address to send notifications from"""
 
     # Application
