@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import Courses from "../Courses";
 import { renderAnonymous, renderAuthenticated } from "@/test/utils";
-import { mockCoursesResponse, mockCollegesResponse } from "@/test/mocks/api";
+import {
+  mockCoursesResponse,
+  mockCollegesResponse,
+  mockCoursesResponseWithPagination,
+} from "@/test/mocks/api";
 
 // Mock the API module
 const mockFetchWithToasts = vi.fn();
@@ -78,6 +82,15 @@ describe("Courses Page", () => {
         expect(screen.getByText("CS101")).toBeInTheDocument();
       });
     });
+
+    it("shows blurred course cards for anonymous users", async () => {
+      renderAnonymous(<Courses />);
+
+      await waitFor(() => {
+        // Should show the course but with blurred overlay
+        expect(screen.getByText("CS101")).toBeInTheDocument();
+      });
+    });
   });
 
   describe("Logged In User", () => {
@@ -121,6 +134,79 @@ describe("Courses Page", () => {
       await waitFor(() => {
         expect(screen.getByText("CS101")).toBeInTheDocument();
       });
+    });
+
+    it("does not show CTA banner for authenticated users", async () => {
+      renderAuthenticated(<Courses />);
+
+      await waitFor(() => {
+        expect(screen.getByText("CS101")).toBeInTheDocument();
+      });
+
+      // CTA banner should not be visible for authenticated users
+      expect(
+        screen.queryByText(/Sign up to see all courses/i),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Pagination", () => {
+    it("shows page number buttons when totalPages > 1 for authenticated users", async () => {
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCoursesResponseWithPagination),
+          } as Response);
+        }
+        if (url.includes("/api/colleges")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCollegesResponse),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: [] }),
+        } as Response);
+      });
+
+      renderAuthenticated(<Courses />);
+
+      await waitFor(() => {
+        // Page number buttons should be visible when there are multiple pages
+        expect(screen.getByLabelText(/Go to page 1/i)).toBeInTheDocument();
+      });
+    });
+
+    it("does not show page number buttons when only one page", async () => {
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCoursesResponse), // totalPages: 1
+          } as Response);
+        }
+        if (url.includes("/api/colleges")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCollegesResponse),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: [] }),
+        } as Response);
+      });
+
+      renderAuthenticated(<Courses />);
+
+      await waitFor(() => {
+        expect(screen.getByText("CS101")).toBeInTheDocument();
+      });
+
+      // Page number buttons should not be visible when only one page
+      expect(screen.queryByLabelText(/Go to page/i)).not.toBeInTheDocument();
     });
   });
 
@@ -187,6 +273,84 @@ describe("Courses Page", () => {
 
       await waitFor(() => {
         expect(screen.getByText("No Courses Found")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Edge Cases", () => {
+    it("handles courses with empty classes array gracefully", async () => {
+      const courseWithEmptyClasses = {
+        id: 1,
+        courseCode: "CS101",
+        title: "Introduction to Computer Science",
+        collegeId: 1,
+        isActive: true,
+        createdAt: "2024-01-01",
+        updatedAt: "2024-01-01",
+        college: { id: 1, name: "Test University", shortName: "TU" },
+        classes: [], // Empty classes array
+      };
+
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  data: [courseWithEmptyClasses],
+                  pagination: { page: 1, limit: 12, total: 1, totalPages: 1 },
+                },
+              }),
+          } as Response);
+        }
+        if (url.includes("/api/colleges")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCollegesResponse),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: [] }),
+        } as Response);
+      });
+
+      renderAuthenticated(<Courses />);
+
+      // Should still render the course card without crashing
+      await waitFor(() => {
+        expect(screen.getByText("CS101")).toBeInTheDocument();
+      });
+    });
+
+    it("shows Try Again button in error state", async () => {
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses")) {
+          return Promise.resolve({
+            ok: false,
+            status: 500,
+            json: () =>
+              Promise.resolve({ success: false, error: "Server error" }),
+          } as Response);
+        }
+        if (url.includes("/api/colleges")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCollegesResponse),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: [] }),
+        } as Response);
+      });
+
+      renderAuthenticated(<Courses />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Try Again")).toBeInTheDocument();
       });
     });
   });

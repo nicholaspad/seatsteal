@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import Home from "../Home";
 import { renderAnonymous } from "@/test/utils";
 import { mockCollegesResponse } from "@/test/mocks/api";
@@ -77,6 +78,69 @@ describe("Home Page", () => {
 
       // Page should still render even if API fails
       expect(screen.getByText("Course full?")).toBeInTheDocument();
+    });
+
+    it("handles empty colleges array gracefully", async () => {
+      mockFetchWithToasts.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ success: true, data: [] }),
+      } as Response);
+
+      renderAnonymous(<Home />);
+
+      // Page should still render with empty colleges
+      await waitFor(() => {
+        expect(screen.getByText("Course full?")).toBeInTheDocument();
+        expect(screen.getByText("FAQs")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("External Links", () => {
+    it("Request early access button has correct external link attributes", () => {
+      renderAnonymous(<Home />);
+
+      const earlyAccessLink = screen.getByRole("link", {
+        name: /Request early access/i,
+      });
+      expect(earlyAccessLink).toHaveAttribute("target", "_blank");
+      expect(earlyAccessLink).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("Request a college button has correct external link attributes", () => {
+      renderAnonymous(<Home />);
+
+      const requestCollegeLink = screen.getByRole("link", {
+        name: /Request a college/i,
+      });
+      expect(requestCollegeLink).toHaveAttribute("target", "_blank");
+      expect(requestCollegeLink).toHaveAttribute("rel", "noopener noreferrer");
+    });
+  });
+
+  describe("Smooth Scroll", () => {
+    it("View pricing button triggers scroll to pricing section", async () => {
+      const user = userEvent.setup();
+      const scrollIntoViewMock = vi.fn();
+
+      // Mock getElementById to return an element with scrollIntoView
+      const mockElement = { scrollIntoView: scrollIntoViewMock };
+      vi.spyOn(document, "getElementById").mockReturnValue(
+        mockElement as unknown as HTMLElement,
+      );
+
+      renderAnonymous(<Home />);
+
+      const viewPricingButton = screen.getByRole("button", {
+        name: /View pricing/i,
+      });
+      await user.click(viewPricingButton);
+
+      expect(document.getElementById).toHaveBeenCalledWith("pricing");
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
     });
   });
 });

@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import CourseDetails from "../CourseDetails";
-import { renderAuthenticated } from "@/test/utils";
-import { mockCourseData } from "@/test/mocks/api";
+import { renderAuthenticated, renderAnonymous } from "@/test/utils";
+import {
+  mockCourseData,
+  mockCourseWithClosedClass,
+  mockCourseWithMultipleClasses,
+} from "@/test/mocks/api";
 
 // Mock the API module
 const mockFetchWithToasts = vi.fn();
@@ -133,6 +137,79 @@ describe("CourseDetails Page", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Go Back")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Class Sections Display", () => {
+    it("displays class sections with section codes", async () => {
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses/1")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: mockCourseWithMultipleClasses,
+              }),
+          } as Response);
+        }
+        if (url.includes("/api/subscriptions")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true, data: [] }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true }),
+        } as Response);
+      });
+
+      renderAuthenticated(<CourseDetails />, {
+        routerEntries: ["/courses/1"],
+      });
+
+      await waitFor(() => {
+        // Should show multiple section codes
+        expect(screen.getByText("001")).toBeInTheDocument();
+        expect(screen.getByText("002")).toBeInTheDocument();
+        expect(screen.getByText("003")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Subscription Flow", () => {
+    it("shows Subscribe button for authenticated users on closed classes", async () => {
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses/1")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: mockCourseWithClosedClass,
+              }),
+          } as Response);
+        }
+        if (url.includes("/api/subscriptions")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true, data: [] }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true }),
+        } as Response);
+      });
+
+      renderAuthenticated(<CourseDetails />, {
+        routerEntries: ["/courses/1"],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Subscribe")).toBeInTheDocument();
       });
     });
   });

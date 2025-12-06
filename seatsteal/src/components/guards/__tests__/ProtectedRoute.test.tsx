@@ -54,4 +54,18 @@ describe("ProtectedRoute", () => {
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Welcome back!")).toBeInTheDocument();
   });
+
+  it("renders children immediately if user already authenticated on mount", () => {
+    // Render with auth already complete (no loading states)
+    renderAuthenticated(
+      <ProtectedRoute>
+        <div>Immediate Content</div>
+      </ProtectedRoute>,
+      { loading: false, profileLoading: false },
+    );
+
+    // Content should be rendered immediately
+    expect(screen.getByText("Immediate Content")).toBeInTheDocument();
+    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+  });
 });
