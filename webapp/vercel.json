@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "framework": "fastapi",
   "builds": [
     {
       "src": "api/index.py",
