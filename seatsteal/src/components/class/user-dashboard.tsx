@@ -187,7 +187,7 @@ const UserDashboard = memo(function UserDashboard({
               toast.error(
                 <div className="space-y-2">
                   <p className="font-medium text-sm">
-                    Customer not found.
+                    Customer not found. Subscribe to get started!
                   </p>
                   <Button
                     variant="ghost"
