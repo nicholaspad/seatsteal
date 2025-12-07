@@ -137,7 +137,10 @@ async def create_stripe_portal_session(
         if not stripe_customer:
             raise HTTPException(
                 status_code=404,
-                detail="No Stripe customer found. Please create a subscription first.",
+                detail={
+                    "message": "No Stripe customer found. Please create a subscription first.",
+                    "code": "NO_STRIPE_CUSTOMER",
+                },
             )
 
         # Create portal session

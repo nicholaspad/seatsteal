@@ -177,6 +177,37 @@ const UserDashboard = memo(function UserDashboard({
       );
 
       if (!response.ok) {
+        // Check for no Stripe customer error (404)
+        if (response.status === 404) {
+          try {
+            const errorData = await response.json();
+            // Check if this is the specific "no customer" error
+            if (errorData.detail?.code === "NO_STRIPE_CUSTOMER") {
+              // Show custom toast with pricing link
+              toast.error(
+                <div className="space-y-2">
+                  <p className="font-medium text-sm">
+                    Customer not found.
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-1 text-xs"
+                    onClick={() => window.open("/#pricing", "_blank")}
+                  >
+                    View plans <ExternalLink className="ml-1 h-3 w-3" />
+                  </Button>
+                </div>,
+                {
+                  duration: 5000,
+                },
+              );
+              return;
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, fall through to generic error
+          }
+        }
         throw new Error("Failed to create portal session");
       }
 
