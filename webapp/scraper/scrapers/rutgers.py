@@ -109,9 +109,9 @@ class RutgersScraper(BaseScraper):
                 timeout=60.0,  # Longer timeout for large API response
                 follow_redirects=True,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                    "User-Agent": "SeatSteal/1.0",
                     "Accept": "application/json",
-                    "Accept-Encoding": "gzip, deflate",
+                    "Accept-Encoding": "gzip, deflate, br",
                 },
             )
 

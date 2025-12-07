@@ -29,7 +29,7 @@ class NeuScraper(BaseScraper):
                 timeout=30.0,
                 follow_redirects=True,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/110.0",
+                    "User-Agent": "SeatSteal/1.0",
                     "Accept": "application/json, text/plain, */*",
                     "Accept-Language": "en-US,en;q=0.5",
                     "Accept-Encoding": "gzip, deflate, br",
@@ -282,7 +282,7 @@ class NeuScraper(BaseScraper):
 
             # Include all headers explicitly (matching TypeScript implementation)
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/110.0",
+                "User-Agent": "SeatSteal/1.0",
                 "Accept": "application/json, text/plain, */*",
                 "Accept-Language": "en-US,en;q=0.5",
                 "Accept-Encoding": "gzip, deflate, br",
@@ -354,7 +354,7 @@ class NeuScraper(BaseScraper):
 
             # Include all headers explicitly (matching TypeScript implementation)
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/110.0",
+                "User-Agent": "SeatSteal/1.0",
                 "Accept": "application/json, text/plain, */*",
                 "Accept-Language": "en-US,en;q=0.5",
                 "Accept-Encoding": "gzip, deflate, br",
