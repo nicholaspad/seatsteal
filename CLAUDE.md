@@ -22,6 +22,13 @@ Bad: `cursor-implement-mobile-bottom-navbar-for-ionic-app`
 - IMPORTANT: Always build after making changes. Fix all build errors.
 - When you're done making changes, run `npx prettier -w src/**/*.ts src/**/*.tsx` from the seatsteal directory to format all code.
 
+## Testing
+
+- Run `npm test` for watch mode or `npm run test:run` for a single run from the seatsteal directory
+- Always update and execute tests when making frontend changes
+- Tests use Vitest with @testing-library/react
+- Test files are located in `__tests__` directories alongside the code they test
+
 # webapp directory (backend)
 
 ## Code style
