@@ -220,7 +220,7 @@ class NotificationJob:
                 StripeSubscription,
                 and_(
                     Subscription.user_id == StripeSubscription.user_id,
-                    StripeSubscription.status == "active",
+                    StripeSubscription.status.in_(["active", "trialing"]),
                 ),
             )
             .where(

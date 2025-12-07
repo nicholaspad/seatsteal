@@ -51,7 +51,7 @@ def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
         .where(
             and_(
                 StripeSubscription.user_id == user_id,
-                StripeSubscription.status == "active",
+                StripeSubscription.status.in_(["active", "trialing"]),
             )
         )
         .order_by(StripeSubscription.created_at.desc(), StripeSubscription.id.desc())

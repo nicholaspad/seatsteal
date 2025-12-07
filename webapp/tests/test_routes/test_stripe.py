@@ -357,6 +357,123 @@ class TestStripeWebhooks:
             assert subscription.price_id == "price_new"
 
     @pytest.mark.unit
+    async def test_webhook_subscription_created_trialing(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        """Test handling customer.subscription.created webhook with trialing status."""
+        # Create customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_trial123",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        with patch("api.routes.stripe.verify_webhook_signature") as mock_verify, patch(
+            "api.routes.stripe.get_tier_from_price_id"
+        ) as mock_tier:
+
+            # Mock webhook event with trialing status
+            mock_event = MagicMock()
+            mock_event.type = "customer.subscription.created"
+            mock_subscription = MagicMock()
+            mock_subscription.id = "sub_trial123"
+            mock_subscription.get = lambda key: (
+                "cus_trial123" if key == "customer" else None
+            )
+            mock_subscription.__getitem__ = lambda self, key: {
+                "status": "trialing",
+                "items": {"data": [{"price": {"id": "price_trial123"}}]},
+            }[key]
+            mock_event.data.object = mock_subscription
+            mock_verify.return_value = mock_event
+            mock_tier.return_value = "pro"
+
+            response = await client.post(
+                "/api/stripe/webhooks",
+                content=b'{"type": "customer.subscription.created"}',
+                headers={"stripe-signature": "test_signature"},
+            )
+
+            assert response.status_code == 200
+
+            # Verify subscription was created with trialing status
+            result = test_db.execute(
+                select(StripeSubscription).where(
+                    StripeSubscription.stripe_subscription_id == "sub_trial123"
+                )
+            )
+            subscription = result.scalar_one_or_none()
+            assert subscription is not None
+            assert subscription.status == "trialing"
+            assert subscription.tier == "pro"
+
+    @pytest.mark.unit
+    async def test_webhook_subscription_updated_to_trialing(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        """Test handling customer.subscription.updated webhook changing to trialing status."""
+        # Create customer
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_trial_update",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+
+        # Create existing subscription with active status
+        subscription = StripeSubscription(
+            user_id=test_user.id,
+            stripe_subscription_id="sub_trial_update",
+            stripe_customer_id="cus_trial_update",
+            status="active",
+            price_id="price_old",
+            tier="plus",
+        )
+        test_db.add(subscription)
+        test_db.commit()
+
+        with patch("api.routes.stripe.verify_webhook_signature") as mock_verify, patch(
+            "api.routes.stripe.get_tier_from_price_id"
+        ) as mock_tier:
+
+            mock_event = MagicMock()
+            mock_event.type = "customer.subscription.updated"
+            mock_subscription = MagicMock()
+            mock_subscription.id = "sub_trial_update"
+            mock_subscription.get = lambda key: (
+                "cus_trial_update" if key == "customer" else None
+            )
+            mock_subscription.__getitem__ = lambda self, key: {
+                "status": "trialing",
+                "items": {"data": [{"price": {"id": "price_new"}}]},
+            }[key]
+            mock_event.data.object = mock_subscription
+            mock_verify.return_value = mock_event
+            mock_tier.return_value = "pro"
+
+            response = await client.post(
+                "/api/stripe/webhooks",
+                content=b'{"type": "customer.subscription.updated"}',
+                headers={"stripe-signature": "test_signature"},
+            )
+
+            assert response.status_code == 200
+
+            # Verify subscription was updated to trialing status
+            test_db.refresh(subscription)
+            assert subscription.status == "trialing"
+            assert subscription.tier == "pro"
+            assert subscription.price_id == "price_new"
+
+    @pytest.mark.unit
     async def test_webhook_subscription_deleted(
         self,
         client: AsyncClient,
