@@ -85,7 +85,7 @@ async def create_stripe_checkout_session(
             customer_id=stripe_customer.stripe_customer_id,
             price_id=price_id,
             success_url=f"{settings.effective_frontend_url}/dashboard?success=true",
-            cancel_url=f"{settings.effective_frontend_url}/#pricing",
+            cancel_url=f"{settings.effective_frontend_url}/",
             user_id=str(user.id),
         )
 
