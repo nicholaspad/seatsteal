@@ -175,7 +175,28 @@ class TestCreatePortalSession:
         response = await authenticated_client.post("/api/stripe/create-portal-session")
 
         assert response.status_code == 404
-        assert "No Stripe customer found" in response.json()["detail"]
+        response_json = response.json()
+        assert response_json["detail"]["code"] == "NO_STRIPE_CUSTOMER"
+        assert "No Stripe customer found" in response_json["detail"]["message"]
+
+    @pytest.mark.unit
+    async def test_create_portal_session_no_customer_error_format(
+        self,
+        authenticated_client: AsyncClient,
+        test_user: Profile,
+    ):
+        """Test that no customer error returns structured error with code."""
+        response = await authenticated_client.post("/api/stripe/create-portal-session")
+
+        assert response.status_code == 404
+        response_json = response.json()
+
+        # Verify error has required structure
+        assert "detail" in response_json
+        assert isinstance(response_json["detail"], dict)
+        assert "code" in response_json["detail"]
+        assert "message" in response_json["detail"]
+        assert response_json["detail"]["code"] == "NO_STRIPE_CUSTOMER"
 
     @pytest.mark.unit
     async def test_create_portal_session_unauthenticated(
