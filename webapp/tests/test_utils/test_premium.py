@@ -96,6 +96,68 @@ class TestGetUserSubscriptionTier:
         assert tier == "pro"
 
     @pytest.mark.unit
+    def test_trialing_plus_subscription_returns_plus(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        """Test that user with trialing Plus subscription returns plus tier."""
+        # Create Stripe customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_trial_plus_123",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create trialing Plus subscription
+        trialing_sub = StripeSubscription(
+            user_id=test_user.id,
+            stripe_subscription_id="sub_trial_plus_123",
+            stripe_customer_id="cus_trial_plus_123",
+            status="trialing",
+            tier="plus",
+            price_id="price_plus",
+        )
+        test_db.add(trialing_sub)
+        test_db.commit()
+
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "plus"
+
+    @pytest.mark.unit
+    def test_trialing_pro_subscription_returns_pro(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        """Test that user with trialing Pro subscription returns pro tier."""
+        # Create Stripe customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_trial_pro_123",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create trialing Pro subscription
+        trialing_sub = StripeSubscription(
+            user_id=test_user.id,
+            stripe_subscription_id="sub_trial_pro_123",
+            stripe_customer_id="cus_trial_pro_123",
+            status="trialing",
+            tier="pro",
+            price_id="price_pro",
+        )
+        test_db.add(trialing_sub)
+        test_db.commit()
+
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "pro"
+
+    @pytest.mark.unit
     def test_multiple_subscriptions_returns_most_recent(
         self,
         test_db: Session,
