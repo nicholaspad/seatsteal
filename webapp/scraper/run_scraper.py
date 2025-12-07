@@ -98,8 +98,8 @@ class ScraperCLI:
                 logger.error(f"❌ College is not active: {college_short_name}")
                 return False
 
-            # Create job
-            config = JobConfig(subject=subject, limit=limit)
+            # Create job with skip_lock=True for CLI runs
+            config = JobConfig(subject=subject, limit=limit, skip_lock=True)
             job = ScraperJob(college, db, config)
 
             # Execute job

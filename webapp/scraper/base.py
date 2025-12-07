@@ -20,7 +20,9 @@ class BaseScraper(ABC):
         self.college_short_name = college_short_name
         self.client = httpx.AsyncClient(
             headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "SeatSteal/1.0",
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip, deflate, br",
             },
             timeout=30.0,
         )

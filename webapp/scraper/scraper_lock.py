@@ -33,7 +33,13 @@ class ScraperLock:
     Uses the Scraper model's status field to implement locking via atomic updates.
     """
 
-    def __init__(self, college_id: int, db: Session, lock_timeout_ms: int = 900000):
+    def __init__(
+        self,
+        college_id: int,
+        db: Session,
+        lock_timeout_ms: int = 900000,
+        skip_lock: bool = False,
+    ):
         """
         Initialize scraper lock.
 
@@ -41,10 +47,12 @@ class ScraperLock:
             college_id: College ID to lock for
             db: Database session
             lock_timeout_ms: Lock timeout in milliseconds (default: 15 minutes)
+            skip_lock: If True, skip status checks and always acquire lock
         """
         self.college_id = college_id
         self.db = db
         self.lock_timeout_ms = lock_timeout_ms
+        self.skip_lock = skip_lock
         self.acquired = False
         self.college_short_name: Optional[str] = None
 
@@ -79,6 +87,28 @@ class ScraperLock:
         try:
             # First, ensure scraper record exists
             self._ensure_scraper_exists()
+
+            # If skip_lock is True, update status without checking current status
+            if self.skip_lock:
+                result = self.db.execute(
+                    update(Scraper)
+                    .where(Scraper.college_id == self.college_id)
+                    .values(
+                        status="running",
+                        last_run_at=datetime.now(),
+                        next_run_at=None,
+                        updated_at=datetime.now(),
+                    )
+                    .returning(Scraper)
+                ).first()
+
+                if result:
+                    self.acquired = True
+                    self.db.commit()
+                    logger.info(
+                        f"🔒 Acquired scraper lock for {college_short_name} (skip_lock=True)"
+                    )
+                    return LockResult(success=True, scraper=result)
 
             # Try to acquire lock by atomically updating status to 'running'
             # This will only succeed if the current status is NOT 'running'

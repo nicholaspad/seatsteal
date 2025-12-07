@@ -41,12 +41,14 @@ class JobConfig:
         lock_timeout_ms: int = 900000,  # 15 minutes
         retry_attempts: int = 3,
         retry_delay_ms: int = 5000,
+        skip_lock: bool = False,
     ):
         self.subject = subject
         self.limit = limit
         self.lock_timeout_ms = lock_timeout_ms
         self.retry_attempts = retry_attempts
         self.retry_delay_ms = retry_delay_ms
+        self.skip_lock = skip_lock
 
 
 class ScraperJob:
@@ -66,7 +68,9 @@ class ScraperJob:
         self.college = college
         self.db = db
         self.config = config or JobConfig()
-        self.lock = ScraperLock(college.id, db, self.config.lock_timeout_ms)
+        self.lock = ScraperLock(
+            college.id, db, self.config.lock_timeout_ms, self.config.skip_lock
+        )
 
     async def execute(self) -> JobResult:
         """
