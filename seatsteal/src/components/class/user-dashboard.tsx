@@ -187,7 +187,7 @@ const UserDashboard = memo(function UserDashboard({
               toast.error(
                 <div className="space-y-2">
                   <p className="font-medium text-sm">
-                    Customer not found. Subscribe to a plan to get started!
+                    Customer not found.
                   </p>
                   <Button
                     variant="ghost"
@@ -195,7 +195,7 @@ const UserDashboard = memo(function UserDashboard({
                     className="h-auto p-1 text-xs"
                     onClick={() => window.open("/#pricing", "_blank")}
                   >
-                    View pricing <ExternalLink className="ml-1 h-3 w-3" />
+                    View plans <ExternalLink className="ml-1 h-3 w-3" />
                   </Button>
                 </div>,
                 {

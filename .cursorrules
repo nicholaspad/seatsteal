@@ -27,7 +27,7 @@ Bad: `cursor-implement-mobile-bottom-navbar-for-ionic-app`
 - Run `npm test` for watch mode or `npm run test:run` for a single run from the seatsteal directory
 - Always update and execute tests when making frontend changes
 - Tests use Vitest with @testing-library/react
-- Test files are located in `__tests__` directories alongside the code they test
+- Page level files are located in the seatsteal/src/pages/__tests__/ directories. Add tests here.
 
 # webapp directory (backend)
 
