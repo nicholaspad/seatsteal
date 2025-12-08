@@ -1156,3 +1156,137 @@ async def update_college_term(
     except Exception as e:
         db.rollback()
         log_and_raise_500("Failed to update college term", e)
+
+
+@router.get("/colleges/{college_id}/stats")
+async def get_college_stats(
+    college_id: int,
+    admin: Profile = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Get detailed stats for a college.
+
+    Returns:
+    - College info (name, shortName, termCode, termName, emailEnabled, smsEnabled)
+    - Stats (totalCourses, totalClasses, activeSubscriptions, totalSubscriptions)
+    - Recent scraper logs (last 10 runs with outcome, duration, etc.)
+    """
+    try:
+        # 1. Get college info
+        college = db.execute(
+            select(College).where(College.id == college_id)
+        ).scalar_one_or_none()
+
+        if not college:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="College not found",
+            )
+
+        # 2. Get course count
+        total_courses = (
+            db.execute(
+                select(func.count())
+                .select_from(Course)
+                .where(Course.college_id == college_id)
+            ).scalar()
+            or 0
+        )
+
+        # 3. Get class count (through courses)
+        total_classes = (
+            db.execute(
+                select(func.count())
+                .select_from(Class)
+                .join(Course, Class.course_id == Course.id)
+                .where(Course.college_id == college_id)
+            ).scalar()
+            or 0
+        )
+
+        # 4. Get subscription counts
+        total_subscriptions = (
+            db.execute(
+                select(func.count())
+                .select_from(Subscription)
+                .where(Subscription.college_id == college_id)
+            ).scalar()
+            or 0
+        )
+
+        active_subscriptions = (
+            db.execute(
+                select(func.count())
+                .select_from(Subscription)
+                .where(
+                    and_(
+                        Subscription.college_id == college_id,
+                        Subscription.is_active == True,
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+
+        # 5. Get recent scraper logs (last 10)
+        scraper_logs_query = (
+            select(
+                ScraperLog.id,
+                ScraperLog.outcome,
+                ScraperLog.started_at.label("startedAt"),
+                ScraperLog.completed_at.label("completedAt"),
+                ScraperLog.duration_ms.label("durationMs"),
+                ScraperLog.courses_created.label("coursesCreated"),
+                ScraperLog.classes_created.label("classesCreated"),
+                ScraperLog.enrollments_saved.label("enrollmentsSaved"),
+                ScraperLog.error_message.label("errorMessage"),
+            )
+            .select_from(ScraperLog)
+            .join(Scraper, ScraperLog.scraper_id == Scraper.id)
+            .where(Scraper.college_id == college_id)
+            .order_by(desc(ScraperLog.started_at))
+            .limit(10)
+        )
+        scraper_logs_result = db.execute(scraper_logs_query)
+        recent_scraper_logs = [
+            {
+                "id": row.id,
+                "outcome": row.outcome,
+                "startedAt": row.startedAt.isoformat() if row.startedAt else None,
+                "completedAt": row.completedAt.isoformat() if row.completedAt else None,
+                "durationMs": row.durationMs,
+                "coursesCreated": row.coursesCreated or 0,
+                "classesCreated": row.classesCreated or 0,
+                "enrollmentsSaved": row.enrollmentsSaved or 0,
+                "errorMessage": row.errorMessage,
+            }
+            for row in scraper_logs_result
+        ]
+
+        return {
+            "success": True,
+            "data": {
+                "college": {
+                    "id": college.id,
+                    "name": college.name,
+                    "shortName": college.short_name,
+                    "termCode": college.term_code,
+                    "termName": college.term_name,
+                    "emailEnabled": college.email_enabled,
+                    "smsEnabled": college.sms_enabled,
+                },
+                "stats": {
+                    "totalCourses": total_courses,
+                    "totalClasses": total_classes,
+                    "activeSubscriptions": active_subscriptions,
+                    "totalSubscriptions": total_subscriptions,
+                },
+                "recentScraperLogs": recent_scraper_logs,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_and_raise_500("Failed to fetch college stats", e)

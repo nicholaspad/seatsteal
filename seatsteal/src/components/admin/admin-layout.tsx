@@ -1,6 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Users, Home, Shield, LogOut, Bell, Activity } from "lucide-react";
+import {
+  Users,
+  Home,
+  Shield,
+  LogOut,
+  Bell,
+  Activity,
+  Building2,
+} from "lucide-react";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -11,6 +19,11 @@ const navigation = [
     name: "Dashboard",
     href: "/admin",
     icon: Home,
+  },
+  {
+    name: "Colleges",
+    href: "/admin/colleges",
+    icon: Building2,
   },
   {
     name: "Users",

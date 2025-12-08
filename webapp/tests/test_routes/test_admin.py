@@ -1163,3 +1163,225 @@ class TestUpdateCollegeTerm:
         )
 
         assert response.status_code == 422
+
+
+class TestGetCollegeStats:
+    """Tests for GET /api/admin/colleges/{college_id}/stats endpoint."""
+
+    @pytest.mark.unit
+    async def test_get_college_stats_success(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+        test_subscription: Subscription,
+    ):
+        """Test successfully getting college stats."""
+        # Create scraper and logs for the college
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+        )
+        test_db.add(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
+
+        log = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="success",
+            started_at=datetime.utcnow() - timedelta(hours=1),
+            completed_at=datetime.utcnow() - timedelta(hours=1),
+            duration_ms=1500,
+            courses_created=10,
+            classes_created=50,
+            enrollments_saved=200,
+        )
+        test_db.add(log)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/colleges/{test_college.id}/stats"
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+
+        # Verify college info
+        assert "college" in data
+        college = data["college"]
+        assert college["id"] == test_college.id
+        assert college["name"] == test_college.name
+        assert college["shortName"] == test_college.short_name
+        assert "termCode" in college
+        assert "emailEnabled" in college
+        assert "smsEnabled" in college
+
+        # Verify stats
+        assert "stats" in data
+        stats = data["stats"]
+        assert "totalCourses" in stats
+        assert "totalClasses" in stats
+        assert "activeSubscriptions" in stats
+        assert "totalSubscriptions" in stats
+        assert stats["totalCourses"] >= 0
+        assert stats["totalClasses"] >= 0
+        assert stats["totalSubscriptions"] >= 0
+
+        # Verify scraper logs
+        assert "recentScraperLogs" in data
+        assert len(data["recentScraperLogs"]) >= 1
+        log_data = data["recentScraperLogs"][0]
+        assert "id" in log_data
+        assert "outcome" in log_data
+        assert "startedAt" in log_data
+        assert "durationMs" in log_data
+        assert log_data["outcome"] == "success"
+        assert log_data["durationMs"] == 1500
+
+    @pytest.mark.unit
+    async def test_get_college_stats_not_found(
+        self,
+        admin_client: AsyncClient,
+    ):
+        """Test getting stats for non-existent college."""
+        response = await admin_client.get("/api/admin/colleges/99999/stats")
+
+        assert response.status_code == 404
+
+    @pytest.mark.unit
+    async def test_get_college_stats_no_scraper_logs(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+    ):
+        """Test getting stats for college with no scraper logs."""
+        # Create college with no scrapers/logs
+        new_college = College(
+            name="No Logs University",
+            short_name="nologs",
+            term_code="1000",
+            is_active=True,
+        )
+        test_db.add(new_college)
+        test_db.commit()
+        test_db.refresh(new_college)
+
+        response = await admin_client.get(f"/api/admin/colleges/{new_college.id}/stats")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["recentScraperLogs"] == []
+        assert data["stats"]["totalCourses"] == 0
+        assert data["stats"]["totalClasses"] == 0
+
+    @pytest.mark.unit
+    async def test_get_college_stats_limits_logs_to_10(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that only the last 10 scraper logs are returned."""
+        # Create scraper
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+        )
+        test_db.add(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
+
+        # Create 15 logs
+        for i in range(15):
+            log = ScraperLog(
+                scraper_id=scraper.id,
+                outcome="success",
+                started_at=datetime.utcnow() - timedelta(hours=i),
+                completed_at=datetime.utcnow() - timedelta(hours=i),
+                duration_ms=1000 + i,
+            )
+            test_db.add(log)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/colleges/{test_college.id}/stats"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["recentScraperLogs"]) == 10
+
+    @pytest.mark.unit
+    async def test_get_college_stats_non_admin(
+        self,
+        authenticated_client: AsyncClient,
+        test_college,
+    ):
+        """Test that non-admin users cannot access college stats."""
+        response = await authenticated_client.get(
+            f"/api/admin/colleges/{test_college.id}/stats"
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.unit
+    async def test_get_college_stats_unauthenticated(
+        self,
+        client: AsyncClient,
+        test_college,
+    ):
+        """Test that unauthenticated users cannot access college stats."""
+        response = await client.get(f"/api/admin/colleges/{test_college.id}/stats")
+
+        assert response.status_code == 401
+
+
+class TestGetTermCodes:
+    """Tests for GET /api/admin/term-codes/{short_name} endpoint."""
+
+    @pytest.mark.unit
+    async def test_get_term_codes_unsupported_college(
+        self,
+        admin_client: AsyncClient,
+    ):
+        """Test getting term codes for unsupported college."""
+        response = await admin_client.get("/api/admin/term-codes/unsupported")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @pytest.mark.unit
+    async def test_get_term_codes_princeton_manual(
+        self,
+        admin_client: AsyncClient,
+    ):
+        """Test that Princeton returns manual status due to Cloudflare."""
+        response = await admin_client.get("/api/admin/term-codes/princeton")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["college"] == "princeton"
+        assert data["status"] == "manual"
+        assert "Cloudflare" in data["error"]
+
+    @pytest.mark.unit
+    async def test_get_term_codes_non_admin(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that non-admin users cannot access term codes."""
+        response = await authenticated_client.get("/api/admin/term-codes/cornell")
+
+        assert response.status_code == 403
+
+    @pytest.mark.unit
+    async def test_get_term_codes_unauthenticated(
+        self,
+        client: AsyncClient,
+    ):
+        """Test that unauthenticated users cannot access term codes."""
+        response = await client.get("/api/admin/term-codes/cornell")
+
+        assert response.status_code == 401
