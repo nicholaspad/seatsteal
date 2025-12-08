@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func, or_, desc, text, case
+from sqlalchemy import select, and_, func, or_, desc, text, case, delete, update
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List, Literal
 from datetime import datetime, timedelta
@@ -22,6 +22,7 @@ from models.class_model import Class
 from api.middleware.auth import require_admin
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches
+from schemas.admin import TermUpdateRequest, TermUpdateResponse, TermUpdateCleanupStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -1045,3 +1046,113 @@ async def update_user(
     except Exception as e:
         db.rollback()
         log_and_raise_500("Failed to update user", e)
+
+
+@router.put("/colleges/{college_id}/term", response_model=TermUpdateResponse)
+async def update_college_term(
+    college_id: int,
+    request: TermUpdateRequest,
+    admin: Profile = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Update college term code and clean up old term data.
+
+    This endpoint:
+    1. Updates the college's term_code and term_name
+    2. Soft-deletes all active subscriptions for this college
+    3. Hard-deletes enrollments, classes, and courses
+
+    Use this when transitioning a college to a new academic term.
+    Notification logs are preserved for historical analytics.
+    """
+    try:
+        # 1. Get college
+        college = db.execute(
+            select(College).where(College.id == college_id)
+        ).scalar_one_or_none()
+
+        if not college:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="College not found",
+            )
+
+        old_term_code = college.term_code
+        old_term_name = college.term_name
+
+        # 2. Update term code
+        college.term_code = request.term_code
+        if request.term_name is not None:
+            college.term_name = request.term_name
+
+        # 3. Get course IDs for this college
+        course_ids_result = db.execute(
+            select(Course.id).where(Course.college_id == college_id)
+        )
+        course_ids = [row[0] for row in course_ids_result.fetchall()]
+
+        # 4. Get class IDs for these courses
+        class_ids = []
+        if course_ids:
+            class_ids_result = db.execute(
+                select(Class.class_id).where(Class.course_id.in_(course_ids))
+            )
+            class_ids = [row[0] for row in class_ids_result.fetchall()]
+
+        # 5. Orphan notification_logs by setting subscription_id to NULL
+        # This preserves notification history while allowing subscription deletion
+        db.execute(
+            update(NotificationLog)
+            .where(NotificationLog.college_id == college_id)
+            .values(subscription_id=None)
+        )
+
+        # 6. Delete subscriptions (hard delete required because FK to classes)
+        subs_deleted = db.execute(
+            delete(Subscription).where(Subscription.college_id == college_id)
+        ).rowcount
+
+        # 7. Delete enrollments
+        enroll_deleted = 0
+        if class_ids:
+            enroll_deleted = db.execute(
+                delete(Enrollment).where(Enrollment.class_id.in_(class_ids))
+            ).rowcount
+
+        # 8. Delete classes
+        classes_deleted = 0
+        if course_ids:
+            classes_deleted = db.execute(
+                delete(Class).where(Class.course_id.in_(course_ids))
+            ).rowcount
+
+        # 9. Delete courses
+        courses_deleted = db.execute(
+            delete(Course).where(Course.college_id == college_id)
+        ).rowcount
+
+        # NOTE: notification_logs are preserved for historical analytics
+
+        db.commit()
+
+        return TermUpdateResponse(
+            college_id=college.id,
+            short_name=college.short_name,
+            old_term_code=old_term_code,
+            new_term_code=request.term_code,
+            old_term_name=old_term_name,
+            new_term_name=request.term_name if request.term_name else college.term_name,
+            cleanup=TermUpdateCleanupStats(
+                subscriptions_deactivated=subs_deleted,
+                enrollments_deleted=enroll_deleted,
+                classes_deleted=classes_deleted,
+                courses_deleted=courses_deleted,
+            ),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        log_and_raise_500("Failed to update college term", e)
