@@ -46,7 +46,7 @@ type SortType = "date" | "course" | "status" | "notified";
 
 // Helper function to format date labels for the trends graph
 const formatTrendLabel = (dateString: string): string => {
-  const [year, month, day] = dateString.split('-').map(Number);
+  const [year, month, day] = dateString.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   const today = new Date();
   today.setHours(0, 0, 0, 0);

@@ -25,10 +25,6 @@ class NotificationLog(Base):
     # Status: 'sent', 'failed', 'pending'
     status = Column(String, nullable=False)
 
-    # Enrollment context
-    seats_remaining = Column(Integer)
-    enrollment_status = Column(String)
-
     # Metadata
     sent_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
