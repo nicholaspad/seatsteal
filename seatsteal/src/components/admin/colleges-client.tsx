@@ -864,7 +864,7 @@ export function CollegesClient() {
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent>
+        <DialogContent className="p-6">
           <DialogHeader>
             <DialogTitle className="text-red-600">
               Confirm Term Code Change
