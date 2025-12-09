@@ -276,7 +276,9 @@ class ScraperLock:
             )
             self.db.commit()
 
-            logger.info(f"🔓 Force released stuck scraper lock for {college_short_name}")
+            logger.info(
+                f"🔓 Force released stuck scraper lock for {college_short_name}"
+            )
 
             # Now try to acquire the lock again
             return self.acquire()

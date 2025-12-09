@@ -115,16 +115,30 @@ export const mockSettingsResponse = {
   },
 };
 
+// Generate dates for the past 7 days for trend mocks
+const generateLast7DaysDates = () => {
+  const dates = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    dates.push(date.toISOString().split("T")[0]); // Format as YYYY-MM-DD
+  }
+  return dates;
+};
+
+const last7Days = generateLast7DaysDates();
+
 export const mockTrendsResponse = {
   success: true,
   data: [
-    { day: "Mon", notifications: 2, courses: ["CS101"] },
-    { day: "Tue", notifications: 0, courses: [] },
-    { day: "Wed", notifications: 1, courses: ["CS102"] },
-    { day: "Thu", notifications: 0, courses: [] },
-    { day: "Fri", notifications: 3, courses: ["CS101", "CS102"] },
-    { day: "Sat", notifications: 0, courses: [] },
-    { day: "Sun", notifications: 0, courses: [] },
+    { date: last7Days[0], notifications: 2, courses: ["CS101"] },
+    { date: last7Days[1], notifications: 0, courses: [] },
+    { date: last7Days[2], notifications: 1, courses: ["CS102"] },
+    { date: last7Days[3], notifications: 0, courses: [] },
+    { date: last7Days[4], notifications: 3, courses: ["CS101", "CS102"] },
+    { date: last7Days[5], notifications: 0, courses: [] },
+    { date: last7Days[6], notifications: 0, courses: [] },
   ],
 };
 
@@ -167,13 +181,13 @@ export const mockMultipleSubscriptions = [
 export const mockEmptyTrendsResponse = {
   success: true,
   data: [
-    { day: "Mon", notifications: 0, courses: [] },
-    { day: "Tue", notifications: 0, courses: [] },
-    { day: "Wed", notifications: 0, courses: [] },
-    { day: "Thu", notifications: 0, courses: [] },
-    { day: "Fri", notifications: 0, courses: [] },
-    { day: "Sat", notifications: 0, courses: [] },
-    { day: "Sun", notifications: 0, courses: [] },
+    { date: last7Days[0], notifications: 0, courses: [] },
+    { date: last7Days[1], notifications: 0, courses: [] },
+    { date: last7Days[2], notifications: 0, courses: [] },
+    { date: last7Days[3], notifications: 0, courses: [] },
+    { date: last7Days[4], notifications: 0, courses: [] },
+    { date: last7Days[5], notifications: 0, courses: [] },
+    { date: last7Days[6], notifications: 0, courses: [] },
   ],
 };
 

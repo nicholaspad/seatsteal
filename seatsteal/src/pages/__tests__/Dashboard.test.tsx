@@ -208,7 +208,7 @@ describe("Dashboard Page", () => {
   });
 
   describe("Weekly Trend Chart", () => {
-    it("displays weekly notification trend chart", async () => {
+    it("displays past 7 days notification trend chart", async () => {
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/subscriptions")) {
           return Promise.resolve({
@@ -232,18 +232,14 @@ describe("Dashboard Page", () => {
       renderAuthenticated(<Dashboard />);
 
       await waitFor(() => {
-        // Should show day labels for the trend chart
-        expect(screen.getByText("Mon")).toBeInTheDocument();
-        expect(screen.getByText("Tue")).toBeInTheDocument();
-        expect(screen.getByText("Wed")).toBeInTheDocument();
-        expect(screen.getByText("Thu")).toBeInTheDocument();
-        expect(screen.getByText("Fri")).toBeInTheDocument();
-        expect(screen.getByText("Sat")).toBeInTheDocument();
-        expect(screen.getByText("Sun")).toBeInTheDocument();
+        // Should show "Today" label for the most recent day
+        expect(screen.getByText("Today")).toBeInTheDocument();
+        // Should show the chart title
+        expect(screen.getByText("Past 7 Days Notifications")).toBeInTheDocument();
       });
     });
 
-    it("shows No notifications this week when all bars are zero", async () => {
+    it("shows No notifications in the past 7 days when all bars are zero", async () => {
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/subscriptions")) {
           return Promise.resolve({
@@ -267,7 +263,7 @@ describe("Dashboard Page", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("No notifications this week."),
+          screen.getByText("No notifications in the past 7 days."),
         ).toBeInTheDocument();
       });
     });

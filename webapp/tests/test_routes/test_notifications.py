@@ -33,11 +33,12 @@ class TestGetNotificationTrends:
         test_user: Profile,
     ):
         """Test successfully getting notification trends."""
-        # Create some notification logs for this week
+        # Create some notification logs for the past 7 days
         now = datetime.utcnow()
-        # Calculate start of this week (Monday)
-        days_since_monday = now.weekday()
-        week_start = now - timedelta(days=days_since_monday)
+        # Start from 6 days ago (rolling 7-day window)
+        start_date = (now - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         for i in range(3):
             log = NotificationLog(
@@ -47,7 +48,7 @@ class TestGetNotificationTrends:
                 notification_type="email",
                 message="Introduction to CS (CS101) A at Test University is OPEN!",
                 status="sent",
-                sent_at=week_start + timedelta(days=i),
+                sent_at=start_date + timedelta(days=i),
             )
             test_db.add(log)
         test_db.commit()
@@ -59,16 +60,19 @@ class TestGetNotificationTrends:
         assert response_json["success"] is True
         data = response_json["data"]
         assert isinstance(data, list)
-        assert len(data) == 7  # 7 days of the week
+        assert len(data) == 7  # 7 days
 
         # Check structure of each day
-        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        for i, day_data in enumerate(data):
-            assert day_data["day"] == day_names[i]
+        for day_data in data:
+            assert "date" in day_data
             assert "notifications" in day_data
             assert "courses" in day_data
             assert isinstance(day_data["notifications"], int)
             assert isinstance(day_data["courses"], list)
+            # Verify date format (ISO: YYYY-MM-DD)
+            from datetime import date
+
+            date.fromisoformat(day_data["date"])  # Should not raise
 
     @pytest.mark.unit
     async def test_get_notification_trends_empty(
@@ -92,21 +96,22 @@ class TestGetNotificationTrends:
             assert day_data["courses"] == []
 
     @pytest.mark.unit
-    async def test_get_notification_trends_only_current_week(
+    async def test_get_notification_trends_only_past_7_days(
         self,
         authenticated_client: AsyncClient,
         test_db: Session,
         test_subscription: Subscription,
         test_user: Profile,
     ):
-        """Test that trends only include the current week."""
+        """Test that trends only include the past 7 days (rolling window)."""
         now = datetime.utcnow()
 
-        # Calculate start of this week (Monday)
-        days_since_monday = now.weekday()
-        week_start = now - timedelta(days=days_since_monday)
+        # Start from 6 days ago (rolling 7-day window)
+        start_date = (now - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
-        # Create a log from this week
+        # Create a log from within the 7-day window
         recent_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
@@ -114,11 +119,11 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="Recent Course (RECENT101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start + timedelta(days=1),  # Tuesday of this week
+            sent_at=start_date + timedelta(days=2),  # 4 days ago
         )
         test_db.add(recent_log)
 
-        # Create an old log (last week)
+        # Create an old log (outside the 7-day window)
         old_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
@@ -126,7 +131,7 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="Old Course (OLD101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start - timedelta(days=3),  # Before this week
+            sent_at=start_date - timedelta(days=1),  # 8 days ago
         )
         test_db.add(old_log)
         test_db.commit()
@@ -142,10 +147,11 @@ class TestGetNotificationTrends:
         total_notifications = sum(d["notifications"] for d in data)
         assert total_notifications == 1
 
-        # Tuesday (index 1) should have the notification
-        assert data[1]["notifications"] == 1
-        assert len(data[1]["courses"]) == 1
-        assert "Recent Course" in data[1]["courses"][0]
+        # Find the day with notifications
+        notification_day = [d for d in data if d["notifications"] > 0][0]
+        assert notification_day["notifications"] == 1
+        assert len(notification_day["courses"]) == 1
+        assert "Recent Course" in notification_day["courses"][0]
 
     @pytest.mark.unit
     async def test_get_notification_trends_only_user_subscriptions(
@@ -161,8 +167,10 @@ class TestGetNotificationTrends:
         from uuid import uuid4
 
         now = datetime.utcnow()
-        days_since_monday = now.weekday()
-        week_start = now - timedelta(days=days_since_monday)
+        # Start from 6 days ago (rolling 7-day window)
+        start_date = (now - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         # Create another user and their subscription
         other_user = Profile(
@@ -197,7 +205,7 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="My Course (MY101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start + timedelta(days=2),  # Wednesday
+            sent_at=start_date + timedelta(days=2),  # 4 days ago
         )
         test_db.add(user_log)
 
@@ -209,7 +217,7 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="Other Course (OTHER101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start + timedelta(days=2),  # Same day
+            sent_at=start_date + timedelta(days=2),  # Same day
         )
         test_db.add(other_log)
         test_db.commit()
@@ -242,8 +250,10 @@ class TestGetNotificationTrends:
     ):
         """Test that trends only include successful notifications."""
         now = datetime.utcnow()
-        days_since_monday = now.weekday()
-        week_start = now - timedelta(days=days_since_monday)
+        # Start from 6 days ago (rolling 7-day window)
+        start_date = (now - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         # Create a successful notification
         success_log = NotificationLog(
@@ -253,7 +263,7 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="Success Course (SUCCESS101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start + timedelta(days=1),
+            sent_at=start_date + timedelta(days=1),
         )
         test_db.add(success_log)
 
@@ -265,7 +275,7 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="Failed Course (FAIL101) A at Test University is OPEN!",
             status="failed",
-            sent_at=week_start + timedelta(days=1),
+            sent_at=start_date + timedelta(days=1),
         )
         test_db.add(failed_log)
         test_db.commit()
@@ -290,8 +300,10 @@ class TestGetNotificationTrends:
     ):
         """Test that both email and SMS notifications are counted separately."""
         now = datetime.utcnow()
-        days_since_monday = now.weekday()
-        week_start = now - timedelta(days=days_since_monday)
+        # Start from 6 days ago (rolling 7-day window)
+        start_date = (now - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         # Create email notification
         email_log = NotificationLog(
@@ -301,7 +313,7 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="Course (CS101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start + timedelta(days=1),
+            sent_at=start_date + timedelta(days=1),
         )
         test_db.add(email_log)
 
@@ -313,7 +325,7 @@ class TestGetNotificationTrends:
             notification_type="sms",
             message="Course (CS101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start + timedelta(days=1),
+            sent_at=start_date + timedelta(days=1),
         )
         test_db.add(sms_log)
         test_db.commit()
@@ -329,9 +341,10 @@ class TestGetNotificationTrends:
         assert total_notifications == 2
 
         # But courses should be deduplicated (same course for both)
-        tuesday_data = data[1]  # Tuesday
-        assert tuesday_data["notifications"] == 2
-        assert len(tuesday_data["courses"]) == 1  # Course only listed once
+        # Find the day with notifications
+        notification_day = [d for d in data if d["notifications"] > 0][0]
+        assert notification_day["notifications"] == 2
+        assert len(notification_day["courses"]) == 1  # Course only listed once
 
     @pytest.mark.unit
     async def test_get_notification_trends_with_null_subscription(
@@ -343,8 +356,10 @@ class TestGetNotificationTrends:
     ):
         """Test that trends work when subscription_id is NULL but user_id is set."""
         now = datetime.utcnow()
-        days_since_monday = now.weekday()
-        week_start = now - timedelta(days=days_since_monday)
+        # Start from 6 days ago (rolling 7-day window)
+        start_date = (now - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         # Create a log with user_id but NULL subscription_id (simulates deleted subscription)
         log = NotificationLog(
@@ -354,7 +369,7 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="Orphan Course (ORPHAN101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start + timedelta(days=1),
+            sent_at=start_date + timedelta(days=1),
         )
         test_db.add(log)
         test_db.commit()
@@ -369,9 +384,10 @@ class TestGetNotificationTrends:
         total_notifications = sum(d["notifications"] for d in data)
         assert total_notifications == 1
 
-        # Tuesday (index 1) should have the notification
-        assert data[1]["notifications"] == 1
-        assert "Orphan Course" in data[1]["courses"][0]
+        # Find the day with notifications
+        notification_day = [d for d in data if d["notifications"] > 0][0]
+        assert notification_day["notifications"] == 1
+        assert "Orphan Course" in notification_day["courses"][0]
 
     @pytest.mark.unit
     async def test_get_notification_trends_uuid_casting(
@@ -383,8 +399,10 @@ class TestGetNotificationTrends:
     ):
         """Test that UUID casting works correctly in the trends query."""
         now = datetime.utcnow()
-        days_since_monday = now.weekday()
-        week_start = now - timedelta(days=days_since_monday)
+        # Start from 6 days ago (rolling 7-day window)
+        start_date = (now - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         # Create notification log with explicit user_id
         log = NotificationLog(
@@ -394,7 +412,7 @@ class TestGetNotificationTrends:
             notification_type="email",
             message="UUID Test Course (UUID101) A at Test University is OPEN!",
             status="sent",
-            sent_at=week_start + timedelta(days=1),
+            sent_at=start_date + timedelta(days=1),
         )
         test_db.add(log)
         test_db.commit()
@@ -410,6 +428,9 @@ class TestGetNotificationTrends:
         total_notifications = sum(d["notifications"] for d in data)
         assert total_notifications == 1
 
-        # Tuesday should have the notification
-        assert data[1]["notifications"] == 1
-        assert any("UUID Test Course" in course for course in data[1]["courses"])
+        # Find the day with notifications
+        notification_day = [d for d in data if d["notifications"] > 0][0]
+        assert notification_day["notifications"] == 1
+        assert any(
+            "UUID Test Course" in course for course in notification_day["courses"]
+        )
