@@ -2,12 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, text
+from sqlalchemy import text
 from datetime import datetime, timedelta
 
 from db.session import get_db
-from models.notification_log import NotificationLog
-from models.subscription import Subscription
 from models.user import Profile
 from api.middleware.auth import require_auth
 
@@ -23,7 +21,7 @@ async def get_notification_trends(
     Get notification trends for the past week for the current user.
 
     Returns notifications grouped by day of week (Mon-Sun) with course names.
-    Only includes notifications for the user's subscriptions.
+    Only includes notifications sent to the current user.
     """
     try:
         # Get the start of the week (last Monday) and end (next Sunday)
@@ -35,8 +33,8 @@ async def get_notification_trends(
         )
         week_end = week_start + timedelta(days=7)
 
-        # Query notification logs for the current user's subscriptions in the past week
-        # Join with subscriptions to filter by user
+        # Query notification logs for the current user in the past week
+        # Uses user_id directly for efficient lookup without JOIN
         trends_query = text(
             """
             SELECT
@@ -44,8 +42,7 @@ async def get_notification_trends(
                 nl.message,
                 nl.notification_type
             FROM notification_logs nl
-            JOIN subscriptions s ON nl.subscription_id = s.id
-            WHERE s.user_id = :user_id
+            WHERE nl.user_id = :user_id
               AND nl.sent_at >= :week_start
               AND nl.sent_at < :week_end
               AND nl.status = 'sent'

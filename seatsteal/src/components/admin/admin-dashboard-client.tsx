@@ -293,89 +293,51 @@ export function AdminDashboardClient() {
             </Card>
           </div>
 
-          {/* Recent Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Enrollment Changes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {data.recentEnrollmentChanges
-                    .slice(0, 10)
-                    .filter((change) => change.courseCode && change.title)
-                    .map((change, index: number) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0"
-                      >
-                        <div>
-                          <p className="font-medium text-sm dark:text-gray-200">
-                            {change.courseCode} - {change.title}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {change.collegeName || "Unknown College"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p
-                            className={`text-sm font-medium ${
-                              change.enrollmentStatus === "open"
-                                ? "text-green-600 dark:text-green-400"
-                                : "text-red-600 dark:text-red-400"
-                            }`}
-                          >
-                            {change.enrollmentStatus?.toUpperCase()}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {change.enrollmentStatus}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
-
+          {/* Popular Courses */}
+          {data.popularCourses?.filter((course) => course.subscriptionCount > 0)
+            .length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Popular Courses</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {data.popularCourses?.slice(0, 8).map(
-                    (
-                      course: {
-                        courseId: number;
-                        courseCode: string;
-                        title: string;
-                        collegeName: string | null;
-                        subscriptionCount: number;
-                      },
-                      index: number,
-                    ) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between"
-                      >
-                        <div>
-                          <p className="font-medium text-sm dark:text-gray-200">
-                            {course.courseCode}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {course.collegeName || "Unknown College"}
-                          </p>
+                  {data.popularCourses
+                    ?.filter((course) => course.subscriptionCount > 0)
+                    .slice(0, 8)
+                    .map(
+                      (
+                        course: {
+                          courseId: number;
+                          courseCode: string;
+                          title: string;
+                          collegeName: string | null;
+                          subscriptionCount: number;
+                        },
+                        index: number,
+                      ) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between"
+                        >
+                          <div>
+                            <p className="font-medium text-sm dark:text-gray-200">
+                              {course.courseCode}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {course.collegeName || "Unknown College"}
+                            </p>
+                          </div>
+                          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                            {course.subscriptionCount} watching
+                          </span>
                         </div>
-                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                          {course.subscriptionCount} watching
-                        </span>
-                      </div>
-                    ),
-                  )}
+                      ),
+                    )}
                 </div>
               </CardContent>
             </Card>
-          </div>
+          )}
 
           {/* Additional Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

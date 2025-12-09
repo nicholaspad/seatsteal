@@ -43,6 +43,7 @@ class TestGetNotificationTrends:
             log = NotificationLog(
                 subscription_id=test_subscription.id,
                 college_id=test_subscription.college_id,
+                user_id=test_user.id,
                 notification_type="email",
                 message="Introduction to CS (CS101) A at Test University is OPEN!",
                 status="sent",
@@ -109,6 +110,7 @@ class TestGetNotificationTrends:
         recent_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Recent Course (RECENT101) A at Test University is OPEN!",
             status="sent",
@@ -120,6 +122,7 @@ class TestGetNotificationTrends:
         old_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Old Course (OLD101) A at Test University is OPEN!",
             status="sent",
@@ -190,6 +193,7 @@ class TestGetNotificationTrends:
         user_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="My Course (MY101) A at Test University is OPEN!",
             status="sent",
@@ -201,6 +205,7 @@ class TestGetNotificationTrends:
         other_log = NotificationLog(
             subscription_id=other_subscription.id,
             college_id=other_subscription.college_id,
+            user_id=other_user.id,
             notification_type="email",
             message="Other Course (OTHER101) A at Test University is OPEN!",
             status="sent",
@@ -244,6 +249,7 @@ class TestGetNotificationTrends:
         success_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Success Course (SUCCESS101) A at Test University is OPEN!",
             status="sent",
@@ -255,6 +261,7 @@ class TestGetNotificationTrends:
         failed_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Failed Course (FAIL101) A at Test University is OPEN!",
             status="failed",
@@ -290,6 +297,7 @@ class TestGetNotificationTrends:
         email_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Course (CS101) A at Test University is OPEN!",
             status="sent",
@@ -301,6 +309,7 @@ class TestGetNotificationTrends:
         sms_log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="sms",
             message="Course (CS101) A at Test University is OPEN!",
             status="sent",
@@ -323,3 +332,43 @@ class TestGetNotificationTrends:
         tuesday_data = data[1]  # Tuesday
         assert tuesday_data["notifications"] == 2
         assert len(tuesday_data["courses"]) == 1  # Course only listed once
+
+    @pytest.mark.unit
+    async def test_get_notification_trends_with_null_subscription(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        test_college,
+    ):
+        """Test that trends work when subscription_id is NULL but user_id is set."""
+        now = datetime.utcnow()
+        days_since_monday = now.weekday()
+        week_start = now - timedelta(days=days_since_monday)
+
+        # Create a log with user_id but NULL subscription_id (simulates deleted subscription)
+        log = NotificationLog(
+            subscription_id=None,  # Subscription was deleted
+            college_id=test_college.id,
+            user_id=test_user.id,  # But user_id is preserved
+            notification_type="email",
+            message="Orphan Course (ORPHAN101) A at Test University is OPEN!",
+            status="sent",
+            sent_at=week_start + timedelta(days=1),
+        )
+        test_db.add(log)
+        test_db.commit()
+
+        response = await authenticated_client.get("/api/notifications/trends")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        data = response_json["data"]
+
+        # Should still find the notification via user_id
+        total_notifications = sum(d["notifications"] for d in data)
+        assert total_notifications == 1
+
+        # Tuesday (index 1) should have the notification
+        assert data[1]["notifications"] == 1
+        assert "Orphan Course" in data[1]["courses"][0]
