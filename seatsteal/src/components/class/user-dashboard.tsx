@@ -499,7 +499,7 @@ const UserDashboard = memo(function UserDashboard({
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Past 7 Days Notifications
+                Recent Notifications
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -553,7 +553,7 @@ const UserDashboard = memo(function UserDashboard({
                 {weeklyTrend.reduce((sum, day) => sum + day.notifications, 0) >
                 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Total notifications in the past 7 days:{" "}
+                    Total recent notifications:{" "}
                     {weeklyTrend.reduce(
                       (sum, day) => sum + day.notifications,
                       0,
@@ -561,7 +561,7 @@ const UserDashboard = memo(function UserDashboard({
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No notifications in the past 7 days.
+                    No recent notifications.
                   </p>
                 )}
               </div>

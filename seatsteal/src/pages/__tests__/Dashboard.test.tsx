@@ -208,7 +208,7 @@ describe("Dashboard Page", () => {
   });
 
   describe("Weekly Trend Chart", () => {
-    it("displays past 7 days notification trend chart", async () => {
+    it("displays recent notification trend chart", async () => {
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/subscriptions")) {
           return Promise.resolve({
@@ -235,11 +235,11 @@ describe("Dashboard Page", () => {
         // Should show "Today" label for the most recent day
         expect(screen.getByText("Today")).toBeInTheDocument();
         // Should show the chart title
-        expect(screen.getByText("Past 7 Days Notifications")).toBeInTheDocument();
+        expect(screen.getByText("Recent Notifications")).toBeInTheDocument();
       });
     });
 
-    it("shows No notifications in the past 7 days when all bars are zero", async () => {
+    it("shows No recent notifications when all bars are zero", async () => {
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/subscriptions")) {
           return Promise.resolve({
@@ -263,7 +263,7 @@ describe("Dashboard Page", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("No notifications in the past 7 days."),
+          screen.getByText("No recent notifications."),
         ).toBeInTheDocument();
       });
     });
