@@ -234,6 +234,33 @@ def fetch_rutgers_terms() -> List[Tuple[str, str]]:
         return [("ERROR", str(e))]
 
 
+def fetch_upenn_terms() -> List[Tuple[str, str]]:
+    """Fetch term codes from University of Pennsylvania."""
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "https://courses.upenn.edu/"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        html = result.stdout
+
+        # Extract option tags with term codes
+        pattern = r'<option[^>]*value="(\d+)"[^>]*>([^<]+)</option>'
+        matches = re.findall(pattern, html)
+
+        terms = []
+        for code, name in matches:
+            name = name.strip()
+            # Filter out non-term options (instruction methods, etc.)
+            if code.isdigit() and len(code) == 6:
+                terms.append((code, name))
+
+        return terms[:4]
+    except Exception as e:
+        return [("ERROR", str(e))]
+
+
 def display_term_codes_table():
     """Fetch and display a formatted table of term codes for all colleges."""
 
@@ -251,6 +278,7 @@ def display_term_codes_table():
         "usc": fetch_usc_terms,
         "umd": fetch_umd_terms,
         "rutgers": fetch_rutgers_terms,
+        "upenn": fetch_upenn_terms,
     }
 
     term_data = {}
