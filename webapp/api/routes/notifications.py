@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from db.session import get_db
 from models.user import Profile
@@ -26,7 +26,7 @@ async def get_notification_trends(
     """
     try:
         # Get the last 7 days (rolling window)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Start from 6 days ago at midnight to include today as the 7th day
         start_date = (now - timedelta(days=6)).replace(
             hour=0, minute=0, second=0, microsecond=0

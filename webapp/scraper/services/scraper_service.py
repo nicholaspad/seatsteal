@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 import time
 from sqlalchemy.exc import OperationalError
@@ -291,7 +291,7 @@ class ScraperService:
             # Update existing course
             course.title = title
             course.is_active = True
-            course.updated_at = datetime.now()
+            course.updated_at = datetime.now(timezone.utc)
         else:
             # Create new course
             course = Course(
@@ -330,7 +330,7 @@ class ScraperService:
             # Update existing class
             class_obj.section_code = class_data.get("section", "")
             class_obj.is_active = True
-            class_obj.updated_at = datetime.now()
+            class_obj.updated_at = datetime.now(timezone.utc)
         else:
             # Create new class
             class_obj = Class(
@@ -417,13 +417,12 @@ class ScraperService:
             Dictionary mapping course_code to course.id
         """
         from sqlalchemy import text
-        from datetime import datetime
 
         if not course_data_list:
             return {}
 
         course_mapping = {}
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Process in batches
         for i in range(0, len(course_data_list), batch_size):
@@ -487,13 +486,12 @@ class ScraperService:
             Dictionary mapping (course_id, class_number) to class_id
         """
         from sqlalchemy import text
-        from datetime import datetime
 
         if not class_data_list:
             return {}
 
         class_mapping = {}
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Process in batches
         for i in range(0, len(class_data_list), batch_size):
@@ -561,13 +559,12 @@ class ScraperService:
         Returns:
             Number of enrollments inserted (not counting updates)
         """
-        from datetime import datetime
         from sqlalchemy import text
 
         if not enrollment_data_list:
             return 0
 
-        scraped_at = datetime.now()
+        scraped_at = datetime.now(timezone.utc)
 
         # Extract unique class_ids from enrollment data
         class_ids = list(set(e["class_id"] for e in enrollment_data_list))

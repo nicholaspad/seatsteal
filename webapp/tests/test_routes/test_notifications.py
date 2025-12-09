@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from models.notification_log import NotificationLog
 from models.subscription import Subscription
@@ -34,7 +34,7 @@ class TestGetNotificationTrends:
     ):
         """Test successfully getting notification trends."""
         # Create some notification logs for the past 7 days
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Start from 6 days ago (rolling 7-day window)
         start_date = (now - timedelta(days=6)).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -104,7 +104,7 @@ class TestGetNotificationTrends:
         test_user: Profile,
     ):
         """Test that trends only include the past 7 days (rolling window)."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Start from 6 days ago (rolling 7-day window)
         start_date = (now - timedelta(days=6)).replace(
@@ -166,7 +166,7 @@ class TestGetNotificationTrends:
         """Test that trends only include user's own subscriptions."""
         from uuid import uuid4
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Start from 6 days ago (rolling 7-day window)
         start_date = (now - timedelta(days=6)).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -249,7 +249,7 @@ class TestGetNotificationTrends:
         test_user: Profile,
     ):
         """Test that trends only include successful notifications."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Start from 6 days ago (rolling 7-day window)
         start_date = (now - timedelta(days=6)).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -299,7 +299,7 @@ class TestGetNotificationTrends:
         test_user: Profile,
     ):
         """Test that both email and SMS notifications are counted separately."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Start from 6 days ago (rolling 7-day window)
         start_date = (now - timedelta(days=6)).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -355,7 +355,7 @@ class TestGetNotificationTrends:
         test_college,
     ):
         """Test that trends work when subscription_id is NULL but user_id is set."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Start from 6 days ago (rolling 7-day window)
         start_date = (now - timedelta(days=6)).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -398,7 +398,7 @@ class TestGetNotificationTrends:
         test_user: Profile,
     ):
         """Test that UUID casting works correctly in the trends query."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Start from 6 days ago (rolling 7-day window)
         start_date = (now - timedelta(days=6)).replace(
             hour=0, minute=0, second=0, microsecond=0
