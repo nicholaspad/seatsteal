@@ -42,7 +42,7 @@ async def get_notification_trends(
                 nl.message,
                 nl.notification_type
             FROM notification_logs nl
-            WHERE nl.user_id = :user_id
+            WHERE nl.user_id = CAST(:user_id AS UUID)
               AND nl.sent_at >= :week_start
               AND nl.sent_at < :week_end
               AND nl.status = 'sent'

@@ -132,12 +132,14 @@ class TestGetNotifications:
         admin_client: AsyncClient,
         test_db: Session,
         test_subscription: Subscription,
+        test_user: Profile,
     ):
         """Test successfully getting notification logs."""
         # Create notification log
         log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Test notification",
             status="sent",
@@ -163,6 +165,8 @@ class TestGetNotifications:
         assert "sentAt" in notif
         assert "notificationType" in notif
         assert "status" in notif
+        assert "userEmail" in notif
+        assert notif["userEmail"] == test_user.email
 
     @pytest.mark.unit
     async def test_get_notifications_pagination(
@@ -170,6 +174,7 @@ class TestGetNotifications:
         admin_client: AsyncClient,
         test_db: Session,
         test_subscription: Subscription,
+        test_user: Profile,
     ):
         """Test notifications pagination."""
         # Create multiple notification logs
@@ -177,6 +182,7 @@ class TestGetNotifications:
             log = NotificationLog(
                 subscription_id=test_subscription.id,
                 college_id=test_subscription.college_id,
+                user_id=test_user.id,
                 notification_type="email",
                 message=f"Test notification {i}",
                 status="sent",
@@ -206,12 +212,14 @@ class TestGetNotifications:
         admin_client: AsyncClient,
         test_db: Session,
         test_subscription: Subscription,
+        test_user: Profile,
     ):
         """Test filtering notifications by status."""
         # Create notifications with different statuses
         log1 = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Success",
             status="sent",
@@ -220,6 +228,7 @@ class TestGetNotifications:
         log2 = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Failed",
             status="failed",
@@ -246,6 +255,7 @@ class TestGetNotifications:
         log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_subscription.college_id,
+            user_id=test_user.id,
             notification_type="email",
             message="Test notification",
             status="sent",
@@ -261,6 +271,42 @@ class TestGetNotifications:
         assert response.status_code == 200
         data = response.json()["data"]
         assert len(data["notifications"]) >= 0
+
+    @pytest.mark.unit
+    async def test_get_notifications_with_null_subscription(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+        test_user: Profile,
+    ):
+        """Test that notifications with NULL subscription_id still show user email."""
+        # Create notification log with NULL subscription_id (e.g., subscription was deleted)
+        log = NotificationLog(
+            subscription_id=None,
+            college_id=test_college.id,
+            user_id=test_user.id,
+            notification_type="email",
+            message="Orphan notification",
+            status="sent",
+            sent_at=datetime.utcnow(),
+        )
+        test_db.add(log)
+        test_db.commit()
+
+        response = await admin_client.get("/api/admin/notifications")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["notifications"]) >= 1
+
+        # Find the orphan notification
+        orphan_notif = next(
+            (n for n in data["notifications"] if n["message"] == "Orphan notification"),
+            None,
+        )
+        assert orphan_notif is not None
+        assert orphan_notif["userEmail"] == test_user.email
 
     @pytest.mark.unit
     async def test_get_notifications_invalid_page(
@@ -1071,12 +1117,14 @@ class TestUpdateCollegeTerm:
         test_db: Session,
         test_college,
         test_subscription: Subscription,
+        test_user: Profile,
     ):
         """Test that notification logs are preserved during term update."""
         # Create notification log
         log = NotificationLog(
             subscription_id=test_subscription.id,
             college_id=test_college.id,
+            user_id=test_user.id,
             notification_type="email",
             message="Test notification to preserve",
             status="sent",
