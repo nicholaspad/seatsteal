@@ -293,6 +293,9 @@ async def get_notifications(
             filters.append(NotificationLog.notification_type == notification_type)
 
         # Base query with joins
+        # Use outer joins for Subscription/Profile/Class/Course since subscription_id can be NULL
+        # (e.g., after term code updates clear subscription references)
+        # Join College directly via NotificationLog.college_id for accurate filtering
         base_query = (
             select(
                 NotificationLog.id,
@@ -308,11 +311,11 @@ async def get_notifications(
                 NotificationLog.enrollment_status.label("enrollmentStatus"),
             )
             .select_from(NotificationLog)
-            .join(Subscription, NotificationLog.subscription_id == Subscription.id)
-            .join(Profile, Subscription.user_id == Profile.id)
-            .join(Class, Subscription.class_id == Class.class_id)
-            .join(Course, Class.course_id == Course.id)
-            .join(College, Course.college_id == College.id)
+            .join(College, NotificationLog.college_id == College.id)
+            .outerjoin(Subscription, NotificationLog.subscription_id == Subscription.id)
+            .outerjoin(Profile, Subscription.user_id == Profile.id)
+            .outerjoin(Class, Subscription.class_id == Class.class_id)
+            .outerjoin(Course, Class.course_id == Course.id)
             .where(and_(*filters))
         )
 
@@ -1229,7 +1232,45 @@ async def get_college_stats(
             or 0
         )
 
-        # 5. Get recent scraper logs (last 10)
+        # 5. Get notification counts (includes logs with null subscription_id)
+        total_notifications = (
+            db.execute(
+                select(func.count())
+                .select_from(NotificationLog)
+                .where(NotificationLog.college_id == college_id)
+            ).scalar()
+            or 0
+        )
+
+        successful_notifications = (
+            db.execute(
+                select(func.count())
+                .select_from(NotificationLog)
+                .where(
+                    and_(
+                        NotificationLog.college_id == college_id,
+                        NotificationLog.status == "sent",
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+
+        failed_notifications = (
+            db.execute(
+                select(func.count())
+                .select_from(NotificationLog)
+                .where(
+                    and_(
+                        NotificationLog.college_id == college_id,
+                        NotificationLog.status == "failed",
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+
+        # 6. Get recent scraper logs (last 10)
         scraper_logs_query = (
             select(
                 ScraperLog.id,
@@ -1281,6 +1322,9 @@ async def get_college_stats(
                     "totalClasses": total_classes,
                     "activeSubscriptions": active_subscriptions,
                     "totalSubscriptions": total_subscriptions,
+                    "totalNotifications": total_notifications,
+                    "successfulNotifications": successful_notifications,
+                    "failedNotifications": failed_notifications,
                 },
                 "recentScraperLogs": recent_scraper_logs,
             },

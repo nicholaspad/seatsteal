@@ -57,6 +57,9 @@ interface CollegeStats {
   totalClasses: number;
   activeSubscriptions: number;
   totalSubscriptions: number;
+  totalNotifications: number;
+  successfulNotifications: number;
+  failedNotifications: number;
 }
 
 interface ScraperLog {
@@ -473,6 +476,22 @@ export function CollegesClient() {
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Total Subscriptions
+                    </p>
+                  </div>
+                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <p className="text-2xl font-bold">
+                      {collegeStats.stats.totalNotifications.toLocaleString()}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Total Notifications
+                    </p>
+                  </div>
+                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      {collegeStats.stats.successfulNotifications.toLocaleString()}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Successful
                     </p>
                   </div>
                 </div>
