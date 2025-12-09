@@ -88,8 +88,15 @@ async def update_user_settings(
             request.collegeId is not None and request.collegeId != old_college_id
         )
 
-        # Update user settings
-        if request.phone is not None:
+        # Validate and update phone number
+        # Only update phone if provided and not empty (empty string should not clear phone)
+        if request.phone is not None and request.phone != "":
+            # Validate phone number format (must be exactly 10 digits)
+            if not request.phone.isdigit() or len(request.phone) != 10:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Phone number must be exactly 10 digits",
+                )
             user.phone = request.phone
         if request.collegeId is not None:
             user.college_id = request.collegeId
