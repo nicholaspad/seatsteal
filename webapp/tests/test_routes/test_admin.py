@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from models.user import Profile
 from models.subscription import Subscription
@@ -143,7 +143,7 @@ class TestGetNotifications:
             notification_type="email",
             message="Test notification",
             status="sent",
-            sent_at=datetime.utcnow(),
+            sent_at=datetime.now(timezone.utc),
         )
         test_db.add(log)
         test_db.commit()
@@ -186,7 +186,7 @@ class TestGetNotifications:
                 notification_type="email",
                 message=f"Test notification {i}",
                 status="sent",
-                sent_at=datetime.utcnow(),
+                sent_at=datetime.now(timezone.utc),
             )
             test_db.add(log)
         test_db.commit()
@@ -223,7 +223,7 @@ class TestGetNotifications:
             notification_type="email",
             message="Success",
             status="sent",
-            sent_at=datetime.utcnow(),
+            sent_at=datetime.now(timezone.utc),
         )
         log2 = NotificationLog(
             subscription_id=test_subscription.id,
@@ -232,7 +232,7 @@ class TestGetNotifications:
             notification_type="email",
             message="Failed",
             status="failed",
-            sent_at=datetime.utcnow(),
+            sent_at=datetime.now(timezone.utc),
         )
         test_db.add_all([log1, log2])
         test_db.commit()
@@ -259,7 +259,7 @@ class TestGetNotifications:
             notification_type="email",
             message="Test notification",
             status="sent",
-            sent_at=datetime.utcnow(),
+            sent_at=datetime.now(timezone.utc),
         )
         test_db.add(log)
         test_db.commit()
@@ -289,7 +289,7 @@ class TestGetNotifications:
             notification_type="email",
             message="Orphan notification",
             status="sent",
-            sent_at=datetime.utcnow(),
+            sent_at=datetime.now(timezone.utc),
         )
         test_db.add(log)
         test_db.commit()
@@ -342,13 +342,13 @@ class TestGetQueryPerformance:
         metric1 = QueryPerformanceMetric(
             query_name="test_query",
             execution_time=50.0,
-            executed_at=datetime.utcnow(),
+            executed_at=datetime.now(timezone.utc),
             result_count=10,
         )
         metric2 = QueryPerformanceMetric(
             query_name="slow_query",
             execution_time=150.0,
-            executed_at=datetime.utcnow(),
+            executed_at=datetime.now(timezone.utc),
             result_count=100,
         )
         test_db.add_all([metric1, metric2])
@@ -401,7 +401,7 @@ class TestGetQueryPerformance:
             metric = QueryPerformanceMetric(
                 query_name=f"query_{i}",
                 execution_time=exec_time,
-                executed_at=datetime.utcnow(),
+                executed_at=datetime.now(timezone.utc),
             )
             test_db.add(metric)
         test_db.commit()
@@ -422,7 +422,7 @@ class TestGetQueryPerformance:
     ):
         """Test hourly percentile calculations."""
         # Create metrics from the last few hours
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for hour in range(5):
             for i in range(10):
                 metric = QueryPerformanceMetric(
@@ -516,8 +516,8 @@ class TestGetScrapers:
         log1 = ScraperLog(
             scraper_id=scraper.id,
             outcome="success",
-            started_at=datetime.utcnow() - timedelta(hours=2),
-            completed_at=datetime.utcnow() - timedelta(hours=2),
+            started_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            completed_at=datetime.now(timezone.utc) - timedelta(hours=2),
             duration_ms=1000,
             courses_created=5,
             classes_created=20,
@@ -526,8 +526,8 @@ class TestGetScrapers:
         log2 = ScraperLog(
             scraper_id=scraper.id,
             outcome="error",
-            started_at=datetime.utcnow() - timedelta(hours=1),
-            completed_at=datetime.utcnow() - timedelta(hours=1),
+            started_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            completed_at=datetime.now(timezone.utc) - timedelta(hours=1),
             error_message="Test error",
         )
         test_db.add_all([log1, log2])
@@ -586,8 +586,8 @@ class TestGetScrapers:
             log = ScraperLog(
                 scraper_id=scraper.id,
                 outcome="success",
-                started_at=datetime.utcnow() - timedelta(days=i),
-                completed_at=datetime.utcnow() - timedelta(days=i),
+                started_at=datetime.now(timezone.utc) - timedelta(days=i),
+                completed_at=datetime.now(timezone.utc) - timedelta(days=i),
                 duration_ms=1000,
             )
             test_db.add(log)
@@ -596,8 +596,8 @@ class TestGetScrapers:
             log = ScraperLog(
                 scraper_id=scraper.id,
                 outcome="error",
-                started_at=datetime.utcnow() - timedelta(days=i),
-                completed_at=datetime.utcnow() - timedelta(days=i),
+                started_at=datetime.now(timezone.utc) - timedelta(days=i),
+                completed_at=datetime.now(timezone.utc) - timedelta(days=i),
             )
             test_db.add(log)
         test_db.commit()
@@ -630,8 +630,8 @@ class TestGetScrapers:
             log = ScraperLog(
                 scraper_id=scraper.id,
                 outcome="success",
-                started_at=datetime.utcnow() - timedelta(days=1),
-                completed_at=datetime.utcnow() - timedelta(days=1),
+                started_at=datetime.now(timezone.utc) - timedelta(days=1),
+                completed_at=datetime.now(timezone.utc) - timedelta(days=1),
                 duration_ms=float((i + 1) * 1000),
             )
             test_db.add(log)
@@ -704,9 +704,8 @@ class TestGetUsers:
         """Test users pagination."""
         # Create multiple users with unique emails and UUIDs
         from uuid import uuid4
-        from datetime import datetime
 
-        timestamp = datetime.utcnow().timestamp()
+        timestamp = datetime.now(timezone.utc).timestamp()
         for i in range(15):
             user = Profile(
                 id=uuid4(),
@@ -1128,7 +1127,7 @@ class TestUpdateCollegeTerm:
             notification_type="email",
             message="Test notification to preserve",
             status="sent",
-            sent_at=datetime.utcnow(),
+            sent_at=datetime.now(timezone.utc),
         )
         test_db.add(log)
         test_db.commit()
@@ -1237,8 +1236,8 @@ class TestGetCollegeStats:
         log = ScraperLog(
             scraper_id=scraper.id,
             outcome="success",
-            started_at=datetime.utcnow() - timedelta(hours=1),
-            completed_at=datetime.utcnow() - timedelta(hours=1),
+            started_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            completed_at=datetime.now(timezone.utc) - timedelta(hours=1),
             duration_ms=1500,
             courses_created=10,
             classes_created=50,
@@ -1346,8 +1345,8 @@ class TestGetCollegeStats:
             log = ScraperLog(
                 scraper_id=scraper.id,
                 outcome="success",
-                started_at=datetime.utcnow() - timedelta(hours=i),
-                completed_at=datetime.utcnow() - timedelta(hours=i),
+                started_at=datetime.now(timezone.utc) - timedelta(hours=i),
+                completed_at=datetime.now(timezone.utc) - timedelta(hours=i),
                 duration_ms=1000 + i,
             )
             test_db.add(log)

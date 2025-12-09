@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func, or_, desc, text, case, delete, update
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List, Literal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from db.session import get_db
@@ -36,7 +36,7 @@ async def get_analytics(
 ):
     """Get platform analytics (admin only)"""
     try:
-        days_ago = datetime.utcnow() - timedelta(days=timeframe)
+        days_ago = datetime.now(timezone.utc) - timedelta(days=timeframe)
 
         # Build college filter
         college_filter = College.id == college_id if college_id else text("1=1")
@@ -278,7 +278,7 @@ async def get_notifications(
 ):
     """Get notification logs with pagination and filtering (admin only)"""
     try:
-        days_ago = datetime.utcnow() - timedelta(days=timeframe)
+        days_ago = datetime.now(timezone.utc) - timedelta(days=timeframe)
 
         # Build filters
         filters = [NotificationLog.sent_at >= days_ago]
@@ -496,7 +496,7 @@ async def get_query_performance(
         ]
 
         # Hourly percentiles (P50 and P90) for the last 72 hours
-        seventy_two_hours_ago = datetime.utcnow() - timedelta(hours=72)
+        seventy_two_hours_ago = datetime.now(timezone.utc) - timedelta(hours=72)
 
         hourly_percentiles_query = (
             select(
@@ -561,7 +561,7 @@ async def get_scrapers(
 ):
     """Get scraper analytics (admin only)"""
     try:
-        days_ago = datetime.utcnow() - timedelta(days=timeframe)
+        days_ago = datetime.now(timezone.utc) - timedelta(days=timeframe)
 
         # Build college filter
         college_filter = Scraper.college_id == college_id if college_id else text("1=1")

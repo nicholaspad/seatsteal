@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
 from unittest.mock import patch, AsyncMock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from models.class_model import Class
 from models.course import Course
@@ -106,7 +106,7 @@ class TestGetEnrollmentAnalysis:
             mock_premium.return_value = None  # User has premium access
 
             # Create some enrollment history
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             for i in range(5):
                 enrollment = Enrollment(
                     class_id=test_class.class_id,

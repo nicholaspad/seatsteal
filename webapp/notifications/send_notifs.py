@@ -16,7 +16,7 @@ Usage:
 import argparse
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Optional
 from loguru import logger
@@ -380,7 +380,7 @@ class NotificationJob:
         db.query(Subscription).filter(Subscription.id.in_(subscription_ids)).update(
             {
                 "is_active": False,
-                "last_notified": datetime.now(),
+                "last_notified": datetime.now(timezone.utc),
                 "notification_count": Subscription.notification_count + 1,
             },
             synchronize_session=False,

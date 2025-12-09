@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.orm import joinedload
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 from db.session import get_db
@@ -136,7 +136,7 @@ async def get_enrollment_analysis(
         require_premium_access(user.id, db)
 
         # Get times opened in last 30 days
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
         times_opened_query = text(
             """
             WITH status_changes AS (
@@ -251,7 +251,7 @@ async def get_enrollment_analysis(
         notifications_sent = notifs_count_result.scalar() or 0
 
         # Get recent notifications (last 14 days)
-        fourteen_days_ago = datetime.utcnow() - timedelta(days=14)
+        fourteen_days_ago = datetime.now(timezone.utc) - timedelta(days=14)
         recent_notifs_result = db.execute(
             select(func.count())
             .select_from(NotificationLog)
@@ -290,7 +290,7 @@ async def get_enrollment_analysis(
                 "subscriptionsCount": subscriptions_count,
                 "notificationsSent": notifications_sent,
                 "competitionLevel": competition_level,
-                "generatedAt": datetime.utcnow().isoformat(),
+                "generatedAt": datetime.now(timezone.utc).isoformat(),
             },
         }
 
