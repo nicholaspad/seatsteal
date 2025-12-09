@@ -372,3 +372,44 @@ class TestGetNotificationTrends:
         # Tuesday (index 1) should have the notification
         assert data[1]["notifications"] == 1
         assert "Orphan Course" in data[1]["courses"][0]
+
+    @pytest.mark.unit
+    async def test_get_notification_trends_uuid_casting(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_subscription: Subscription,
+        test_user: Profile,
+    ):
+        """Test that UUID casting works correctly in the trends query."""
+        now = datetime.utcnow()
+        days_since_monday = now.weekday()
+        week_start = now - timedelta(days=days_since_monday)
+
+        # Create notification log with explicit user_id
+        log = NotificationLog(
+            subscription_id=test_subscription.id,
+            college_id=test_subscription.college_id,
+            user_id=test_user.id,  # UUID type
+            notification_type="email",
+            message="UUID Test Course (UUID101) A at Test University is OPEN!",
+            status="sent",
+            sent_at=week_start + timedelta(days=1),
+        )
+        test_db.add(log)
+        test_db.commit()
+
+        response = await authenticated_client.get("/api/notifications/trends")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+
+        # Should find the notification despite UUID type comparison
+        total_notifications = sum(d["notifications"] for d in data)
+        assert total_notifications == 1
+
+        # Tuesday should have the notification
+        assert data[1]["notifications"] == 1
+        assert any("UUID Test Course" in course for course in data[1]["courses"])
