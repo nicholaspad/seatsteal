@@ -592,7 +592,7 @@ export function CollegesClient() {
                     No scraper logs found
                   </p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {collegeStats.recentScraperLogs.map((log) => (
                       <div
                         key={log.id}
@@ -801,7 +801,7 @@ export function CollegesClient() {
                     No notifications found
                   </p>
                 ) : (
-                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
