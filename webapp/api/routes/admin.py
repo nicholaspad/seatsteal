@@ -184,7 +184,16 @@ async def get_analytics(
                 func.count(NotificationLog.id).label("count"),
             )
             .select_from(NotificationLog)
-            .where(NotificationLog.sent_at >= days_ago)
+            .where(
+                and_(
+                    NotificationLog.sent_at >= days_ago,
+                    (
+                        NotificationLog.college_id == college_id
+                        if college_id
+                        else text("1=1")
+                    ),
+                )
+            )
             .group_by(func.date(NotificationLog.sent_at))
             .order_by(func.date(NotificationLog.sent_at))
         )
@@ -293,9 +302,10 @@ async def get_notifications(
             filters.append(NotificationLog.notification_type == notification_type)
 
         # Base query with joins
-        # Use outer joins for Subscription/Profile/Class/Course since subscription_id can be NULL
+        # Use outer joins for Subscription/Class/Course since subscription_id can be NULL
         # (e.g., after term code updates clear subscription references)
         # Join College directly via NotificationLog.college_id for accurate filtering
+        # Join Profile directly via NotificationLog.user_id (added in migration 012)
         base_query = (
             select(
                 NotificationLog.id,
@@ -312,8 +322,8 @@ async def get_notifications(
             )
             .select_from(NotificationLog)
             .join(College, NotificationLog.college_id == College.id)
+            .outerjoin(Profile, NotificationLog.user_id == Profile.id)
             .outerjoin(Subscription, NotificationLog.subscription_id == Subscription.id)
-            .outerjoin(Profile, Subscription.user_id == Profile.id)
             .outerjoin(Class, Subscription.class_id == Class.class_id)
             .outerjoin(Course, Class.course_id == Course.id)
             .where(and_(*filters))

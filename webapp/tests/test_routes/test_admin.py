@@ -85,6 +85,69 @@ class TestGetAnalytics:
         assert "overview" in data
 
     @pytest.mark.unit
+    async def test_get_analytics_notification_trends_with_college_filter(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+        test_user: Profile,
+    ):
+        """Test that notification trends are filtered by college."""
+        # Create another college
+        other_college = College(
+            name="Other University",
+            short_name="OU",
+            term_code="2025SP",
+        )
+        test_db.add(other_college)
+        test_db.commit()
+        test_db.refresh(other_college)
+
+        # Create notifications for both colleges
+        now = datetime.utcnow()
+        log1 = NotificationLog(
+            user_id=test_user.id,
+            college_id=test_college.id,
+            notification_type="email",
+            message="Test College notification",
+            status="sent",
+            sent_at=now,
+        )
+        log2 = NotificationLog(
+            user_id=test_user.id,
+            college_id=other_college.id,
+            notification_type="email",
+            message="Other College notification",
+            status="sent",
+            sent_at=now,
+        )
+        test_db.add_all([log1, log2])
+        test_db.commit()
+
+        # Get analytics filtered by test_college
+        response = await admin_client.get(
+            f"/api/admin/analytics?college={test_college.id}&timeframe=1"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+
+        # Check that notification trends only include test_college notifications
+        # Count total notifications in trends
+        total_trend_count = sum(trend["count"] for trend in data["notificationTrends"])
+
+        # Should have at least 1 (from log1), but not include log2
+        assert total_trend_count >= 1
+
+        # Get analytics for all colleges
+        response_all = await admin_client.get("/api/admin/analytics?timeframe=1")
+        data_all = response_all.json()["data"]
+        total_all_count = sum(trend["count"] for trend in data_all["notificationTrends"])
+
+        # All colleges should have more notifications than just test_college
+        assert total_all_count >= total_trend_count
+
+    @pytest.mark.unit
     async def test_get_analytics_empty_data(
         self,
         admin_client: AsyncClient,
@@ -132,11 +195,13 @@ class TestGetNotifications:
         admin_client: AsyncClient,
         test_db: Session,
         test_subscription: Subscription,
+        test_user: Profile,
     ):
         """Test successfully getting notification logs."""
         # Create notification log
         log = NotificationLog(
             subscription_id=test_subscription.id,
+            user_id=test_user.id,
             college_id=test_subscription.college_id,
             notification_type="email",
             message="Test notification",
@@ -163,6 +228,7 @@ class TestGetNotifications:
         assert "sentAt" in notif
         assert "notificationType" in notif
         assert "status" in notif
+        assert notif["userEmail"] == test_user.email
 
     @pytest.mark.unit
     async def test_get_notifications_pagination(
@@ -170,12 +236,14 @@ class TestGetNotifications:
         admin_client: AsyncClient,
         test_db: Session,
         test_subscription: Subscription,
+        test_user: Profile,
     ):
         """Test notifications pagination."""
         # Create multiple notification logs
         for i in range(15):
             log = NotificationLog(
                 subscription_id=test_subscription.id,
+                user_id=test_user.id,
                 college_id=test_subscription.college_id,
                 notification_type="email",
                 message=f"Test notification {i}",
@@ -206,11 +274,13 @@ class TestGetNotifications:
         admin_client: AsyncClient,
         test_db: Session,
         test_subscription: Subscription,
+        test_user: Profile,
     ):
         """Test filtering notifications by status."""
         # Create notifications with different statuses
         log1 = NotificationLog(
             subscription_id=test_subscription.id,
+            user_id=test_user.id,
             college_id=test_subscription.college_id,
             notification_type="email",
             message="Success",
@@ -219,6 +289,7 @@ class TestGetNotifications:
         )
         log2 = NotificationLog(
             subscription_id=test_subscription.id,
+            user_id=test_user.id,
             college_id=test_subscription.college_id,
             notification_type="email",
             message="Failed",
@@ -245,6 +316,7 @@ class TestGetNotifications:
         """Test searching notifications."""
         log = NotificationLog(
             subscription_id=test_subscription.id,
+            user_id=test_user.id,
             college_id=test_subscription.college_id,
             notification_type="email",
             message="Test notification",
@@ -260,7 +332,7 @@ class TestGetNotifications:
         )
         assert response.status_code == 200
         data = response.json()["data"]
-        assert len(data["notifications"]) >= 0
+        assert len(data["notifications"]) >= 1  # Should find the notification by email
 
     @pytest.mark.unit
     async def test_get_notifications_invalid_page(
@@ -280,6 +352,45 @@ class TestGetNotifications:
         response = await authenticated_client.get("/api/admin/notifications")
 
         assert response.status_code == 403
+
+    @pytest.mark.unit
+    async def test_get_notifications_with_user_id(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        test_college,
+    ):
+        """Test that notifications with user_id set show correct user email."""
+        # Create notification with user_id but NULL subscription_id
+        # (simulates scenario after term update or deleted subscription)
+        log = NotificationLog(
+            subscription_id=None,  # NULL subscription
+            user_id=test_user.id,  # User ID set directly
+            college_id=test_college.id,
+            notification_type="email",
+            message="Test notification with user_id",
+            status="sent",
+            sent_at=datetime.utcnow(),
+        )
+        test_db.add(log)
+        test_db.commit()
+
+        response = await admin_client.get("/api/admin/notifications")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+
+        # Find our notification
+        notif = next(
+            (n for n in data["notifications"] if n["message"] == "Test notification with user_id"),
+            None,
+        )
+        assert notif is not None
+        assert notif["userEmail"] == test_user.email  # Should show email via user_id join
+        assert notif["collegeName"] == test_college.name
 
 
 class TestGetQueryPerformance:
