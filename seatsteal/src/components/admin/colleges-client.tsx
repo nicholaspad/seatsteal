@@ -31,6 +31,7 @@ import {
   Mail,
   MessageSquare,
   Download,
+  Bell,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -92,6 +93,20 @@ interface TermCodesData {
   error: string | null;
 }
 
+interface Notification {
+  id: number;
+  sentAt: string;
+  notificationType: string;
+  status: string;
+  message: string;
+  userEmail: string | null;
+  courseCode: string | null;
+  courseTitle: string | null;
+  collegeName: string;
+  seatsRemaining: number | null;
+  enrollmentStatus: string | null;
+}
+
 export function CollegesClient() {
   const [colleges, setColleges] = useState<College[]>([]);
   const [selectedCollegeId, setSelectedCollegeId] = useState<number | null>(
@@ -111,16 +126,19 @@ export function CollegesClient() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   // Fetch colleges list on mount
   useEffect(() => {
     fetchColleges();
   }, []);
 
-  // Fetch college stats when selection changes
+  // Fetch college stats and notifications when selection changes
   useEffect(() => {
     if (selectedCollegeId) {
       fetchCollegeStats(selectedCollegeId);
+      fetchNotifications(selectedCollegeId);
       // Reset term selection
       setAvailableTerms([]);
       setSelectedNewTerm("");
@@ -178,6 +196,31 @@ export function CollegesClient() {
       setError("An error occurred while fetching college stats");
     } finally {
       setStatsLoading(false);
+    }
+  };
+
+  const fetchNotifications = async (collegeId: number) => {
+    setNotificationsLoading(true);
+
+    try {
+      const response = await fetchWithToasts(
+        `/api/admin/notifications?college=${collegeId}&limit=100&timeframe=365`,
+      );
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setNotifications(result.data.notifications || []);
+      } else {
+        // Don't set error for notifications failure, just clear the list
+        setNotifications([]);
+      }
+    } catch (err) {
+      if (err instanceof ServerErrorWithToast) {
+        return;
+      }
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
     }
   };
 
@@ -289,6 +332,43 @@ export function CollegesClient() {
     if (ms === null) return "-";
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
+  };
+
+  const getNotificationStatusIcon = (status: string) => {
+    switch (status) {
+      case "sent":
+        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case "failed":
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case "pending":
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getNotificationStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case "sent":
+        return "default" as const;
+      case "failed":
+        return "destructive" as const;
+      case "pending":
+        return "secondary" as const;
+      default:
+        return "outline" as const;
+    }
+  };
+
+  const getNotificationTypeIcon = (type: string) => {
+    switch (type) {
+      case "email":
+        return <Mail className="h-3 w-3" />;
+      case "sms":
+        return <MessageSquare className="h-3 w-3" />;
+      default:
+        return <Bell className="h-3 w-3" />;
+    }
   };
 
   if (loading) {
@@ -700,6 +780,78 @@ export function CollegesClient() {
                     Notification logs are preserved for historical analytics.
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Recent Notifications Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Recent Notifications
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {notificationsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner className="h-6 w-6" />
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+                    No notifications found
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                      >
+                        <div className="flex-shrink-0 mt-0.5">
+                          {getNotificationStatusIcon(notification.status)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge
+                              variant={getNotificationStatusBadgeVariant(
+                                notification.status,
+                              )}
+                            >
+                              {notification.status}
+                            </Badge>
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                              {getNotificationTypeIcon(
+                                notification.notificationType,
+                              )}
+                              {notification.notificationType}
+                            </span>
+                            {notification.courseCode && (
+                              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                {notification.courseCode}
+                              </span>
+                            )}
+                          </div>
+                          {notification.userEmail && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-1">
+                              {notification.userEmail}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {formatLocalDateTime(new Date(notification.sentAt))}
+                          </p>
+                        </div>
+                        {notification.seatsRemaining !== null && (
+                          <div className="flex-shrink-0 text-right">
+                            <p className="text-sm font-medium">
+                              {notification.seatsRemaining}
+                            </p>
+                            <p className="text-xs text-gray-500">seats</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
