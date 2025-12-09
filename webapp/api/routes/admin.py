@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func, or_, desc, text, case
+from sqlalchemy import select, and_, func, or_, desc, text, case, delete, update
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List, Literal
 from datetime import datetime, timedelta
@@ -22,6 +22,7 @@ from models.class_model import Class
 from api.middleware.auth import require_admin
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches
+from schemas.admin import TermUpdateRequest, TermUpdateResponse, TermUpdateCleanupStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -292,6 +293,9 @@ async def get_notifications(
             filters.append(NotificationLog.notification_type == notification_type)
 
         # Base query with joins
+        # Use outer joins for Subscription/Profile/Class/Course since subscription_id can be NULL
+        # (e.g., after term code updates clear subscription references)
+        # Join College directly via NotificationLog.college_id for accurate filtering
         base_query = (
             select(
                 NotificationLog.id,
@@ -307,11 +311,11 @@ async def get_notifications(
                 NotificationLog.enrollment_status.label("enrollmentStatus"),
             )
             .select_from(NotificationLog)
-            .join(Subscription, NotificationLog.subscription_id == Subscription.id)
-            .join(Profile, Subscription.user_id == Profile.id)
-            .join(Class, Subscription.class_id == Class.class_id)
-            .join(Course, Class.course_id == Course.id)
-            .join(College, Course.college_id == College.id)
+            .join(College, NotificationLog.college_id == College.id)
+            .outerjoin(Subscription, NotificationLog.subscription_id == Subscription.id)
+            .outerjoin(Profile, Subscription.user_id == Profile.id)
+            .outerjoin(Class, Subscription.class_id == Class.class_id)
+            .outerjoin(Course, Class.course_id == Course.id)
             .where(and_(*filters))
         )
 
@@ -1045,3 +1049,288 @@ async def update_user(
     except Exception as e:
         db.rollback()
         log_and_raise_500("Failed to update user", e)
+
+
+@router.put("/colleges/{college_id}/term", response_model=TermUpdateResponse)
+async def update_college_term(
+    college_id: int,
+    request: TermUpdateRequest,
+    admin: Profile = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Update college term code and clean up old term data.
+
+    This endpoint:
+    1. Updates the college's term_code and term_name
+    2. Soft-deletes all active subscriptions for this college
+    3. Hard-deletes enrollments, classes, and courses
+
+    Use this when transitioning a college to a new academic term.
+    Notification logs are preserved for historical analytics.
+    """
+    try:
+        # 1. Get college
+        college = db.execute(
+            select(College).where(College.id == college_id)
+        ).scalar_one_or_none()
+
+        if not college:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="College not found",
+            )
+
+        old_term_code = college.term_code
+        old_term_name = college.term_name
+
+        # 2. Update term code
+        college.term_code = request.term_code
+        if request.term_name is not None:
+            college.term_name = request.term_name
+
+        # 3. Get course IDs for this college
+        course_ids_result = db.execute(
+            select(Course.id).where(Course.college_id == college_id)
+        )
+        course_ids = [row[0] for row in course_ids_result.fetchall()]
+
+        # 4. Get class IDs for these courses
+        class_ids = []
+        if course_ids:
+            class_ids_result = db.execute(
+                select(Class.class_id).where(Class.course_id.in_(course_ids))
+            )
+            class_ids = [row[0] for row in class_ids_result.fetchall()]
+
+        # 5. Orphan notification_logs by setting subscription_id to NULL
+        # This preserves notification history while allowing subscription deletion
+        db.execute(
+            update(NotificationLog)
+            .where(NotificationLog.college_id == college_id)
+            .values(subscription_id=None)
+        )
+
+        # 6. Delete subscriptions (hard delete required because FK to classes)
+        subs_deleted = db.execute(
+            delete(Subscription).where(Subscription.college_id == college_id)
+        ).rowcount
+
+        # 7. Delete enrollments
+        enroll_deleted = 0
+        if class_ids:
+            enroll_deleted = db.execute(
+                delete(Enrollment).where(Enrollment.class_id.in_(class_ids))
+            ).rowcount
+
+        # 8. Delete classes
+        classes_deleted = 0
+        if course_ids:
+            classes_deleted = db.execute(
+                delete(Class).where(Class.course_id.in_(course_ids))
+            ).rowcount
+
+        # 9. Delete courses
+        courses_deleted = db.execute(
+            delete(Course).where(Course.college_id == college_id)
+        ).rowcount
+
+        # NOTE: notification_logs are preserved for historical analytics
+
+        db.commit()
+
+        return TermUpdateResponse(
+            college_id=college.id,
+            short_name=college.short_name,
+            old_term_code=old_term_code,
+            new_term_code=request.term_code,
+            old_term_name=old_term_name,
+            new_term_name=request.term_name if request.term_name else college.term_name,
+            cleanup=TermUpdateCleanupStats(
+                subscriptions_deactivated=subs_deleted,
+                enrollments_deleted=enroll_deleted,
+                classes_deleted=classes_deleted,
+                courses_deleted=courses_deleted,
+            ),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        log_and_raise_500("Failed to update college term", e)
+
+
+@router.get("/colleges/{college_id}/stats")
+async def get_college_stats(
+    college_id: int,
+    admin: Profile = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Get detailed stats for a college.
+
+    Returns:
+    - College info (name, shortName, termCode, termName, emailEnabled, smsEnabled)
+    - Stats (totalCourses, totalClasses, activeSubscriptions, totalSubscriptions)
+    - Recent scraper logs (last 10 runs with outcome, duration, etc.)
+    """
+    try:
+        # 1. Get college info
+        college = db.execute(
+            select(College).where(College.id == college_id)
+        ).scalar_one_or_none()
+
+        if not college:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="College not found",
+            )
+
+        # 2. Get course count
+        total_courses = (
+            db.execute(
+                select(func.count())
+                .select_from(Course)
+                .where(Course.college_id == college_id)
+            ).scalar()
+            or 0
+        )
+
+        # 3. Get class count (through courses)
+        total_classes = (
+            db.execute(
+                select(func.count())
+                .select_from(Class)
+                .join(Course, Class.course_id == Course.id)
+                .where(Course.college_id == college_id)
+            ).scalar()
+            or 0
+        )
+
+        # 4. Get subscription counts
+        total_subscriptions = (
+            db.execute(
+                select(func.count())
+                .select_from(Subscription)
+                .where(Subscription.college_id == college_id)
+            ).scalar()
+            or 0
+        )
+
+        active_subscriptions = (
+            db.execute(
+                select(func.count())
+                .select_from(Subscription)
+                .where(
+                    and_(
+                        Subscription.college_id == college_id,
+                        Subscription.is_active == True,
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+
+        # 5. Get notification counts (includes logs with null subscription_id)
+        total_notifications = (
+            db.execute(
+                select(func.count())
+                .select_from(NotificationLog)
+                .where(NotificationLog.college_id == college_id)
+            ).scalar()
+            or 0
+        )
+
+        successful_notifications = (
+            db.execute(
+                select(func.count())
+                .select_from(NotificationLog)
+                .where(
+                    and_(
+                        NotificationLog.college_id == college_id,
+                        NotificationLog.status == "sent",
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+
+        failed_notifications = (
+            db.execute(
+                select(func.count())
+                .select_from(NotificationLog)
+                .where(
+                    and_(
+                        NotificationLog.college_id == college_id,
+                        NotificationLog.status == "failed",
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+
+        # 6. Get recent scraper logs (last 10)
+        scraper_logs_query = (
+            select(
+                ScraperLog.id,
+                ScraperLog.outcome,
+                ScraperLog.started_at.label("startedAt"),
+                ScraperLog.completed_at.label("completedAt"),
+                ScraperLog.duration_ms.label("durationMs"),
+                ScraperLog.courses_created.label("coursesCreated"),
+                ScraperLog.classes_created.label("classesCreated"),
+                ScraperLog.enrollments_saved.label("enrollmentsSaved"),
+                ScraperLog.error_message.label("errorMessage"),
+            )
+            .select_from(ScraperLog)
+            .join(Scraper, ScraperLog.scraper_id == Scraper.id)
+            .where(Scraper.college_id == college_id)
+            .order_by(desc(ScraperLog.started_at))
+            .limit(10)
+        )
+        scraper_logs_result = db.execute(scraper_logs_query)
+        recent_scraper_logs = [
+            {
+                "id": row.id,
+                "outcome": row.outcome,
+                "startedAt": row.startedAt.isoformat() if row.startedAt else None,
+                "completedAt": row.completedAt.isoformat() if row.completedAt else None,
+                "durationMs": row.durationMs,
+                "coursesCreated": row.coursesCreated or 0,
+                "classesCreated": row.classesCreated or 0,
+                "enrollmentsSaved": row.enrollmentsSaved or 0,
+                "errorMessage": row.errorMessage,
+            }
+            for row in scraper_logs_result
+        ]
+
+        return {
+            "success": True,
+            "data": {
+                "college": {
+                    "id": college.id,
+                    "name": college.name,
+                    "shortName": college.short_name,
+                    "termCode": college.term_code,
+                    "termName": college.term_name,
+                    "emailEnabled": college.email_enabled,
+                    "smsEnabled": college.sms_enabled,
+                },
+                "stats": {
+                    "totalCourses": total_courses,
+                    "totalClasses": total_classes,
+                    "activeSubscriptions": active_subscriptions,
+                    "totalSubscriptions": total_subscriptions,
+                    "totalNotifications": total_notifications,
+                    "successfulNotifications": successful_notifications,
+                    "failedNotifications": failed_notifications,
+                },
+                "recentScraperLogs": recent_scraper_logs,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_and_raise_500("Failed to fetch college stats", e)

@@ -903,3 +903,485 @@ class TestUpdateUser:
 
         assert response.status_code == 200
         # Should succeed but not change anything
+
+
+class TestUpdateCollegeTerm:
+    """Tests for PUT /api/admin/colleges/{college_id}/term endpoint."""
+
+    @pytest.mark.unit
+    async def test_update_college_term_success(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+        test_subscription: Subscription,
+    ):
+        """Test successfully updating college term code with data cleanup."""
+        # Create additional test data
+        course = test_db.execute(
+            Course.__table__.select().where(Course.college_id == test_college.id)
+        ).first()
+
+        # Set initial term code
+        test_college.term_code = "1258"
+        test_college.term_name = "Spring 2024"
+        test_db.commit()
+
+        # Count initial data
+        initial_courses = (
+            test_db.query(Course).filter(Course.college_id == test_college.id).count()
+        )
+        initial_subs = (
+            test_db.query(Subscription)
+            .filter(
+                Subscription.college_id == test_college.id,
+                Subscription.is_active == True,
+            )
+            .count()
+        )
+
+        response = await admin_client.put(
+            f"/api/admin/colleges/{test_college.id}/term",
+            json={"termCode": "1262", "termName": "Fall 2025"},
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["collegeId"] == test_college.id
+        assert response_json["shortName"] == test_college.short_name
+        assert response_json["oldTermCode"] == "1258"
+        assert response_json["newTermCode"] == "1262"
+        assert response_json["oldTermName"] == "Spring 2024"
+        assert response_json["newTermName"] == "Fall 2025"
+
+        # Verify cleanup stats
+        cleanup = response_json["cleanup"]
+        assert "subscriptionsDeactivated" in cleanup
+        assert "enrollmentsDeleted" in cleanup
+        assert "classesDeleted" in cleanup
+        assert "coursesDeleted" in cleanup
+
+        # Verify term code was updated
+        test_db.refresh(test_college)
+        assert test_college.term_code == "1262"
+        assert test_college.term_name == "Fall 2025"
+
+        # Verify courses were deleted
+        remaining_courses = (
+            test_db.query(Course).filter(Course.college_id == test_college.id).count()
+        )
+        assert remaining_courses == 0
+
+        # Verify subscriptions were deleted (hard delete for FK integrity)
+        remaining_subs = (
+            test_db.query(Subscription)
+            .filter(
+                Subscription.college_id == test_college.id,
+            )
+            .count()
+        )
+        assert remaining_subs == 0
+
+    @pytest.mark.unit
+    async def test_update_college_term_not_found(
+        self,
+        admin_client: AsyncClient,
+    ):
+        """Test updating term for non-existent college."""
+        response = await admin_client.put(
+            "/api/admin/colleges/99999/term",
+            json={"termCode": "1262"},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.unit
+    async def test_update_college_term_no_data(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+    ):
+        """Test updating term for college with no courses/subscriptions."""
+        # Create a new college with no data
+        new_college = College(
+            name="Empty University",
+            short_name="empty",
+            term_code="1000",
+            term_name="Old Term",
+            is_active=True,
+        )
+        test_db.add(new_college)
+        test_db.commit()
+        test_db.refresh(new_college)
+
+        response = await admin_client.put(
+            f"/api/admin/colleges/{new_college.id}/term",
+            json={"termCode": "2000", "termName": "New Term"},
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["newTermCode"] == "2000"
+        assert response_json["newTermName"] == "New Term"
+
+        # All cleanup counts should be 0
+        cleanup = response_json["cleanup"]
+        assert cleanup["subscriptionsDeactivated"] == 0
+        assert cleanup["enrollmentsDeleted"] == 0
+        assert cleanup["classesDeleted"] == 0
+        assert cleanup["coursesDeleted"] == 0
+
+    @pytest.mark.unit
+    async def test_update_college_term_only_term_code(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+    ):
+        """Test updating only term code without term name."""
+        new_college = College(
+            name="Test Only Code",
+            short_name="testcode",
+            term_code="1000",
+            term_name="Keep This Name",
+            is_active=True,
+        )
+        test_db.add(new_college)
+        test_db.commit()
+        test_db.refresh(new_college)
+
+        response = await admin_client.put(
+            f"/api/admin/colleges/{new_college.id}/term",
+            json={"termCode": "2000"},  # No termName
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["newTermCode"] == "2000"
+        assert response_json["newTermName"] == "Keep This Name"
+
+        # Verify in database
+        test_db.refresh(new_college)
+        assert new_college.term_code == "2000"
+        assert new_college.term_name == "Keep This Name"
+
+    @pytest.mark.unit
+    async def test_update_college_term_preserves_notification_logs(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+        test_subscription: Subscription,
+    ):
+        """Test that notification logs are preserved during term update."""
+        # Create notification log
+        log = NotificationLog(
+            subscription_id=test_subscription.id,
+            college_id=test_college.id,
+            notification_type="email",
+            message="Test notification to preserve",
+            status="sent",
+            sent_at=datetime.utcnow(),
+        )
+        test_db.add(log)
+        test_db.commit()
+
+        # Count notification logs before
+        logs_before = (
+            test_db.query(NotificationLog)
+            .filter(NotificationLog.college_id == test_college.id)
+            .count()
+        )
+
+        response = await admin_client.put(
+            f"/api/admin/colleges/{test_college.id}/term",
+            json={"termCode": "9999"},
+        )
+
+        assert response.status_code == 200
+
+        # Verify notification logs are preserved
+        logs_after = (
+            test_db.query(NotificationLog)
+            .filter(NotificationLog.college_id == test_college.id)
+            .count()
+        )
+        assert logs_after == logs_before
+
+    @pytest.mark.unit
+    async def test_update_college_term_non_admin(
+        self,
+        authenticated_client: AsyncClient,
+        test_college,
+    ):
+        """Test that non-admin users cannot update college term."""
+        response = await authenticated_client.put(
+            f"/api/admin/colleges/{test_college.id}/term",
+            json={"termCode": "1262"},
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.unit
+    async def test_update_college_term_unauthenticated(
+        self,
+        client: AsyncClient,
+        test_college,
+    ):
+        """Test that unauthenticated users cannot update college term."""
+        response = await client.put(
+            f"/api/admin/colleges/{test_college.id}/term",
+            json={"termCode": "1262"},
+        )
+
+        assert response.status_code == 401
+
+    @pytest.mark.unit
+    async def test_update_college_term_empty_term_code(
+        self,
+        admin_client: AsyncClient,
+        test_college,
+    ):
+        """Test that empty term code is rejected."""
+        response = await admin_client.put(
+            f"/api/admin/colleges/{test_college.id}/term",
+            json={"termCode": ""},
+        )
+
+        # Should fail validation (empty string not allowed)
+        assert response.status_code == 422
+
+    @pytest.mark.unit
+    async def test_update_college_term_missing_term_code(
+        self,
+        admin_client: AsyncClient,
+        test_college,
+    ):
+        """Test that missing term code is rejected."""
+        response = await admin_client.put(
+            f"/api/admin/colleges/{test_college.id}/term",
+            json={},
+        )
+
+        assert response.status_code == 422
+
+
+class TestGetCollegeStats:
+    """Tests for GET /api/admin/colleges/{college_id}/stats endpoint."""
+
+    @pytest.mark.unit
+    async def test_get_college_stats_success(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+        test_subscription: Subscription,
+    ):
+        """Test successfully getting college stats."""
+        # Create scraper and logs for the college
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+        )
+        test_db.add(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
+
+        log = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="success",
+            started_at=datetime.utcnow() - timedelta(hours=1),
+            completed_at=datetime.utcnow() - timedelta(hours=1),
+            duration_ms=1500,
+            courses_created=10,
+            classes_created=50,
+            enrollments_saved=200,
+        )
+        test_db.add(log)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/colleges/{test_college.id}/stats"
+        )
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+
+        # Verify college info
+        assert "college" in data
+        college = data["college"]
+        assert college["id"] == test_college.id
+        assert college["name"] == test_college.name
+        assert college["shortName"] == test_college.short_name
+        assert "termCode" in college
+        assert "emailEnabled" in college
+        assert "smsEnabled" in college
+
+        # Verify stats
+        assert "stats" in data
+        stats = data["stats"]
+        assert "totalCourses" in stats
+        assert "totalClasses" in stats
+        assert "activeSubscriptions" in stats
+        assert "totalSubscriptions" in stats
+        assert stats["totalCourses"] >= 0
+        assert stats["totalClasses"] >= 0
+        assert stats["totalSubscriptions"] >= 0
+
+        # Verify scraper logs
+        assert "recentScraperLogs" in data
+        assert len(data["recentScraperLogs"]) >= 1
+        log_data = data["recentScraperLogs"][0]
+        assert "id" in log_data
+        assert "outcome" in log_data
+        assert "startedAt" in log_data
+        assert "durationMs" in log_data
+        assert log_data["outcome"] == "success"
+        assert log_data["durationMs"] == 1500
+
+    @pytest.mark.unit
+    async def test_get_college_stats_not_found(
+        self,
+        admin_client: AsyncClient,
+    ):
+        """Test getting stats for non-existent college."""
+        response = await admin_client.get("/api/admin/colleges/99999/stats")
+
+        assert response.status_code == 404
+
+    @pytest.mark.unit
+    async def test_get_college_stats_no_scraper_logs(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+    ):
+        """Test getting stats for college with no scraper logs."""
+        # Create college with no scrapers/logs
+        new_college = College(
+            name="No Logs University",
+            short_name="nologs",
+            term_code="1000",
+            is_active=True,
+        )
+        test_db.add(new_college)
+        test_db.commit()
+        test_db.refresh(new_college)
+
+        response = await admin_client.get(f"/api/admin/colleges/{new_college.id}/stats")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["recentScraperLogs"] == []
+        assert data["stats"]["totalCourses"] == 0
+        assert data["stats"]["totalClasses"] == 0
+
+    @pytest.mark.unit
+    async def test_get_college_stats_limits_logs_to_10(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that only the last 10 scraper logs are returned."""
+        # Create scraper
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+        )
+        test_db.add(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
+
+        # Create 15 logs
+        for i in range(15):
+            log = ScraperLog(
+                scraper_id=scraper.id,
+                outcome="success",
+                started_at=datetime.utcnow() - timedelta(hours=i),
+                completed_at=datetime.utcnow() - timedelta(hours=i),
+                duration_ms=1000 + i,
+            )
+            test_db.add(log)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/colleges/{test_college.id}/stats"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["recentScraperLogs"]) == 10
+
+    @pytest.mark.unit
+    async def test_get_college_stats_non_admin(
+        self,
+        authenticated_client: AsyncClient,
+        test_college,
+    ):
+        """Test that non-admin users cannot access college stats."""
+        response = await authenticated_client.get(
+            f"/api/admin/colleges/{test_college.id}/stats"
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.unit
+    async def test_get_college_stats_unauthenticated(
+        self,
+        client: AsyncClient,
+        test_college,
+    ):
+        """Test that unauthenticated users cannot access college stats."""
+        response = await client.get(f"/api/admin/colleges/{test_college.id}/stats")
+
+        assert response.status_code == 401
+
+
+class TestGetTermCodes:
+    """Tests for GET /api/admin/term-codes/{short_name} endpoint."""
+
+    @pytest.mark.unit
+    async def test_get_term_codes_unsupported_college(
+        self,
+        admin_client: AsyncClient,
+    ):
+        """Test getting term codes for unsupported college."""
+        response = await admin_client.get("/api/admin/term-codes/unsupported")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @pytest.mark.unit
+    async def test_get_term_codes_princeton_manual(
+        self,
+        admin_client: AsyncClient,
+    ):
+        """Test that Princeton returns manual status due to Cloudflare."""
+        response = await admin_client.get("/api/admin/term-codes/princeton")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["college"] == "princeton"
+        assert data["status"] == "manual"
+        assert "Cloudflare" in data["error"]
+
+    @pytest.mark.unit
+    async def test_get_term_codes_non_admin(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that non-admin users cannot access term codes."""
+        response = await authenticated_client.get("/api/admin/term-codes/cornell")
+
+        assert response.status_code == 403
+
+    @pytest.mark.unit
+    async def test_get_term_codes_unauthenticated(
+        self,
+        client: AsyncClient,
+    ):
+        """Test that unauthenticated users cannot access term codes."""
+        response = await client.get("/api/admin/term-codes/cornell")
+
+        assert response.status_code == 401

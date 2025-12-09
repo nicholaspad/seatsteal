@@ -11,7 +11,7 @@ class NotificationLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     college_id = Column(Integer, ForeignKey("colleges.id"), nullable=False, index=True)
     subscription_id = Column(
-        Integer, ForeignKey("subscriptions.id"), nullable=False, index=True
+        Integer, ForeignKey("subscriptions.id"), nullable=True, index=True
     )
 
     # Notification details: 'email', 'sms'

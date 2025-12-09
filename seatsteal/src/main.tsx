@@ -56,6 +56,7 @@ import TermsOfService from "@/pages/TermsOfService";
 
 /* Admin Pages */
 import Admin from "@/pages/admin/Admin";
+import AdminColleges from "@/pages/admin/AdminColleges";
 import AdminPerformance from "@/pages/admin/AdminPerformance";
 import AdminScrapers from "@/pages/admin/AdminScrapers";
 import AdminUsers from "@/pages/admin/AdminUsers";
@@ -140,6 +141,15 @@ createRoot(document.getElementById("root")!).render(
                     render={() => (
                       <AdminRoute>
                         <Admin />
+                      </AdminRoute>
+                    )}
+                  />
+                  <Route
+                    exact
+                    path="/admin/colleges"
+                    render={() => (
+                      <AdminRoute>
+                        <AdminColleges />
                       </AdminRoute>
                     )}
                   />
