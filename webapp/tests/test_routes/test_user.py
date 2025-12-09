@@ -71,7 +71,7 @@ class TestUpdateUserSettings:
         test_user: Profile,
     ):
         """Test updating user phone number."""
-        new_phone = "+9876543210"
+        new_phone = "9876543210"
 
         response = await authenticated_client.put(
             "/api/user/settings",
@@ -138,7 +138,7 @@ class TestUpdateUserSettings:
         test_db.commit()
         test_db.refresh(new_college)
 
-        new_phone = "+1111111111"
+        new_phone = "1111111111"
 
         response = await authenticated_client.put(
             "/api/user/settings",
@@ -168,11 +168,78 @@ class TestUpdateUserSettings:
         assert "College not found" in response.json()["detail"]
 
     @pytest.mark.unit
+    async def test_update_user_settings_empty_phone_preserves_existing(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        """Test that sending empty string for phone does NOT wipe existing phone."""
+        # Set initial phone number
+        original_phone = "5551234567"
+        test_user.phone = original_phone
+        test_db.commit()
+        test_db.refresh(test_user)
+
+        # Try to update with empty string
+        response = await authenticated_client.put(
+            "/api/user/settings",
+            json={"phone": ""},
+        )
+
+        assert response.status_code == 200
+        # Verify phone was NOT changed
+        test_db.refresh(test_user)
+        assert test_user.phone == original_phone
+
+    @pytest.mark.unit
+    async def test_update_user_settings_invalid_phone_too_short(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that phone numbers with fewer than 10 digits are rejected."""
+        response = await authenticated_client.put(
+            "/api/user/settings",
+            json={"phone": "123456789"},  # 9 digits
+        )
+
+        assert response.status_code == 400
+        assert "10 digits" in response.json()["detail"]
+
+    @pytest.mark.unit
+    async def test_update_user_settings_invalid_phone_too_long(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that phone numbers with more than 10 digits are rejected."""
+        response = await authenticated_client.put(
+            "/api/user/settings",
+            json={"phone": "12345678901"},  # 11 digits
+        )
+
+        assert response.status_code == 400
+        assert "10 digits" in response.json()["detail"]
+
+    @pytest.mark.unit
+    async def test_update_user_settings_invalid_phone_non_digits(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that phone numbers with non-digit characters are rejected."""
+        response = await authenticated_client.put(
+            "/api/user/settings",
+            json={"phone": "+1234567890"},  # Has + prefix
+        )
+
+        assert response.status_code == 400
+        assert "10 digits" in response.json()["detail"]
+
+    @pytest.mark.unit
     async def test_update_user_settings_unauthenticated(self, client: AsyncClient):
         """Test updating settings without authentication."""
         response = await client.put(
             "/api/user/settings",
-            json={"phone": "+1234567890"},
+            json={"phone": "1234567890"},
         )
 
         assert response.status_code == 401

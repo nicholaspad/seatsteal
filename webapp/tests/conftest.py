@@ -156,7 +156,7 @@ def test_user(test_db: Session, test_college: College, mock_supabase_user) -> Pr
     user = Profile(
         id=user_id,
         email="test@example.edu",
-        phone="+1234567890",
+        phone="1234567890",
         college_id=test_college.id,
         role="user",
     )
@@ -175,7 +175,7 @@ def test_admin_user(
     admin = Profile(
         id=user_id,
         email="admin@example.edu",
-        phone="+1234567891",
+        phone="1234567891",
         college_id=test_college.id,
         role="admin",
     )

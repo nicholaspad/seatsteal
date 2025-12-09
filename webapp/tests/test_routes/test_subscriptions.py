@@ -228,7 +228,7 @@ class TestDeleteSubscription:
         other_user = Profile(
             id=str(uuid4()),
             email="other@example.edu",
-            phone="+1111111111",
+            phone="1111111111",
             college_id=test_college.id,
             role="user",
         )

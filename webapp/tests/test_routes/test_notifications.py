@@ -168,7 +168,7 @@ class TestGetNotificationTrends:
         other_user = Profile(
             id=uuid4(),
             email="other@example.edu",
-            phone="+19876543210",
+            phone="9876543210",
             college_id=test_college.id,
             role="user",
         )
