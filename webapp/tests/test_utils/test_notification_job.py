@@ -90,6 +90,7 @@ class TestNotificationJobLogging:
             email_log = email_logs[0]
             assert email_log.subscription_id == notification_data["subscription_id"]
             assert email_log.college_id == notification_data["college_id"]
+            assert str(email_log.user_id) == notification_data["user_id"]
             assert email_log.status == "sent"
             assert notification_data["course_title"] in email_log.message
 
@@ -125,6 +126,7 @@ class TestNotificationJobLogging:
             sms_log = sms_logs[0]
             assert sms_log.subscription_id == notification_data["subscription_id"]
             assert sms_log.college_id == notification_data["college_id"]
+            assert str(sms_log.user_id) == notification_data["user_id"]
             assert sms_log.status == "sent"
             assert notification_data["course_title"] in sms_log.message
 
@@ -292,3 +294,30 @@ class TestNotificationJobLogging:
             # Verify no logs were created
             all_logs = test_db.query(NotificationLog).all()
             assert len(all_logs) == 0
+
+    @pytest.mark.unit
+    def test_send_notification_records_user_id(
+        self,
+        test_db: Session,
+        notification_data: dict,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        """Test that user_id is correctly recorded in notification logs."""
+        from notifications.send_notifs import NotificationJob
+
+        with patch(
+            "notifications.send_notifs.EmailService", return_value=mock_email_service
+        ), patch("notifications.send_notifs.SMSService", return_value=mock_sms_service):
+            job = NotificationJob(dry_run=False)
+            job.email_service = mock_email_service
+            job.sms_service = mock_sms_service
+
+            job._send_notification(notification_data, test_db)
+            test_db.commit()
+
+            # Verify user_id is recorded on all logs
+            all_logs = test_db.query(NotificationLog).all()
+            for log in all_logs:
+                assert log.user_id is not None
+                assert str(log.user_id) == notification_data["user_id"]

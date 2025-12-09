@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from models.base import Base
 
@@ -12,6 +13,10 @@ class NotificationLog(Base):
     college_id = Column(Integer, ForeignKey("colleges.id"), nullable=False, index=True)
     subscription_id = Column(
         Integer, ForeignKey("subscriptions.id"), nullable=True, index=True
+    )
+    # User ID for direct user-based queries (nullable for backwards compatibility)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("profiles.id"), nullable=True, index=True
     )
 
     # Notification details: 'email', 'sms'
@@ -44,4 +49,7 @@ class NotificationLog(Base):
             "status",
             "sent_at",
         ),
+        # For user-based queries (dashboard trends)
+        Index("notification_logs_user_id_idx", "user_id"),
+        Index("notification_logs_user_sent_idx", "user_id", "sent_at"),
     )

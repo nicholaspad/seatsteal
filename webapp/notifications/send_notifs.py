@@ -322,6 +322,7 @@ class NotificationJob:
         email_log = NotificationLog(
             college_id=college_id,
             subscription_id=subscription_id,
+            user_id=notification["user_id"],
             notification_type="email",
             message=notification_message,
             status="sent" if email_success else "failed",
@@ -354,6 +355,7 @@ class NotificationJob:
             sms_log = NotificationLog(
                 college_id=college_id,
                 subscription_id=subscription_id,
+                user_id=notification["user_id"],
                 notification_type="sms",
                 message=notification_message,
                 status="sent" if sms_success else "failed",
