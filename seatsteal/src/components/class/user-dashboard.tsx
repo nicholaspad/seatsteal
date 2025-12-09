@@ -44,6 +44,28 @@ interface UserDashboardProps {
 type FilterType = "all" | "open" | "closed" | "recent";
 type SortType = "date" | "course" | "status" | "notified";
 
+// Helper function to format date labels for the trends graph
+const formatTrendLabel = (dateString: string): string => {
+  const date = new Date(dateString + "T00:00:00"); // Parse as local date
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const dateOnly = new Date(date);
+  dateOnly.setHours(0, 0, 0, 0);
+
+  if (dateOnly.getTime() === today.getTime()) {
+    return "Today";
+  } else if (dateOnly.getTime() === yesterday.getTime()) {
+    return "Yesterday";
+  } else {
+    // Format as MM/D
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+};
+
 const UserDashboard = memo(function UserDashboard({
   className,
   title = "My Subscriptions",
@@ -63,7 +85,7 @@ const UserDashboard = memo(function UserDashboard({
   const [hoveredTrendDay, setHoveredTrendDay] = useState<string | null>(null);
   const [weeklyTrend, setWeeklyTrend] = useState<
     Array<{
-      day: string;
+      date: string;
       notifications: number;
       courses: string[];
     }>
@@ -117,42 +139,14 @@ const UserDashboard = memo(function UserDashboard({
 
       const data = await response.json();
       if (data.success) {
-        const trends = data.data || [];
-        // If no trends data, create empty trend for the week
-        if (trends.length === 0) {
-          const emptyTrends = [
-            "Mon",
-            "Tue",
-            "Wed",
-            "Thu",
-            "Fri",
-            "Sat",
-            "Sun",
-          ].map((day) => ({
-            day,
-            notifications: 0,
-            courses: [],
-          }));
-          setWeeklyTrend(emptyTrends);
-        } else {
-          setWeeklyTrend(trends);
-        }
+        setWeeklyTrend(data.data || []);
       }
     } catch (err) {
       if (err instanceof ServerErrorWithToast) {
         return; // Toast already shown
       }
-      // Fall back to empty trend for the week if API fails
-      const emptyTrends = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
-        (day) => ({
-          day,
-          notifications: 0,
-          courses: [],
-        }),
-      );
-      setWeeklyTrend(emptyTrends);
-    } finally {
-      // No cleanup needed
+      // Set empty array on error - backend always returns 7 days of data
+      setWeeklyTrend([]);
     }
   }, [user]);
 
@@ -504,57 +498,61 @@ const UserDashboard = memo(function UserDashboard({
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Past Week Notifications
+                Past 7 Days Notifications
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-end justify-between h-32 gap-2 relative">
-                {weeklyTrend.map((day) => (
-                  <div
-                    key={day.day}
-                    className="flex flex-col items-center flex-1 relative"
-                  >
+                {weeklyTrend.map((day) => {
+                  const label = formatTrendLabel(day.date);
+                  return (
                     <div
-                      className="flex flex-col items-center justify-end h-24 w-full cursor-pointer"
-                      onMouseEnter={() => setHoveredTrendDay(day.day)}
-                      onMouseLeave={() => setHoveredTrendDay(null)}
+                      key={day.date}
+                      className="flex flex-col items-center flex-1 relative"
                     >
                       <div
-                        className="bg-primary/80 rounded-t w-full transition-all hover:bg-primary"
-                        style={{
-                          height: `${day.notifications > 0 ? Math.max((day.notifications / 4) * 100, 10) : 0}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground mt-2">
-                      {day.day}
-                    </span>
-                    <span className="text-xs font-medium">
-                      {day.notifications}
-                    </span>
-
-                    {/* Tooltip */}
-                    {hoveredTrendDay === day.day && day.notifications > 0 && (
-                      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground p-2 rounded-md shadow-lg border z-10 min-w-max">
-                        <div className="text-xs font-medium mb-1">
-                          {day.notifications} notification
-                          {day.notifications !== 1 ? "s" : ""}
-                        </div>
-                        <div className="text-xs text-muted-foreground space-y-1">
-                          {day.courses.map((course, index) => (
-                            <div key={index}>{course}</div>
-                          ))}
-                        </div>
+                        className="flex flex-col items-center justify-end h-24 w-full cursor-pointer"
+                        onMouseEnter={() => setHoveredTrendDay(day.date)}
+                        onMouseLeave={() => setHoveredTrendDay(null)}
+                      >
+                        <div
+                          className="bg-primary/80 rounded-t w-full transition-all hover:bg-primary"
+                          style={{
+                            height: `${day.notifications > 0 ? Math.max((day.notifications / 4) * 100, 10) : 0}%`,
+                          }}
+                        />
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <span className="text-xs text-muted-foreground mt-2">
+                        {label}
+                      </span>
+                      <span className="text-xs font-medium">
+                        {day.notifications}
+                      </span>
+
+                      {/* Tooltip */}
+                      {hoveredTrendDay === day.date &&
+                        day.notifications > 0 && (
+                          <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground p-2 rounded-md shadow-lg border z-10 min-w-max">
+                            <div className="text-xs font-medium mb-1">
+                              {day.notifications} notification
+                              {day.notifications !== 1 ? "s" : ""}
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              {day.courses.map((course, index) => (
+                                <div key={index}>{course}</div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  );
+                })}
               </div>
               <div className="text-center mt-4">
                 {weeklyTrend.reduce((sum, day) => sum + day.notifications, 0) >
                 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Total notifications this week:{" "}
+                    Total notifications in the past 7 days:{" "}
                     {weeklyTrend.reduce(
                       (sum, day) => sum + day.notifications,
                       0,
@@ -562,7 +560,7 @@ const UserDashboard = memo(function UserDashboard({
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No notifications this week.
+                    No notifications in the past 7 days.
                   </p>
                 )}
               </div>
