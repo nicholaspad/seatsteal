@@ -838,6 +838,7 @@ class TestGetUsers:
         customer = StripeCustomer(
             user_id=user_id,
             stripe_customer_id=f"cus_test_plus_{timestamp}",
+            email=f"plus_user_{timestamp}@example.com",
         )
         test_db.add(customer)
         test_db.commit()
@@ -890,6 +891,7 @@ class TestGetUsers:
         customer = StripeCustomer(
             user_id=user_id,
             stripe_customer_id=f"cus_test_pro_{timestamp}",
+            email=f"pro_user_{timestamp}@example.com",
         )
         test_db.add(customer)
         test_db.commit()
@@ -942,6 +944,7 @@ class TestGetUsers:
         customer = StripeCustomer(
             user_id=user_id,
             stripe_customer_id=f"cus_test_trial_{timestamp}",
+            email=f"trial_user_{timestamp}@example.com",
         )
         test_db.add(customer)
         test_db.commit()
@@ -994,6 +997,7 @@ class TestGetUsers:
         customer = StripeCustomer(
             user_id=user_id,
             stripe_customer_id=f"cus_test_canceled_{timestamp}",
+            email=f"canceled_user_{timestamp}@example.com",
         )
         test_db.add(customer)
         test_db.commit()
@@ -1047,6 +1051,7 @@ class TestGetUsers:
         customer = StripeCustomer(
             user_id=user_id,
             stripe_customer_id=f"cus_test_multi_{timestamp}",
+            email=f"multi_sub_user_{timestamp}@example.com",
         )
         test_db.add(customer)
         test_db.commit()
