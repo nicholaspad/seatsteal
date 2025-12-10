@@ -674,7 +674,13 @@ async def get_scrapers(
             .select_from(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
             .join(College, Scraper.college_id == College.id)
-            .where(and_(ScraperLog.started_at >= days_ago, college_filter))
+            .where(
+                and_(
+                    ScraperLog.started_at >= days_ago,
+                    ScraperLog.outcome != "running",
+                    college_filter,
+                )
+            )
             .group_by(
                 func.date(ScraperLog.started_at),
                 Scraper.college_id,
