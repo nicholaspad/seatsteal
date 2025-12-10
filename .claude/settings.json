@@ -33,7 +33,8 @@
       "Bash(mkdir:*)",
       "Bash(touch:*)",
       "Bash(cp:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Web Search(*)"
     ],
     "deny": []
   }

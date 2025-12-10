@@ -68,8 +68,6 @@ export interface NotificationLog {
   notificationType: string;
   message: string;
   status: string;
-  seatsRemaining: number | null;
-  enrollmentStatus: string | null;
   sentAt: string;
 }
 

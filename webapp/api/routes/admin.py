@@ -308,8 +308,6 @@ async def get_notifications(
                 Course.course_code.label("courseCode"),
                 Course.title.label("courseTitle"),
                 College.name.label("collegeName"),
-                NotificationLog.seats_remaining.label("seatsRemaining"),
-                NotificationLog.enrollment_status.label("enrollmentStatus"),
             )
             .select_from(NotificationLog)
             .join(College, NotificationLog.college_id == College.id)
@@ -356,8 +354,6 @@ async def get_notifications(
                 "courseCode": row.courseCode,
                 "courseTitle": row.courseTitle,
                 "collegeName": row.collegeName,
-                "seatsRemaining": row.seatsRemaining,
-                "enrollmentStatus": row.enrollmentStatus,
             }
             for row in notifications_result
         ]

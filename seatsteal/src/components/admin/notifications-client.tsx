@@ -338,8 +338,6 @@ export function NotificationsClient() {
                       <TableHead>Course</TableHead>
                       <TableHead>College</TableHead>
                       <TableHead>Message</TableHead>
-                      <TableHead>Seats</TableHead>
-                      <TableHead>Enrollment</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -367,25 +365,6 @@ export function NotificationsClient() {
                           <span title={notification.message}>
                             {truncateMessage(notification.message)}
                           </span>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {notification.seatsRemaining ?? "N/A"}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <Badge
-                            variant={
-                              notification.enrollmentStatus === "open"
-                                ? "default"
-                                : "secondary"
-                            }
-                            className={
-                              notification.enrollmentStatus === "open"
-                                ? "bg-green-600 hover:bg-green-700"
-                                : ""
-                            }
-                          >
-                            {notification.enrollmentStatus || "Unknown"}
-                          </Badge>
                         </TableCell>
                       </TableRow>
                     ))}
