@@ -169,7 +169,7 @@ export function ClassCard({
                         variant="ghost"
                         size="sm"
                         className="h-auto p-1 text-xs"
-                        onClick={() => window.open("/#pricing", "_blank")}
+                        onClick={() => window.open("/#plans", "_blank")}
                       >
                         View pricing <ExternalLink className="ml-1 h-3 w-3" />
                       </Button>
@@ -234,7 +234,7 @@ export function ClassCard({
                           variant="ghost"
                           size="sm"
                           className="h-auto p-1 text-xs"
-                          onClick={() => window.open("/#pricing", "_blank")}
+                          onClick={() => window.open("/#plans", "_blank")}
                         >
                           View pricing <ExternalLink className="ml-1 h-3 w-3" />
                         </Button>

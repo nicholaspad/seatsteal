@@ -1,5 +1,6 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { FAQSection } from "@/components/home/faq-section";
 import { PricingTiers } from "@/components/home/pricing-tiers";
 import type { College } from "@/types/api";
@@ -25,11 +26,29 @@ async function getColleges(): Promise<College[]> {
 
 export default function Home() {
   const [colleges, setColleges] = useState<College[]>([]);
+  const location = useLocation();
 
   useEffect(() => {
     // Fetch colleges data
     getColleges().then(setColleges);
   }, []);
+
+  // Auto-scroll to plans section when #plans hash is present
+  useEffect(() => {
+    if (location.hash === "#plans") {
+      // Small delay to ensure the DOM is ready
+      const timeoutId = setTimeout(() => {
+        const element = document.getElementById("plans");
+        if (element) {
+          element.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [location.hash]);
 
   return (
     <IonPage>
@@ -85,7 +104,7 @@ export default function Home() {
               <div className="flex justify-center mt-4">
                 <button
                   onClick={() => {
-                    const element = document.getElementById("pricing");
+                    const element = document.getElementById("plans");
                     if (element) {
                       element.scrollIntoView({
                         behavior: "smooth",
@@ -95,7 +114,7 @@ export default function Home() {
                   }}
                   className="text-gray-300 hover:text-white transition-colors text-base underline"
                 >
-                  View pricing
+                  View plans
                 </button>
               </div>
             </div>
@@ -119,7 +138,7 @@ export default function Home() {
           </section> */}
 
           {/* Pricing */}
-          <section id="pricing" className="bg-muted/30 py-16">
+          <section id="plans" className="bg-muted/30 py-16">
             <div className="container mx-auto px-4">
               <div className="text-center space-y-4 mb-12">
                 <h2 className="text-3xl md:text-4xl font-bold">Plans</h2>

@@ -50,10 +50,10 @@ describe("Home Page", () => {
       expect(screen.getByText("FAQs")).toBeInTheDocument();
     });
 
-    it("renders view pricing link", () => {
+    it("renders view plans link", () => {
       renderAnonymous(<Home />);
 
-      expect(screen.getByText("View pricing")).toBeInTheDocument();
+      expect(screen.getByText("View plans")).toBeInTheDocument();
     });
   });
 
@@ -119,7 +119,7 @@ describe("Home Page", () => {
   });
 
   describe("Smooth Scroll", () => {
-    it("View pricing button triggers scroll to pricing section", async () => {
+    it("View plans button triggers scroll to plans section", async () => {
       const user = userEvent.setup();
       const scrollIntoViewMock = vi.fn();
 
@@ -131,12 +131,12 @@ describe("Home Page", () => {
 
       renderAnonymous(<Home />);
 
-      const viewPricingButton = screen.getByRole("button", {
-        name: /View pricing/i,
+      const viewPlansButton = screen.getByRole("button", {
+        name: /View plans/i,
       });
-      await user.click(viewPricingButton);
+      await user.click(viewPlansButton);
 
-      expect(document.getElementById).toHaveBeenCalledWith("pricing");
+      expect(document.getElementById).toHaveBeenCalledWith("plans");
       expect(scrollIntoViewMock).toHaveBeenCalledWith({
         behavior: "smooth",
         block: "start",
