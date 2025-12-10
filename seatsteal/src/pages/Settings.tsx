@@ -44,7 +44,7 @@ interface UserSettings {
 }
 
 export default function Settings() {
-  const { user } = useSession();
+  const { user, subscriptionTier } = useSession();
   const [colleges, setColleges] = useState<College[]>([]);
   const [settings, setSettings] = useState<UserSettings>({
     email: "",
@@ -350,6 +350,16 @@ export default function Settings() {
                   <Label htmlFor="phone" className="flex items-center gap-2">
                     <Phone className="h-4 w-4" />
                     Phone Number
+                    {subscriptionTier === "plus" && (
+                      <Badge variant="plus" className="ml-auto">
+                        Plus
+                      </Badge>
+                    )}
+                    {subscriptionTier === "pro" && (
+                      <Badge variant="pro" className="ml-auto">
+                        Pro
+                      </Badge>
+                    )}
                   </Label>
                   <Input
                     id="phone"
