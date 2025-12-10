@@ -26,6 +26,7 @@ interface User {
   id: string;
   email: string;
   phone?: string;
+  tier: "free" | "plus" | "pro";
   role: string;
   collegeId?: number;
   college?: {
@@ -157,6 +158,7 @@ export function UserManagementClient() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Email</TableHead>
+                    <TableHead>Tier</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>College</TableHead>
                     <TableHead>Phone</TableHead>
@@ -167,6 +169,19 @@ export function UserManagementClient() {
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">
                         {user.email}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            user.tier === "pro"
+                              ? "default"
+                              : user.tier === "plus"
+                                ? "secondary"
+                                : "outline"
+                          }
+                        >
+                          {user.tier}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge

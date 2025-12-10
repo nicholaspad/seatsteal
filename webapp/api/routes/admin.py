@@ -22,6 +22,7 @@ from models.class_model import Class
 from api.middleware.auth import require_admin
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches
+from utils.premium import get_user_subscription_tier
 from schemas.admin import TermUpdateRequest, TermUpdateResponse, TermUpdateCleanupStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -938,11 +939,16 @@ async def get_users(
         users_query = users_query.order_by(desc(Profile.id)).limit(limit).offset(offset)
 
         users_result = db.execute(users_query)
-        users = [
-            {
+        users = []
+        for row in users_result:
+            # Get user tier
+            tier = get_user_subscription_tier(row.id, db)
+
+            users.append({
                 "id": str(row.id),
                 "email": row.email,
                 "phone": row.phone,
+                "tier": tier,
                 "role": row.role,
                 "collegeId": row.collegeId,
                 "college": (
@@ -954,9 +960,7 @@ async def get_users(
                     if row.college_id_inner
                     else None
                 ),
-            }
-            for row in users_result
-        ]
+            })
 
         return {
             "success": True,
