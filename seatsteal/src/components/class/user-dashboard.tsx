@@ -188,7 +188,7 @@ const UserDashboard = memo(function UserDashboard({
                     variant="ghost"
                     size="sm"
                     className="h-auto p-1 text-xs"
-                    onClick={() => window.open("/#pricing", "_blank")}
+                    onClick={() => window.open("/#plans", "_blank")}
                   >
                     View plans <ExternalLink className="ml-1 h-3 w-3" />
                   </Button>
