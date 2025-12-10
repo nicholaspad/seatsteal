@@ -3,6 +3,7 @@ import { vi } from "vitest";
 import React from "react";
 import type { User } from "@supabase/supabase-js";
 import type { SubscriptionTier } from "@/lib/subscription-constants";
+import type { SubscriptionStatus } from "@/types/api";
 
 // Define types for global mock state
 interface MockSessionState {
@@ -18,6 +19,8 @@ interface MockSessionState {
   profileLoading: boolean;
   subscriptionTier: SubscriptionTier;
   tierLoading: boolean;
+  subscriptionStatus: SubscriptionStatus | null;
+  subscriptionStatusLoading: boolean;
 }
 
 // Attach mock state to globalThis so it can be accessed from vi.mock factories
@@ -33,6 +36,8 @@ globalThis.__mockSessionState = {
   profileLoading: false,
   subscriptionTier: "free",
   tierLoading: false,
+  subscriptionStatus: null,
+  subscriptionStatusLoading: false,
 };
 
 // Export for use in test utils
@@ -46,6 +51,8 @@ export const resetMockSessionState = () => {
   globalThis.__mockSessionState.profileLoading = false;
   globalThis.__mockSessionState.subscriptionTier = "free";
   globalThis.__mockSessionState.tierLoading = false;
+  globalThis.__mockSessionState.subscriptionStatus = null;
+  globalThis.__mockSessionState.subscriptionStatusLoading = false;
 };
 
 // Mock window.matchMedia (needed for Ionic/theme detection)
@@ -156,6 +163,12 @@ vi.mock("@/components/providers/SessionProvider", () => ({
   useSubscriptionTier: () => ({
     subscriptionTier: globalThis.__mockSessionState.subscriptionTier,
     tierLoading: globalThis.__mockSessionState.tierLoading,
+  }),
+  useSubscriptionStatus: () => ({
+    subscriptionStatus: globalThis.__mockSessionState.subscriptionStatus,
+    subscriptionStatusLoading:
+      globalThis.__mockSessionState.subscriptionStatusLoading,
+    refreshSubscriptionStatus: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 

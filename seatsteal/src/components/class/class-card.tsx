@@ -13,7 +13,11 @@ import { SubscribeConfirmationModal } from "@/components/ui/subscribe-confirmati
 import { Bell, Sparkles, ExternalLink } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { useSubscriptionTier } from "@/components/providers/SessionProvider";
+import {
+  useSubscriptionTier,
+  useSubscriptionStatus,
+} from "@/components/providers/SessionProvider";
+import { getSubscriptionFeatures } from "@/lib/subscription-constants";
 
 type SubscriptionTier = "free" | "plus" | "pro";
 
@@ -50,10 +54,28 @@ export function ClassCard({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const { subscriptionTier: userTier, tierLoading } = useSubscriptionTier();
+  const { subscriptionStatus } = useSubscriptionStatus();
   const enrollment = classData.currentEnrollment;
   const isOpen = enrollment?.enrollmentStatus.toLowerCase() === "open";
   const isClosed = enrollment?.enrollmentStatus.toLowerCase() === "closed";
   const hasAnalyticsAccess = hasPremiumAccess(userTier);
+
+  // Check if user has reached subscription limit
+  const isAtLimit =
+    subscriptionStatus !== null && !subscriptionStatus.canSubscribe;
+  const tierFeatures = getSubscriptionFeatures(userTier);
+
+  // Generate tooltip message for subscription limit
+  const getSubscribeLimitTooltipMessage = () => {
+    if (userTier === "pro") {
+      return `You've reached your limit of ${tierFeatures.maxSubscriptions} subscriptions`;
+    }
+    const nextTier = userTier === "free" ? "Plus" : "Pro";
+    return `You've reached your limit of ${tierFeatures.maxSubscriptions} subscription${tierFeatures.maxSubscriptions === 1 ? "" : "s"}. Upgrade to ${nextTier} for more!`;
+  };
+
+  // Determine if we should show the limit tooltip (at limit, not already subscribed, closed class)
+  const showLimitTooltip = isAtLimit && !isSubscribed && isClosed;
 
   const handleSubscriptionClick = async () => {
     if (onSubscriptionChange && !buttonLoading) {
@@ -187,40 +209,75 @@ export function ClassCard({
                 </div>
               </div>
 
-              <button
-                onClick={handleSubscriptionClick}
-                disabled={isOpen || buttonLoading} // Can't subscribe to open classes or when loading
-                className={cn(
-                  "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 shadow-sm flex items-center gap-2",
-                  isSubscribed
-                    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md",
-                  (isOpen || buttonLoading) &&
-                    "opacity-60 cursor-not-allowed bg-muted text-muted-foreground",
-                )}
-                aria-label={
-                  buttonLoading
-                    ? "Processing subscription request"
+              {showLimitTooltip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <button
+                        disabled
+                        className={cn(
+                          "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 shadow-sm flex items-center gap-2",
+                          "opacity-60 cursor-not-allowed bg-muted text-muted-foreground",
+                        )}
+                        aria-label={getSubscribeLimitTooltipMessage()}
+                      >
+                        <Bell className="h-4 w-4" />
+                        Subscribe
+                      </button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-2">
+                      <p>{getSubscribeLimitTooltipMessage()}</p>
+                      {userTier !== "pro" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-1 text-xs"
+                          onClick={() => window.open("/#pricing", "_blank")}
+                        >
+                          View pricing <ExternalLink className="ml-1 h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <button
+                  onClick={handleSubscriptionClick}
+                  disabled={isOpen || buttonLoading} // Can't subscribe to open classes or when loading
+                  className={cn(
+                    "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 shadow-sm flex items-center gap-2",
+                    isSubscribed
+                      ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md",
+                    (isOpen || buttonLoading) &&
+                      "opacity-60 cursor-not-allowed bg-muted text-muted-foreground",
+                  )}
+                  aria-label={
+                    buttonLoading
+                      ? "Processing subscription request"
+                      : isOpen
+                        ? "Class is open - notifications not available"
+                        : isSubscribed
+                          ? "Unsubscribe from notifications"
+                          : "Subscribe for notifications"
+                  }
+                >
+                  {buttonLoading ? (
+                    <Spinner className="size-4" />
+                  ) : (
+                    <Bell className="h-4 w-4" />
+                  )}
+                  {buttonLoading
+                    ? "Processing..."
                     : isOpen
-                      ? "Class is open - notifications not available"
+                      ? "Subscribe"
                       : isSubscribed
-                        ? "Unsubscribe from notifications"
-                        : "Subscribe for notifications"
-                }
-              >
-                {buttonLoading ? (
-                  <Spinner className="size-4" />
-                ) : (
-                  <Bell className="h-4 w-4" />
-                )}
-                {buttonLoading
-                  ? "Processing..."
-                  : isOpen
-                    ? "Subscribe"
-                    : isSubscribed
-                      ? "Unsubscribe"
-                      : "Subscribe"}
-              </button>
+                        ? "Unsubscribe"
+                        : "Subscribe"}
+                </button>
+              )}
             </div>
           )}
         </CardContent>
