@@ -353,7 +353,9 @@ export default function Settings() {
                     <Badge variant="plus" className="ml-auto">
                       Plus
                     </Badge>
-                    <Badge variant="pro">Pro</Badge>
+                    <Badge variant="pro" className="ml-1">
+                      Pro
+                    </Badge>
                   </Label>
                   <Input
                     id="phone"
