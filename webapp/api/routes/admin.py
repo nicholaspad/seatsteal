@@ -19,6 +19,7 @@ from models.query_performance_metric import QueryPerformanceMetric
 from models.scraper import Scraper
 from models.scraper_log import ScraperLog
 from models.class_model import Class
+from models.stripe_subscription import StripeSubscription
 from api.middleware.auth import require_admin
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches
@@ -916,7 +917,36 @@ async def get_users(
         total_pages = (total_count + limit - 1) // limit if total_count > 0 else 0
         offset = (page - 1) * limit
 
-        # Get users with college data
+        # Subquery to get the most recent active/trialing subscription for each user
+        latest_subscription_subquery = (
+            select(
+                StripeSubscription.user_id,
+                StripeSubscription.tier,
+                func.row_number()
+                .over(
+                    partition_by=StripeSubscription.user_id,
+                    order_by=[
+                        desc(StripeSubscription.created_at),
+                        desc(StripeSubscription.id),
+                    ],
+                )
+                .label("rn"),
+            )
+            .where(StripeSubscription.status.in_(["active", "trialing"]))
+            .subquery()
+        )
+
+        # Filter to get only the most recent subscription (rn = 1)
+        latest_subscription = (
+            select(
+                latest_subscription_subquery.c.user_id,
+                latest_subscription_subquery.c.tier,
+            )
+            .where(latest_subscription_subquery.c.rn == 1)
+            .subquery()
+        )
+
+        # Get users with college data and tier
         users_query = (
             select(
                 Profile.id,
@@ -927,9 +957,11 @@ async def get_users(
                 College.id.label("college_id_inner"),
                 College.name.label("college_name"),
                 College.short_name.label("college_short_name"),
+                func.coalesce(latest_subscription.c.tier, "free").label("tier"),
             )
             .select_from(Profile)
             .outerjoin(College, Profile.college_id == College.id)
+            .outerjoin(latest_subscription, Profile.id == latest_subscription.c.user_id)
         )
 
         if filters:
@@ -943,6 +975,7 @@ async def get_users(
                 "id": str(row.id),
                 "email": row.email,
                 "phone": row.phone,
+                "tier": row.tier,
                 "role": row.role,
                 "collegeId": row.collegeId,
                 "college": (
