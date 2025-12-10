@@ -110,7 +110,7 @@ export function ScrapersDashboardClient() {
   const [data, setData] = useState<ScrapersAnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [timeframe, setTimeframe] = useState("30");
+  const [timeframe, setTimeframe] = useState("7");
   const [collegeFilter, setCollegeFilter] = useState("all");
 
   const fetchScrapersAnalytics = async () => {
@@ -165,17 +165,8 @@ export function ScrapersDashboardClient() {
   };
 
   // Prepare chart data for performance trends grouped by college
-  // Filter to last 7 days
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const filteredPerformanceTrends =
-    data?.performanceTrends.filter((item) => {
-      const itemDate = new Date(item.date);
-      return itemDate >= sevenDaysAgo;
-    }) || [];
-
   const performanceTrendsData =
-    filteredPerformanceTrends.reduce(
+    data?.performanceTrends.reduce(
       (acc, item) => {
         const existingDate = acc.find((d) => d.date === item.date);
         if (existingDate) {
@@ -207,15 +198,8 @@ export function ScrapersDashboardClient() {
   ];
 
   // Prepare success rate trends data grouped by college
-  // Filter to last 7 days
-  const filteredSuccessRateTrends =
-    data?.successRateTrends.filter((item) => {
-      const itemDate = new Date(item.date);
-      return itemDate >= sevenDaysAgo;
-    }) || [];
-
   const successRateTrendsData =
-    filteredSuccessRateTrends.reduce(
+    data?.successRateTrends.reduce(
       (acc, item) => {
         const existingDate = acc.find((d) => d.date === item.date);
         const successRate =
