@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Spin up EC2 instance (t4g.nano)
-# Usage: ./utils/spin-up-ec2.sh
+# Usage: ./utils/spin-up-ec2.sh [instance_type]
 
 set -e  # Exit on any error
 
@@ -17,9 +17,22 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 EC2_HOST_FILE="$SCRIPT_DIR/ec2-host.json"
 PEM_FILE="$REPO_ROOT/seatsteal.pem"
 
+# Accept instance type as parameter, default to t4g.nano
+INSTANCE_TYPE="${1:-t4g.nano}"
+
+# Validate instance type
+case "$INSTANCE_TYPE" in
+  t4g.nano|t4g.micro|t4g.small)
+    ;;
+  *)
+    echo -e "${RED}❌ Error: Invalid instance type '$INSTANCE_TYPE'${NC}"
+    echo "Valid types: t4g.nano, t4g.micro, t4g.small"
+    exit 1
+    ;;
+esac
+
 # AWS Configuration
 REGION="us-east-1"
-INSTANCE_TYPE="t4g.nano"
 KEY_NAME="seatsteal"
 SECURITY_GROUP_NAME="seatsteal-sg"
 INSTANCE_TAG_NAME="seatsteal"

@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Menu options
-options=("Deploy services" "View service logs" "Kill services" "SSH into instance" "Spin up instance (t4g.nano)" "Terminate instance")
+options=("Deploy services" "View service logs" "Kill services" "SSH into instance" "Spin up instance" "Terminate instance")
 selected=0  # Default to "Deploy services" (index 0)
 
 # Function to display menu
@@ -109,10 +109,24 @@ case $choice in
     "$SCRIPT_DIR/login-ec2.sh"
     ;;
   5)
-    echo ""
-    echo "🚀 Spinning up new EC2 instance (t4g.nano)..."
-    echo ""
-    "$SCRIPT_DIR/spin-up-ec2.sh"
+    INSTANCE_TYPE=$("$SCRIPT_DIR/select-instance-type.sh" </dev/tty)
+    if [ -z "$INSTANCE_TYPE" ]; then
+      clear
+      echo "=========================================="
+      echo "  SeatSteal EC2 Service Management"
+      echo "=========================================="
+      echo ""
+      echo "Instance type selection cancelled."
+    else
+      clear
+      echo "=========================================="
+      echo "  SeatSteal EC2 Service Management"
+      echo "=========================================="
+      echo ""
+      echo "🚀 Spinning up new EC2 instance ($INSTANCE_TYPE)..."
+      echo ""
+      "$SCRIPT_DIR/spin-up-ec2.sh" "$INSTANCE_TYPE"
+    fi
     ;;
   6)
     echo ""
