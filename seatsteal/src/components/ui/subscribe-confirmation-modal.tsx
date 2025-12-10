@@ -47,18 +47,17 @@ export function SubscribeConfirmationModal({
           <div className="flex items-start gap-3 text-sm">
             <MessageSquare className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
             <p className="text-muted-foreground">
-              If you have provided a phone number in your account settings, you
-              will also receive{" "}
+              If you have provided a phone number in your account settings and
+              are subscribed to a plan, you will also receive{" "}
               <strong className="text-foreground">one SMS notification</strong>.
               Message and data rates may apply.
             </p>
           </div>
           <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
             <p>
-              <strong className="text-foreground">How to opt out:</strong> You
-              can unsubscribe at any time by clicking "Unsubscribe" on this page
-              or from your Dashboard. After notification, your subscription for
-              this class section is automatically ended.
+              You can unsubscribe at any time by clicking "Unsubscribe" on this
+              page or from your Dashboard. After notification, your subscription
+              for this class section is automatically ended.
             </p>
           </div>
         </div>
