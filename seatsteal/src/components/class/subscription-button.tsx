@@ -348,7 +348,19 @@ export function SubscriptionButton({
               <span tabIndex={0}>{buttonElement}</span>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{getTooltipMessage()}</p>
+              <div className="space-y-2">
+                <p>{getTooltipMessage()}</p>
+                {userTier !== "pro" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-1 text-xs"
+                    onClick={() => window.open("/#pricing", "_blank")}
+                  >
+                    View pricing <ExternalLink className="ml-1 h-3 w-3" />
+                  </Button>
+                )}
+              </div>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
