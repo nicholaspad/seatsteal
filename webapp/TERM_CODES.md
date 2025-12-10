@@ -236,6 +236,35 @@ SU25 - Summer 2025
 
 ---
 
+### University of Pennsylvania (UPenn)
+
+**Method:** Extract from the course search page dropdown
+
+**Steps:**
+
+1. Use curl to get all available terms:
+   ```bash
+   curl -s https://courses.upenn.edu/ | grep -o '<option[^>]*value="[0-9]*"[^>]*>[^<]*</option>' | sed 's/<option[^>]*value="\([0-9]*\)"[^>]*>\([^<]*\)<.*/\1 - \2/' | grep -E '^[0-9]{6}'
+   ```
+2. Term code format: `YYYYSS` where `SS` is semester code
+   - `10` = Spring
+   - `20` = Summer
+   - `30` = Fall
+
+**Example output:**
+
+```
+202610 - Spring 2026
+202530 - Fall 2025
+202520 - Summer 2025
+202510 - Spring 2025
+202430 - Fall 2024
+```
+
+**Example term code:** `202610` (Spring 2026)
+
+---
+
 ## Updating Term Codes in the Database
 
 Once you have retrieved the current term code for a college, update it in the database:

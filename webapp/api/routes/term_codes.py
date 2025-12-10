@@ -208,6 +208,29 @@ async def fetch_rutgers_terms() -> Tuple[str, List[dict], Optional[str]]:
         return ("error", [], str(e))
 
 
+async def fetch_upenn_terms() -> Tuple[str, List[dict], Optional[str]]:
+    """Fetch term codes from University of Pennsylvania."""
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get("https://courses.upenn.edu/")
+            html = response.text
+
+        # Extract option tags with term codes
+        pattern = r'<option[^>]*value="(\d+)"[^>]*>([^<]+)</option>'
+        matches = re.findall(pattern, html)
+
+        terms = []
+        for code, name in matches:
+            name = name.strip()
+            # Filter out non-term options (instruction methods, etc.)
+            if code.isdigit() and len(code) == 6:
+                terms.append({"code": code, "description": name})
+
+        return ("success", terms[:4], None)
+    except Exception as e:
+        return ("error", [], str(e))
+
+
 # College fetch function mapping
 COLLEGE_FETCHERS = {
     "brown": fetch_brown_terms,
@@ -217,6 +240,7 @@ COLLEGE_FETCHERS = {
     "usc": fetch_usc_terms,
     "umd": fetch_umd_terms,
     "rutgers": fetch_rutgers_terms,
+    "upenn": fetch_upenn_terms,
 }
 
 
