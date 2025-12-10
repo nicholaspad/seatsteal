@@ -239,14 +239,9 @@ export function ScrapersDashboardClient() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Scrapers Dashboard
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Monitoring and analytics for all course scrapers
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Scrapers Dashboard
+        </h1>
         <div className="flex items-center gap-4">
           <Select value={collegeFilter} onValueChange={setCollegeFilter}>
             <SelectTrigger className="w-48">

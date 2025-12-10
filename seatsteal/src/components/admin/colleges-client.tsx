@@ -392,14 +392,9 @@ export function CollegesClient() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Colleges
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Manage college term codes and view statistics
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Colleges
+        </h1>
         <div className="flex items-center gap-4">
           <Select
             value={selectedCollegeId?.toString() || ""}
