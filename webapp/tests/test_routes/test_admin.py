@@ -15,6 +15,7 @@ from models.course import Course
 from models.college import College
 from models.class_model import Class
 from models.enrollment import Enrollment
+from models.stripe_subscription import StripeSubscription
 
 
 class TestGetAnalytics:
@@ -761,6 +762,329 @@ class TestGetUsers:
         response = await authenticated_client.get("/api/admin/users")
 
         assert response.status_code == 403
+
+    @pytest.mark.unit
+    async def test_get_users_includes_tier_field(
+        self,
+        admin_client: AsyncClient,
+        test_user: Profile,
+    ):
+        """Test that each user has a tier field."""
+        response = await admin_client.get("/api/admin/users")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["users"]) >= 1
+
+        # Verify each user has a tier field
+        for user in data["users"]:
+            assert "tier" in user
+            assert user["tier"] in ["free", "plus", "pro"]
+
+    @pytest.mark.unit
+    async def test_get_users_free_tier_for_no_subscription(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that users without active subscriptions show 'free' tier."""
+        from uuid import uuid4
+
+        # Create user without Stripe subscription
+        timestamp = datetime.now(timezone.utc).timestamp()
+        user = Profile(
+            id=uuid4(),
+            email=f"free_user_{timestamp}@example.com",
+            role="user",
+            college_id=test_college.id,
+        )
+        test_db.add(user)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/users?search=free_user_{timestamp}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["users"]) == 1
+        assert data["users"][0]["tier"] == "free"
+
+    @pytest.mark.unit
+    async def test_get_users_plus_tier_for_active_subscription(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that users with active Plus subscriptions show 'plus' tier."""
+        from uuid import uuid4
+        from models.stripe_customer import StripeCustomer
+
+        # Create user
+        timestamp = datetime.now(timezone.utc).timestamp()
+        user_id = uuid4()
+        user = Profile(
+            id=user_id,
+            email=f"plus_user_{timestamp}@example.com",
+            role="user",
+            college_id=test_college.id,
+        )
+        test_db.add(user)
+        test_db.commit()
+
+        # Create Stripe customer
+        customer = StripeCustomer(
+            user_id=user_id,
+            stripe_customer_id=f"cus_test_plus_{timestamp}",
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create active Plus subscription
+        subscription = StripeSubscription(
+            user_id=user_id,
+            stripe_subscription_id=f"sub_test_plus_{timestamp}",
+            stripe_customer_id=customer.stripe_customer_id,
+            status="active",
+            price_id="price_plus",
+            tier="plus",
+        )
+        test_db.add(subscription)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/users?search=plus_user_{timestamp}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["users"]) == 1
+        assert data["users"][0]["tier"] == "plus"
+
+    @pytest.mark.unit
+    async def test_get_users_pro_tier_for_active_subscription(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that users with active Pro subscriptions show 'pro' tier."""
+        from uuid import uuid4
+        from models.stripe_customer import StripeCustomer
+
+        # Create user
+        timestamp = datetime.now(timezone.utc).timestamp()
+        user_id = uuid4()
+        user = Profile(
+            id=user_id,
+            email=f"pro_user_{timestamp}@example.com",
+            role="user",
+            college_id=test_college.id,
+        )
+        test_db.add(user)
+        test_db.commit()
+
+        # Create Stripe customer
+        customer = StripeCustomer(
+            user_id=user_id,
+            stripe_customer_id=f"cus_test_pro_{timestamp}",
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create active Pro subscription
+        subscription = StripeSubscription(
+            user_id=user_id,
+            stripe_subscription_id=f"sub_test_pro_{timestamp}",
+            stripe_customer_id=customer.stripe_customer_id,
+            status="active",
+            price_id="price_pro",
+            tier="pro",
+        )
+        test_db.add(subscription)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/users?search=pro_user_{timestamp}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["users"]) == 1
+        assert data["users"][0]["tier"] == "pro"
+
+    @pytest.mark.unit
+    async def test_get_users_free_tier_for_trialing_subscription(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that trialing subscriptions show correct tier."""
+        from uuid import uuid4
+        from models.stripe_customer import StripeCustomer
+
+        # Create user
+        timestamp = datetime.now(timezone.utc).timestamp()
+        user_id = uuid4()
+        user = Profile(
+            id=user_id,
+            email=f"trial_user_{timestamp}@example.com",
+            role="user",
+            college_id=test_college.id,
+        )
+        test_db.add(user)
+        test_db.commit()
+
+        # Create Stripe customer
+        customer = StripeCustomer(
+            user_id=user_id,
+            stripe_customer_id=f"cus_test_trial_{timestamp}",
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create trialing Plus subscription
+        subscription = StripeSubscription(
+            user_id=user_id,
+            stripe_subscription_id=f"sub_test_trial_{timestamp}",
+            stripe_customer_id=customer.stripe_customer_id,
+            status="trialing",
+            price_id="price_plus",
+            tier="plus",
+        )
+        test_db.add(subscription)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/users?search=trial_user_{timestamp}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["users"]) == 1
+        assert data["users"][0]["tier"] == "plus"
+
+    @pytest.mark.unit
+    async def test_get_users_ignores_canceled_subscriptions(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that canceled subscriptions are ignored and show 'free' tier."""
+        from uuid import uuid4
+        from models.stripe_customer import StripeCustomer
+
+        # Create user
+        timestamp = datetime.now(timezone.utc).timestamp()
+        user_id = uuid4()
+        user = Profile(
+            id=user_id,
+            email=f"canceled_user_{timestamp}@example.com",
+            role="user",
+            college_id=test_college.id,
+        )
+        test_db.add(user)
+        test_db.commit()
+
+        # Create Stripe customer
+        customer = StripeCustomer(
+            user_id=user_id,
+            stripe_customer_id=f"cus_test_canceled_{timestamp}",
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create canceled Pro subscription (should be ignored)
+        subscription = StripeSubscription(
+            user_id=user_id,
+            stripe_subscription_id=f"sub_test_canceled_{timestamp}",
+            stripe_customer_id=customer.stripe_customer_id,
+            status="canceled",
+            price_id="price_pro",
+            tier="pro",
+        )
+        test_db.add(subscription)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/users?search=canceled_user_{timestamp}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["users"]) == 1
+        # Should be 'free' since canceled subscriptions are ignored
+        assert data["users"][0]["tier"] == "free"
+
+    @pytest.mark.unit
+    async def test_get_users_uses_most_recent_subscription(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that the most recent active subscription determines tier."""
+        from uuid import uuid4
+        from models.stripe_customer import StripeCustomer
+
+        # Create user
+        timestamp = datetime.now(timezone.utc).timestamp()
+        user_id = uuid4()
+        user = Profile(
+            id=user_id,
+            email=f"multi_sub_user_{timestamp}@example.com",
+            role="user",
+            college_id=test_college.id,
+        )
+        test_db.add(user)
+        test_db.commit()
+
+        # Create Stripe customer
+        customer = StripeCustomer(
+            user_id=user_id,
+            stripe_customer_id=f"cus_test_multi_{timestamp}",
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create older Plus subscription
+        old_subscription = StripeSubscription(
+            user_id=user_id,
+            stripe_subscription_id=f"sub_test_old_{timestamp}",
+            stripe_customer_id=customer.stripe_customer_id,
+            status="active",
+            price_id="price_plus",
+            tier="plus",
+            created_at=datetime.now(timezone.utc) - timedelta(days=30),
+        )
+        test_db.add(old_subscription)
+
+        # Create newer Pro subscription
+        new_subscription = StripeSubscription(
+            user_id=user_id,
+            stripe_subscription_id=f"sub_test_new_{timestamp}",
+            stripe_customer_id=customer.stripe_customer_id,
+            status="active",
+            price_id="price_pro",
+            tier="pro",
+            created_at=datetime.now(timezone.utc),
+        )
+        test_db.add(new_subscription)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/users?search=multi_sub_user_{timestamp}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["users"]) == 1
+        # Should be 'pro' from the most recent subscription
+        assert data["users"][0]["tier"] == "pro"
 
 
 class TestGetUser:
