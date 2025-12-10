@@ -107,14 +107,9 @@ export function UserManagementClient() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Users
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          View user accounts and system usage
-        </p>
-      </div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        Users
+      </h1>
 
       <Card>
         <CardHeader>
