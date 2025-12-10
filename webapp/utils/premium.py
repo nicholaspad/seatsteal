@@ -16,19 +16,19 @@ SubscriptionTier = Literal["free", "plus", "pro"]
 # Feature limits per tier
 TIER_FEATURES = {
     "free": {
-        "max_subscriptions": 3,
+        "max_subscriptions": 1,
         "has_enrollment_analysis": False,
         "has_course_summary": False,
         "has_priority_notifications": False,
     },
     "plus": {
-        "max_subscriptions": 10,
+        "max_subscriptions": 5,
         "has_enrollment_analysis": True,
         "has_course_summary": True,
         "has_priority_notifications": False,
     },
     "pro": {
-        "max_subscriptions": 50,
+        "max_subscriptions": 20,
         "has_enrollment_analysis": True,
         "has_course_summary": True,
         "has_priority_notifications": True,

@@ -13,6 +13,7 @@ from schemas.subscription import (
     SubscriptionCreate,
     SubscriptionResponse,
     SubscriptionWithDetails,
+    SubscriptionStatus,
 )
 from schemas.class_schema import ClassWithCourse
 from schemas.course import CourseWithCollege
@@ -20,6 +21,12 @@ from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches
+from utils.premium import (
+    check_subscription_limit,
+    get_user_subscription_tier,
+    get_user_active_subscription_count,
+    get_subscription_features,
+)
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 
@@ -94,6 +101,32 @@ async def get_subscriptions(
         log_and_raise_500("Failed to fetch subscriptions", e)
 
 
+@router.get("/status")
+async def get_subscription_status(
+    user: Profile = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Get user's subscription status including count, limit, and tier"""
+    try:
+        tier = get_user_subscription_tier(user.id, db)
+        features = get_subscription_features(tier)
+        current_count = get_user_active_subscription_count(user.id, db)
+        max_subscriptions = features["max_subscriptions"]
+
+        return {
+            "success": True,
+            "data": SubscriptionStatus(
+                current_count=current_count,
+                max_subscriptions=max_subscriptions,
+                tier=tier,
+                can_subscribe=current_count < max_subscriptions,
+            ),
+        }
+
+    except Exception as e:
+        log_and_raise_500("Failed to fetch subscription status", e)
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_subscription(
     subscription_data: SubscriptionCreate,
@@ -117,6 +150,13 @@ async def create_subscription(
             raise HTTPException(
                 status_code=409,
                 detail="Already subscribed to this class",
+            )
+
+        # Check subscription limit
+        if not check_subscription_limit(user.id, db):
+            raise HTTPException(
+                status_code=400,
+                detail="You have reached your subscription limit. Upgrade your plan for more subscriptions.",
             )
 
         # Verify class exists

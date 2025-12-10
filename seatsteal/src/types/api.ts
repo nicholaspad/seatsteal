@@ -121,6 +121,13 @@ export interface SubscriptionWithDetails extends Subscription {
   class: ClassWithCourse;
 }
 
+export interface SubscriptionStatus {
+  currentCount: number;
+  maxSubscriptions: number;
+  tier: "free" | "plus" | "pro";
+  canSubscribe: boolean;
+}
+
 // Pagination
 export interface PaginatedResponse<T> {
   data: T[];
@@ -146,3 +153,5 @@ export type ClassDetailsApiResponse = ApiResponse<ClassWithCourse>;
 export type SubscriptionsApiResponse = ApiResponse<SubscriptionWithDetails[]>;
 
 export type SubscriptionApiResponse = ApiResponse<SubscriptionWithDetails>;
+
+export type SubscriptionStatusApiResponse = ApiResponse<SubscriptionStatus>;

@@ -354,7 +354,7 @@ class TestGetSubscriptionFeatures:
         """Test free tier feature set."""
         features = get_subscription_features("free")
 
-        assert features["max_subscriptions"] == 3
+        assert features["max_subscriptions"] == 1
         assert features["has_enrollment_analysis"] is False
         assert features["has_course_summary"] is False
         assert features["has_priority_notifications"] is False
@@ -364,7 +364,7 @@ class TestGetSubscriptionFeatures:
         """Test plus tier feature set."""
         features = get_subscription_features("plus")
 
-        assert features["max_subscriptions"] == 10
+        assert features["max_subscriptions"] == 5
         assert features["has_enrollment_analysis"] is True
         assert features["has_course_summary"] is True
         assert features["has_priority_notifications"] is False
@@ -374,7 +374,7 @@ class TestGetSubscriptionFeatures:
         """Test pro tier feature set."""
         features = get_subscription_features("pro")
 
-        assert features["max_subscriptions"] == 50
+        assert features["max_subscriptions"] == 20
         assert features["has_enrollment_analysis"] is True
         assert features["has_course_summary"] is True
         assert features["has_priority_notifications"] is True
@@ -385,7 +385,7 @@ class TestGetSubscriptionFeatures:
         features = get_subscription_features("invalid_tier")  # type: ignore
 
         # Should return free tier features as default
-        assert features["max_subscriptions"] == 3
+        assert features["max_subscriptions"] == 1
         assert features["has_enrollment_analysis"] is False
 
 
@@ -476,22 +476,9 @@ class TestCheckSubscriptionLimit:
         self,
         test_db: Session,
         test_user: Profile,
-        test_class: Class,
-        test_college,
     ):
-        """Test free user with 2 subscriptions (under 3 limit)."""
-        # Create 2 subscriptions
-        for i in range(2):
-            sub = Subscription(
-                user_id=test_user.id,
-                class_id=test_class.class_id,
-                college_id=test_college.id,
-                is_active=True,
-                notification_count=0,
-            )
-            test_db.add(sub)
-        test_db.commit()
-
+        """Test free user with 0 subscriptions (under 1 limit)."""
+        # No subscriptions - should be under limit
         can_subscribe = check_subscription_limit(test_user.id, test_db)
         assert can_subscribe is True
 
@@ -503,17 +490,16 @@ class TestCheckSubscriptionLimit:
         test_class: Class,
         test_college,
     ):
-        """Test free user with 3 subscriptions (at limit)."""
-        # Create 3 subscriptions
-        for i in range(3):
-            sub = Subscription(
-                user_id=test_user.id,
-                class_id=test_class.class_id,
-                college_id=test_college.id,
-                is_active=True,
-                notification_count=0,
-            )
-            test_db.add(sub)
+        """Test free user with 1 subscription (at limit)."""
+        # Create 1 subscription (free tier limit is 1)
+        sub = Subscription(
+            user_id=test_user.id,
+            class_id=test_class.class_id,
+            college_id=test_college.id,
+            is_active=True,
+            notification_count=0,
+        )
+        test_db.add(sub)
         test_db.commit()
 
         can_subscribe = check_subscription_limit(test_user.id, test_db)
@@ -527,7 +513,7 @@ class TestCheckSubscriptionLimit:
         test_class: Class,
         test_college,
     ):
-        """Test Plus user with 9 subscriptions (under 10 limit)."""
+        """Test Plus user with 4 subscriptions (under 5 limit)."""
         # Create Stripe customer first
         customer = StripeCustomer(
             user_id=test_user.id,
@@ -548,8 +534,8 @@ class TestCheckSubscriptionLimit:
         )
         test_db.add(plus_sub)
 
-        # Create 9 subscriptions
-        for i in range(9):
+        # Create 4 subscriptions (under 5 limit)
+        for i in range(4):
             sub = Subscription(
                 user_id=test_user.id,
                 class_id=test_class.class_id,
@@ -571,7 +557,7 @@ class TestCheckSubscriptionLimit:
         test_class: Class,
         test_college,
     ):
-        """Test Pro user with 49 subscriptions (under 50 limit)."""
+        """Test Pro user with 19 subscriptions (under 20 limit)."""
         # Create Stripe customer first
         customer = StripeCustomer(
             user_id=test_user.id,
@@ -592,8 +578,8 @@ class TestCheckSubscriptionLimit:
         )
         test_db.add(pro_sub)
 
-        # Create 49 subscriptions
-        for i in range(49):
+        # Create 19 subscriptions (under 20 limit)
+        for i in range(19):
             sub = Subscription(
                 user_id=test_user.id,
                 class_id=test_class.class_id,
