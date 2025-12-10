@@ -165,8 +165,17 @@ export function ScrapersDashboardClient() {
   };
 
   // Prepare chart data for performance trends grouped by college
+  // Filter to last 7 days
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const filteredPerformanceTrends =
+    data?.performanceTrends.filter((item) => {
+      const itemDate = new Date(item.date);
+      return itemDate >= sevenDaysAgo;
+    }) || [];
+
   const performanceTrendsData =
-    data?.performanceTrends.reduce(
+    filteredPerformanceTrends.reduce(
       (acc, item) => {
         const existingDate = acc.find((d) => d.date === item.date);
         if (existingDate) {
@@ -198,8 +207,15 @@ export function ScrapersDashboardClient() {
   ];
 
   // Prepare success rate trends data grouped by college
+  // Filter to last 7 days
+  const filteredSuccessRateTrends =
+    data?.successRateTrends.filter((item) => {
+      const itemDate = new Date(item.date);
+      return itemDate >= sevenDaysAgo;
+    }) || [];
+
   const successRateTrendsData =
-    data?.successRateTrends.reduce(
+    filteredSuccessRateTrends.reduce(
       (acc, item) => {
         const existingDate = acc.find((d) => d.date === item.date);
         const successRate =
@@ -251,7 +267,7 @@ export function ScrapersDashboardClient() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Scrapers Dashboard
+          Scrapers
         </h1>
         <div className="flex items-center gap-4">
           <Select value={collegeFilter} onValueChange={setCollegeFilter}>
