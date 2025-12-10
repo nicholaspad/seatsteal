@@ -11,6 +11,7 @@ from models.course import Course
 from models.subscription import Subscription
 from models.college import College
 from models.stripe_subscription import StripeSubscription
+from models.stripe_customer import StripeCustomer
 
 
 class TestGetSubscriptions:
@@ -351,11 +352,20 @@ class TestSubscriptionLimits:
         test_college: College,
     ):
         """Test that plus tier users cannot exceed 5 subscriptions."""
+        # Create Stripe customer first
+        stripe_customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_test_plus",
+            email=test_user.email,
+        )
+        test_db.add(stripe_customer)
+        test_db.commit()
+
         # Create a Stripe subscription for plus tier
         stripe_sub = StripeSubscription(
             user_id=test_user.id,
             stripe_subscription_id="sub_test_plus",
-            stripe_customer_id="cus_test",
+            stripe_customer_id="cus_test_plus",
             status="active",
             price_id="price_plus",
             tier="plus",
@@ -413,11 +423,20 @@ class TestSubscriptionLimits:
         test_college: College,
     ):
         """Test that pro tier users can subscribe to up to 20 classes."""
+        # Create Stripe customer first
+        stripe_customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_test_pro",
+            email=test_user.email,
+        )
+        test_db.add(stripe_customer)
+        test_db.commit()
+
         # Create a Stripe subscription for pro tier
         stripe_sub = StripeSubscription(
             user_id=test_user.id,
             stripe_subscription_id="sub_test_pro",
-            stripe_customer_id="cus_test",
+            stripe_customer_id="cus_test_pro",
             status="active",
             price_id="price_pro",
             tier="pro",
@@ -575,11 +594,20 @@ class TestSubscriptionStatus:
         test_user: Profile,
     ):
         """Test getting subscription status for plus tier user."""
+        # Create Stripe customer first
+        stripe_customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_status_plus",
+            email=test_user.email,
+        )
+        test_db.add(stripe_customer)
+        test_db.commit()
+
         # Create a Stripe subscription for plus tier
         stripe_sub = StripeSubscription(
             user_id=test_user.id,
             stripe_subscription_id="sub_test_plus",
-            stripe_customer_id="cus_test",
+            stripe_customer_id="cus_status_plus",
             status="active",
             price_id="price_plus",
             tier="plus",
@@ -604,11 +632,20 @@ class TestSubscriptionStatus:
         test_user: Profile,
     ):
         """Test getting subscription status for pro tier user."""
+        # Create Stripe customer first
+        stripe_customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_status_pro",
+            email=test_user.email,
+        )
+        test_db.add(stripe_customer)
+        test_db.commit()
+
         # Create a Stripe subscription for pro tier
         stripe_sub = StripeSubscription(
             user_id=test_user.id,
             stripe_subscription_id="sub_test_pro",
-            stripe_customer_id="cus_test",
+            stripe_customer_id="cus_status_pro",
             status="active",
             price_id="price_pro",
             tier="pro",
