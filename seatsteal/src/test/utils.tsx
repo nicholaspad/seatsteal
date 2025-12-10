@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { User } from "@supabase/supabase-js";
 import type { SubscriptionTier } from "@/lib/subscription-constants";
+import type { SubscriptionStatus } from "@/types/api";
 
 interface UserProfile {
   email: string;
@@ -37,6 +38,8 @@ interface CustomRenderOptions extends Omit<RenderOptions, "wrapper"> {
   profileLoading?: boolean;
   subscriptionTier?: SubscriptionTier;
   tierLoading?: boolean;
+  subscriptionStatus?: SubscriptionStatus | null;
+  subscriptionStatusLoading?: boolean;
   initialRoute?: string;
   routerEntries?: string[];
 }
@@ -52,6 +55,8 @@ export function customRender(
     profileLoading = false,
     subscriptionTier = "free",
     tierLoading = false,
+    subscriptionStatus = null,
+    subscriptionStatusLoading = false,
     routerEntries = [options.initialRoute || "/"],
     ...renderOptions
   } = options;
@@ -64,6 +69,8 @@ export function customRender(
     profileLoading,
     subscriptionTier,
     tierLoading,
+    subscriptionStatus,
+    subscriptionStatusLoading,
   };
 
   function Wrapper({ children }: { children: React.ReactNode }) {
