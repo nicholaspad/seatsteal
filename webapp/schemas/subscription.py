@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 from uuid import UUID
 from schemas.class_schema import ClassWithCourse
 
@@ -38,3 +38,14 @@ class SubscriptionWithDetails(SubscriptionResponse):
     """Subscription with nested class, course, and college details"""
 
     class_: ClassWithCourse = Field(..., alias="class")
+
+
+class SubscriptionStatus(BaseModel):
+    """Schema for subscription status response"""
+
+    current_count: int = Field(..., alias="currentCount")
+    max_subscriptions: int = Field(..., alias="maxSubscriptions")
+    tier: Literal["free", "plus", "pro"]
+    can_subscribe: bool = Field(..., alias="canSubscribe")
+
+    model_config = ConfigDict(populate_by_name=True)

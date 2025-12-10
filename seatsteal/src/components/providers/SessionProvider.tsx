@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { fetchWithToasts } from "@/lib/api";
 import type { User } from "@supabase/supabase-js";
 import type { SubscriptionTier } from "@/lib/subscription-constants";
+import type { SubscriptionStatus } from "@/types/api";
 
 interface UserProfile {
   email: string;
@@ -19,6 +20,9 @@ interface SessionContextType {
   profileLoading: boolean;
   subscriptionTier: SubscriptionTier;
   tierLoading: boolean;
+  subscriptionStatus: SubscriptionStatus | null;
+  subscriptionStatusLoading: boolean;
+  refreshSubscriptionStatus: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -31,6 +35,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [subscriptionTier, setSubscriptionTier] =
     useState<SubscriptionTier>("free");
   const [tierLoading, setTierLoading] = useState(true);
+  const [subscriptionStatus, setSubscriptionStatus] =
+    useState<SubscriptionStatus | null>(null);
+  const [subscriptionStatusLoading, setSubscriptionStatusLoading] =
+    useState(true);
 
   // Prevent race conditions between initial auth and auth state changes
   const initializingRef = useRef(false);
@@ -88,6 +96,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Function to fetch user's subscription status (count, limit, tier)
+  const fetchSubscriptionStatus = async () => {
+    try {
+      setSubscriptionStatusLoading(true);
+      const response = await fetchWithToasts("/api/subscriptions/status");
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSubscriptionStatus(data.data);
+        } else {
+          throw new Error(data.error || "Failed to fetch subscription status");
+        }
+      } else {
+        throw new Error("Failed to fetch subscription status");
+      }
+    } catch {
+      // Default to null on error
+      setSubscriptionStatus(null);
+    } finally {
+      setSubscriptionStatusLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Get initial user with secure validation
     const initializeAuth = async () => {
@@ -110,19 +142,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
           setProfileLoading(false);
           setTierLoading(false);
+          setSubscriptionStatusLoading(false);
           return;
         }
 
         setUser(user);
         setLoading(false);
-        // Fetch profile and tier in parallel for better performance
-        Promise.all([fetchUserProfile(), fetchSubscriptionTier(user.id)]);
+        // Fetch profile, tier, and subscription status in parallel for better performance
+        Promise.all([
+          fetchUserProfile(),
+          fetchSubscriptionTier(user.id),
+          fetchSubscriptionStatus(),
+        ]);
       } catch {
         setUser(null);
         setProfile(null);
         setLoading(false);
         setProfileLoading(false);
         setTierLoading(false);
+        setSubscriptionStatusLoading(false);
       } finally {
         initializingRef.current = false;
       }
@@ -138,8 +176,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setProfile(null);
         setSubscriptionTier("free");
+        setSubscriptionStatus(null);
         setProfileLoading(false);
         setTierLoading(false);
+        setSubscriptionStatusLoading(false);
         setLoading(false);
         return;
       }
@@ -154,10 +194,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           setUser(session.user);
           setLoading(false);
-          // Fetch profile and tier in parallel for better performance
+          // Fetch profile, tier, and subscription status in parallel for better performance
           Promise.all([
             fetchUserProfile(),
             fetchSubscriptionTier(session.user.id),
+            fetchSubscriptionStatus(),
           ]);
           return;
         }
@@ -173,26 +214,36 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             setUser(null);
             setProfile(null);
             setSubscriptionTier("free");
+            setSubscriptionStatus(null);
             setProfileLoading(false);
             setTierLoading(false);
+            setSubscriptionStatusLoading(false);
           } else if (!user) {
             setUser(null);
             setProfile(null);
             setSubscriptionTier("free");
+            setSubscriptionStatus(null);
             setProfileLoading(false);
             setTierLoading(false);
+            setSubscriptionStatusLoading(false);
           } else {
             setUser(user);
-            // Fetch profile and tier in parallel for better performance
-            Promise.all([fetchUserProfile(), fetchSubscriptionTier(user.id)]);
+            // Fetch profile, tier, and subscription status in parallel for better performance
+            Promise.all([
+              fetchUserProfile(),
+              fetchSubscriptionTier(user.id),
+              fetchSubscriptionStatus(),
+            ]);
           }
           setLoading(false);
         } catch (error) {
           setUser(null);
           setProfile(null);
           setSubscriptionTier("free");
+          setSubscriptionStatus(null);
           setProfileLoading(false);
           setTierLoading(false);
+          setSubscriptionStatusLoading(false);
           setLoading(false);
         }
       }
@@ -212,6 +263,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         profileLoading,
         subscriptionTier,
         tierLoading,
+        subscriptionStatus,
+        subscriptionStatusLoading,
+        refreshSubscriptionStatus: fetchSubscriptionStatus,
       }}
     >
       {children}
@@ -231,4 +285,14 @@ export const useSession = () => {
 export const useSubscriptionTier = () => {
   const { subscriptionTier, tierLoading } = useSession();
   return { subscriptionTier, tierLoading };
+};
+
+// Custom hook for subscription status (count, limit, can subscribe)
+export const useSubscriptionStatus = () => {
+  const {
+    subscriptionStatus,
+    subscriptionStatusLoading,
+    refreshSubscriptionStatus,
+  } = useSession();
+  return { subscriptionStatus, subscriptionStatusLoading, refreshSubscriptionStatus };
 };

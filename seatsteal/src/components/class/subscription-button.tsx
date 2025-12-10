@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   useSession,
   useSubscriptionTier,
+  useSubscriptionStatus,
 } from "@/components/providers/SessionProvider";
 import { useHistory } from "react-router-dom";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -9,9 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Bell, BellOff, AlertCircle, LogIn, ExternalLink } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { SubscribeConfirmationModal } from "@/components/ui/subscribe-confirmation-modal";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { ClassWithEnrollment, SubscriptionRequest } from "@/types/api";
+import { getSubscriptionFeatures } from "@/lib/subscription-constants";
 
 interface SubscriptionButtonProps {
   class: ClassWithEnrollment;
@@ -36,6 +44,8 @@ export function SubscriptionButton({
 }: SubscriptionButtonProps) {
   const { user, loading: sessionLoading } = useSession();
   const { subscriptionTier: userTier } = useSubscriptionTier();
+  const { subscriptionStatus, refreshSubscriptionStatus } =
+    useSubscriptionStatus();
   const history = useHistory();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +56,13 @@ export function SubscriptionButton({
   const isOpen = enrollment?.enrollmentStatus.toLowerCase() === "open";
   const isClosed = enrollment?.enrollmentStatus.toLowerCase() === "closed";
 
-  // Can only subscribe to closed classes and must be authenticated
-  const canSubscribe = isClosed && !isOpen && !!user;
+  // Check if user has reached subscription limit
+  const isAtLimit =
+    subscriptionStatus !== null && !subscriptionStatus.canSubscribe;
+  const tierFeatures = getSubscriptionFeatures(userTier);
+
+  // Can only subscribe to closed classes, must be authenticated, and not at limit
+  const canSubscribe = isClosed && !isOpen && !!user && !isAtLimit;
 
   const handleSubscriptionToggle = async () => {
     if (loading || sessionLoading) return;
@@ -146,6 +161,9 @@ export function SubscriptionButton({
 
       // Notify parent component of successful change
       onSubscriptionChange?.(classData.classId, true);
+
+      // Refresh subscription status to update count
+      refreshSubscriptionStatus();
     } catch (err) {
       if (err instanceof ServerErrorWithToast) {
         // Revert optimistic update on error
@@ -182,6 +200,9 @@ export function SubscriptionButton({
 
       // Notify parent component of successful change
       onSubscriptionChange?.(classData.classId, false);
+
+      // Refresh subscription status to update count
+      refreshSubscriptionStatus();
     } catch (err) {
       if (err instanceof ServerErrorWithToast) {
         // Revert optimistic update on error
@@ -269,33 +290,71 @@ export function SubscriptionButton({
     return variant;
   };
 
-  return (
-    <div className="space-y-1">
-      <Button
-        onClick={handleSubscriptionToggle}
-        disabled={(!canSubscribe && !!user) || loading || sessionLoading}
-        size={size}
-        variant={getButtonVariant()}
-        className={cn(
-          "transition-all duration-200",
-          !canSubscribe && !!user && "opacity-60 cursor-not-allowed",
-          optimisticState &&
-            !loading &&
-            "text-destructive hover:text-destructive hover:bg-destructive/10",
-          className,
-        )}
-        aria-label={
-          !user && isClosed
-            ? "Login required to subscribe"
+  // Generate tooltip message for subscription limit
+  const getTooltipMessage = () => {
+    if (userTier === "pro") {
+      return `You've reached your limit of ${tierFeatures.maxSubscriptions} subscriptions`;
+    }
+    const nextTier = userTier === "free" ? "Plus" : "Pro";
+    return `You've reached your limit of ${tierFeatures.maxSubscriptions} subscription${tierFeatures.maxSubscriptions === 1 ? "" : "s"}. Upgrade to ${nextTier} for more!`;
+  };
+
+  // Determine if we should show tooltip (at limit, not already subscribed, and user is logged in)
+  const showLimitTooltip = isAtLimit && !optimisticState && !!user && isClosed;
+
+  const buttonElement = (
+    <Button
+      onClick={handleSubscriptionToggle}
+      disabled={
+        (!canSubscribe && !!user && !optimisticState) ||
+        loading ||
+        sessionLoading
+      }
+      size={size}
+      variant={getButtonVariant()}
+      className={cn(
+        "transition-all duration-200",
+        !canSubscribe &&
+          !!user &&
+          !optimisticState &&
+          "opacity-60 cursor-not-allowed",
+        optimisticState &&
+          !loading &&
+          "text-destructive hover:text-destructive hover:bg-destructive/10",
+        className,
+      )}
+      aria-label={
+        !user && isClosed
+          ? "Login required to subscribe"
+          : isAtLimit && !optimisticState
+            ? getTooltipMessage()
             : !canSubscribe
               ? "Class is open, notifications not available"
               : optimisticState
                 ? "Unsubscribe from notifications"
                 : "Subscribe to get notified when seats become available"
-        }
-      >
-        {getButtonContent()}
-      </Button>
+      }
+    >
+      {getButtonContent()}
+    </Button>
+  );
+
+  return (
+    <div className="space-y-1">
+      {showLimitTooltip ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0}>{buttonElement}</span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{getTooltipMessage()}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : (
+        buttonElement
+      )}
 
       {error && (
         <div className="flex items-center gap-1 text-xs text-destructive">
@@ -304,13 +363,15 @@ export function SubscriptionButton({
         </div>
       )}
 
-      {(!canSubscribe || (!user && isClosed)) && (
+      {(!canSubscribe || (!user && isClosed)) && !optimisticState && (
         <p className="text-xs text-muted-foreground">
           {!user && isClosed
             ? "Login required to subscribe"
-            : isOpen
-              ? "Class is currently open for enrollment"
-              : "Notifications not available for this class"}
+            : isAtLimit
+              ? `Limit reached (${subscriptionStatus?.currentCount}/${subscriptionStatus?.maxSubscriptions})`
+              : isOpen
+                ? "Class is currently open for enrollment"
+                : "Notifications not available for this class"}
         </p>
       )}
 
