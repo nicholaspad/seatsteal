@@ -350,6 +350,12 @@ export default function Settings() {
                   <Label htmlFor="phone" className="flex items-center gap-2">
                     <Phone className="h-4 w-4" />
                     Phone Number
+                    <Badge variant="plus" className="ml-auto">
+                      Plus
+                    </Badge>
+                    <Badge variant="pro" className="ml-1">
+                      Pro
+                    </Badge>
                   </Label>
                   <Input
                     id="phone"
