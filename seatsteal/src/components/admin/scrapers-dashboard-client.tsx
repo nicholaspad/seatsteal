@@ -208,15 +208,26 @@ export function ScrapersDashboardClient() {
             : parseFloat(String(item.successRate)) || 0;
         if (existingDate) {
           existingDate[item.shortName] = successRate;
+          // Store counts for tooltip
+          existingDate[`${item.shortName}_counts`] = {
+            successful: item.successfulRuns,
+            total: item.totalRuns,
+          };
         } else {
           acc.push({
             date: item.date,
             [item.shortName]: successRate,
+            [`${item.shortName}_counts`]: {
+              successful: item.successfulRuns,
+              total: item.totalRuns,
+            },
           });
         }
         return acc;
       },
-      [] as Array<Record<string, string | number>>,
+      [] as Array<
+        Record<string, string | number | { successful: number; total: number }>
+      >,
     ) || [];
 
   // Get unique colleges for success rate chart colors
@@ -447,10 +458,32 @@ export function ScrapersDashboardClient() {
                       borderRadius: "6px",
                       color: "var(--foreground)",
                     }}
-                    formatter={(value: number | string, name: string) => [
-                      `${typeof value === "number" ? value.toFixed(1) : parseFloat(String(value)).toFixed(1)}%`,
-                      name,
-                    ]}
+                    formatter={(
+                      value: number | string,
+                      name: string,
+                      props: any,
+                    ) => {
+                      const percentage =
+                        typeof value === "number"
+                          ? value.toFixed(1)
+                          : parseFloat(String(value)).toFixed(1);
+                      const countsKey = `${name}_counts`;
+                      const counts = props.payload[countsKey];
+
+                      if (
+                        counts &&
+                        typeof counts === "object" &&
+                        "successful" in counts &&
+                        "total" in counts
+                      ) {
+                        return [
+                          `${percentage}% (${counts.successful}/${counts.total})`,
+                          name,
+                        ];
+                      }
+
+                      return [`${percentage}%`, name];
+                    }}
                   />
                   {uniqueSuccessRateColleges.map((college, index) => (
                     <Line
