@@ -611,6 +611,66 @@ class TestGetScrapers:
         assert overview["successRate"] == pytest.approx(70.0, rel=0.1)
 
     @pytest.mark.unit
+    async def test_get_scrapers_excludes_running_from_success_rate(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that running scrapers are excluded from success rate calculation."""
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+        )
+        test_db.add(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
+
+        # Create 5 successful runs
+        for i in range(5):
+            log = ScraperLog(
+                scraper_id=scraper.id,
+                outcome="success",
+                started_at=datetime.now(timezone.utc) - timedelta(days=i),
+                completed_at=datetime.now(timezone.utc) - timedelta(days=i),
+                duration_ms=1000,
+            )
+            test_db.add(log)
+
+        # Create 5 failed runs
+        for i in range(5):
+            log = ScraperLog(
+                scraper_id=scraper.id,
+                outcome="error",
+                started_at=datetime.now(timezone.utc) - timedelta(days=i),
+                completed_at=datetime.now(timezone.utc) - timedelta(days=i),
+            )
+            test_db.add(log)
+
+        # Create 3 running scrapers (should be excluded)
+        for i in range(3):
+            log = ScraperLog(
+                scraper_id=scraper.id,
+                outcome="running",
+                started_at=datetime.now(timezone.utc) - timedelta(hours=i),
+                completed_at=None,
+            )
+            test_db.add(log)
+
+        test_db.commit()
+
+        response = await admin_client.get("/api/admin/scrapers")
+        data = response.json()["data"]
+        overview = data["overview"]
+
+        # Success rate should be 50% (5 success / 10 total, excluding 3 running)
+        # not 38.5% (5 success / 13 total if running were included)
+        assert overview["successRate"] == pytest.approx(50.0, rel=0.1)
+
+        # Total runs should be 10, not 13
+        assert overview["totalRuns"] == 10
+
+    @pytest.mark.unit
     async def test_get_scrapers_performance_trends(
         self,
         admin_client: AsyncClient,
@@ -642,6 +702,87 @@ class TestGetScrapers:
         data = response.json()["data"]
 
         assert len(data["performanceTrends"]) > 0
+
+    @pytest.mark.unit
+    async def test_get_scrapers_trends_exclude_running(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that running scrapers are excluded from performance and success rate trends."""
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+        )
+        test_db.add(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
+
+        today = datetime.now(timezone.utc).date()
+
+        # Create 3 successful runs
+        for i in range(3):
+            log = ScraperLog(
+                scraper_id=scraper.id,
+                outcome="success",
+                started_at=datetime.combine(today, datetime.min.time()),
+                completed_at=datetime.combine(today, datetime.min.time()),
+                duration_ms=float(1000),
+            )
+            test_db.add(log)
+
+        # Create 2 failed runs with duration
+        for i in range(2):
+            log = ScraperLog(
+                scraper_id=scraper.id,
+                outcome="error",
+                started_at=datetime.combine(today, datetime.min.time()),
+                completed_at=datetime.combine(today, datetime.min.time()),
+                duration_ms=float(500),
+            )
+            test_db.add(log)
+
+        # Create 2 running scrapers (should be excluded from trends)
+        for i in range(2):
+            log = ScraperLog(
+                scraper_id=scraper.id,
+                outcome="running",
+                started_at=datetime.combine(today, datetime.min.time()),
+                completed_at=None,
+            )
+            test_db.add(log)
+
+        test_db.commit()
+
+        response = await admin_client.get("/api/admin/scrapers?timeframe=7")
+        data = response.json()["data"]
+
+        # Find today's data in performance trends
+        # Performance trends only include logs with duration_ms (excludes running)
+        today_str = today.isoformat()
+        performance_today = next(
+            (pt for pt in data["performanceTrends"] if pt["date"] == today_str), None
+        )
+
+        if performance_today:
+            # Should have 5 total runs with duration (3 success + 2 error), not 7
+            assert performance_today["totalRuns"] == 5
+            assert performance_today["successCount"] == 3
+            assert performance_today["errorCount"] == 2
+
+        # Find today's data in success rate trends
+        success_rate_today = next(
+            (sr for sr in data["successRateTrends"] if sr["date"] == today_str), None
+        )
+
+        if success_rate_today:
+            # Should have 5 total runs (3 success + 2 error), not 7
+            # Success rate trends also exclude "running" outcome
+            assert success_rate_today["totalRuns"] == 5
+            assert success_rate_today["successfulRuns"] == 3
+            # Success rate should be 60% (3/5), not 42.9% (3/7)
+            assert success_rate_today["successRate"] == pytest.approx(60.0, rel=0.1)
 
     @pytest.mark.unit
     async def test_get_scrapers_empty_data(
