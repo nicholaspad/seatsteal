@@ -550,7 +550,7 @@ async def get_query_performance(
 
 @router.get("/scrapers")
 async def get_scrapers(
-    timeframe: int = Query(30, description="Days to look back"),
+    timeframe: int = Query(7, description="Days to look back"),
     college_id: Optional[int] = Query(None, alias="college"),
     admin: Profile = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -579,7 +579,7 @@ async def get_scrapers(
             .where(and_(Scraper.status == "error", college_filter))
         ).scalar()
 
-        # Recent run statistics
+        # Recent run statistics - exclude running scrapers from both numerator and denominator
         recent_runs_result = db.execute(
             select(
                 func.count().label("totalRuns"),
@@ -590,7 +590,13 @@ async def get_scrapers(
             )
             .select_from(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
-            .where(and_(ScraperLog.started_at >= days_ago, college_filter))
+            .where(
+                and_(
+                    ScraperLog.started_at >= days_ago,
+                    ScraperLog.outcome != "running",
+                    college_filter,
+                )
+            )
         )
         recent_stats = recent_runs_result.first()
         total_runs = recent_stats.totalRuns or 0
