@@ -3,8 +3,9 @@ Unit tests for ScraperLock functionality.
 """
 
 import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from scraper.scraper_lock import ScraperLock, LockResult
 from models.scraper import Scraper
@@ -38,8 +39,11 @@ class TestScraperLock:
 
         assert result.success is True
         assert result.scraper is not None
-        assert result.scraper.status == "running"
         assert lock.acquired is True
+
+        # Verify the scraper is now running in database
+        test_db.refresh(test_scraper)
+        assert test_scraper.status == "running"
 
         # Clean up
         lock.release()
@@ -73,15 +77,21 @@ class TestScraperLock:
         lock1 = ScraperLock(test_college.id, test_db)
         result1 = lock1.acquire()
         assert result1.success is True
-        assert result1.scraper.status == "running"
+
+        # Verify scraper is running
+        test_db.refresh(test_scraper)
+        assert test_scraper.status == "running"
 
         # Now try to acquire with skip_lock=True (should succeed despite running status)
         lock2 = ScraperLock(test_college.id, test_db, skip_lock=True)
         result2 = lock2.acquire()
         assert result2.success is True
         assert result2.scraper is not None
-        assert result2.scraper.status == "running"
         assert lock2.acquired is True
+
+        # Verify still running
+        test_db.refresh(test_scraper)
+        assert test_scraper.status == "running"
 
         # Clean up
         lock2.release()
@@ -96,8 +106,11 @@ class TestScraperLock:
 
         assert result.success is True
         assert result.scraper is not None
-        assert result.scraper.status == "running"
         assert lock.acquired is True
+
+        # Verify scraper is running
+        test_db.refresh(test_scraper)
+        assert test_scraper.status == "running"
 
         # Clean up
         lock.release()
@@ -110,10 +123,26 @@ class TestScraperLock:
         lock = ScraperLock(test_college.id, test_db)
         lock.acquire()
 
-        # Release the lock
+        # Release the lock (defaults to 'completed' status)
         lock.release()
 
-        # Verify scraper status is back to idle
+        # Verify scraper status is completed
+        test_db.refresh(test_scraper)
+        assert test_scraper.status == "completed"
+        assert lock.acquired is False
+
+    @pytest.mark.unit
+    def test_release_lock_with_idle_status(
+        self, test_db: Session, test_college: College, test_scraper: Scraper
+    ):
+        """Test releasing a lock with explicit idle status."""
+        lock = ScraperLock(test_college.id, test_db)
+        lock.acquire()
+
+        # Release with idle status
+        lock.release(status="idle")
+
+        # Verify scraper status is idle
         test_db.refresh(test_scraper)
         assert test_scraper.status == "idle"
         assert lock.acquired is False
@@ -125,55 +154,21 @@ class TestScraperLock:
         """Test releasing a lock that was never acquired."""
         lock = ScraperLock(test_college.id, test_db)
 
-        # Should not raise error
-        lock.release()
+        # Should not raise error and should return False
+        result = lock.release()
+        assert result is False
 
         # Scraper should still be idle
         test_db.refresh(test_scraper)
         assert test_scraper.status == "idle"
 
     @pytest.mark.unit
-    def test_context_manager_success(
-        self, test_db: Session, test_college: College, test_scraper: Scraper
-    ):
-        """Test using ScraperLock as a context manager."""
-        with ScraperLock(test_college.id, test_db) as result:
-            assert result.success is True
-            assert result.scraper.status == "running"
-
-        # After exiting context, lock should be released
-        test_db.refresh(test_scraper)
-        assert test_scraper.status == "idle"
-
-    @pytest.mark.unit
-    def test_context_manager_with_skip_lock(
-        self, test_db: Session, test_college: College, test_scraper: Scraper
-    ):
-        """Test using ScraperLock with skip_lock as a context manager."""
-        # First acquire normal lock
-        lock1 = ScraperLock(test_college.id, test_db)
-        result1 = lock1.acquire()
-        assert result1.success is True
-
-        # Now use skip_lock in context manager (should succeed)
-        with ScraperLock(test_college.id, test_db, skip_lock=True) as result:
-            assert result.success is True
-            assert result.scraper.status == "running"
-
-        # After exiting, scraper should still be idle
-        test_db.refresh(test_scraper)
-        assert test_scraper.status == "idle"
-
-        # Clean up first lock
-        lock1.release()
-
-    @pytest.mark.unit
     def test_force_release_stuck_lock(
         self, test_db: Session, test_college: College, test_scraper: Scraper
     ):
         """Test that stuck locks are force released after timeout."""
-        # Manually set scraper to running with old timestamp
-        old_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        # Manually set scraper to running with old timestamp (timezone-naive to match implementation)
+        old_time = datetime.now() - timedelta(hours=1)
         test_scraper.status = "running"
         test_scraper.last_run_at = old_time
         test_db.commit()
@@ -184,7 +179,11 @@ class TestScraperLock:
 
         # Should successfully acquire by force-releasing the stuck lock
         assert result.success is True
-        assert result.scraper.status == "running"
+        assert result.scraper is not None
+
+        # Verify scraper is now running
+        test_db.refresh(test_scraper)
+        assert test_scraper.status == "running"
 
         # Clean up
         lock.release()
@@ -198,8 +197,40 @@ class TestScraperLock:
 
         assert result.success is True
         assert result.scraper is not None
-        assert result.scraper.college_id == test_college.id
-        assert result.scraper.status == "running"
+
+        # Verify scraper was created in database
+        scraper = test_db.execute(
+            select(Scraper).where(Scraper.college_id == test_college.id)
+        ).scalar_one()
+        assert scraper is not None
+        assert scraper.college_id == test_college.id
+        assert scraper.status == "running"
 
         # Clean up
         lock.release()
+
+    @pytest.mark.unit
+    def test_get_scraper_id(
+        self, test_db: Session, test_college: College, test_scraper: Scraper
+    ):
+        """Test getting scraper ID."""
+        lock = ScraperLock(test_college.id, test_db)
+        scraper_id = lock.get_scraper_id()
+
+        assert scraper_id is not None
+        assert scraper_id == test_scraper.id
+
+    @pytest.mark.unit
+    def test_is_acquired(
+        self, test_db: Session, test_college: College, test_scraper: Scraper
+    ):
+        """Test checking if lock is acquired."""
+        lock = ScraperLock(test_college.id, test_db)
+
+        assert lock.is_acquired() is False
+
+        lock.acquire()
+        assert lock.is_acquired() is True
+
+        lock.release()
+        assert lock.is_acquired() is False

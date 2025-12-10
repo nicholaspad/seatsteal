@@ -732,13 +732,14 @@ class TestGetScrapers:
             )
             test_db.add(log)
 
-        # Create 2 failed runs
+        # Create 2 failed runs with duration
         for i in range(2):
             log = ScraperLog(
                 scraper_id=scraper.id,
                 outcome="error",
                 started_at=datetime.combine(today, datetime.min.time()),
                 completed_at=datetime.combine(today, datetime.min.time()),
+                duration_ms=float(500),
             )
             test_db.add(log)
 
@@ -758,14 +759,17 @@ class TestGetScrapers:
         data = response.json()["data"]
 
         # Find today's data in performance trends
+        # Performance trends only include logs with duration_ms (excludes running)
         today_str = today.isoformat()
         performance_today = next(
             (pt for pt in data["performanceTrends"] if pt["date"] == today_str), None
         )
 
         if performance_today:
-            # Should have 3 runs (not 5), excluding the 2 running ones
-            assert performance_today["runs"] == 3
+            # Should have 5 total runs with duration (3 success + 2 error), not 7
+            assert performance_today["totalRuns"] == 5
+            assert performance_today["successCount"] == 3
+            assert performance_today["errorCount"] == 2
 
         # Find today's data in success rate trends
         success_rate_today = next(
@@ -774,7 +778,9 @@ class TestGetScrapers:
 
         if success_rate_today:
             # Should have 5 total runs (3 success + 2 error), not 7
+            # Success rate trends also exclude "running" outcome
             assert success_rate_today["totalRuns"] == 5
+            assert success_rate_today["successfulRuns"] == 3
             # Success rate should be 60% (3/5), not 42.9% (3/7)
             assert success_rate_today["successRate"] == pytest.approx(60.0, rel=0.1)
 
