@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useHistory } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { fetchWithToasts } from "@/lib/api";
 import { AlertCircle } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -60,9 +61,24 @@ export default function AuthCallback() {
         if (isAdminRedirect) {
           history.replace("/admin");
         } else {
-          // Check if user needs to select a college first
-          // We'll redirect to dashboard, and the app will handle college selection if needed
-          history.replace("/dashboard");
+          // Check if user has a college selected
+          try {
+            const response = await fetchWithToasts("/api/user/settings");
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success && data.data.collegeId > 0) {
+                history.replace("/dashboard");
+              } else {
+                history.replace("/select-college");
+              }
+            } else {
+              // API error - default to dashboard
+              history.replace("/dashboard");
+            }
+          } catch {
+            // Network error - default to dashboard
+            history.replace("/dashboard");
+          }
         }
       } catch (err) {
         logError("Unexpected error during auth callback", err);

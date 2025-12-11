@@ -11,7 +11,8 @@ from models.course import Course
 from models.class_model import Class
 from models.enrollment import Enrollment
 from scraper.scrapers.cornell import CornellScraper
-from scraper.scrapers.brown import BrownScraper
+
+# from scraper.scrapers.brown import BrownScraper  # DISABLED: AWS WAF blocks API requests
 from scraper.scrapers.bu import BuScraper
 from scraper.scrapers.neu import NeuScraper
 from scraper.scrapers.usc import UscScraper
@@ -23,7 +24,7 @@ from scraper.scrapers.rutgers import RutgersScraper
 # Map college short names to scraper classes
 SCRAPER_MAP = {
     "cornell": CornellScraper,
-    "brown": BrownScraper,
+    # "brown": BrownScraper,  # DISABLED: AWS WAF blocks API requests
     "rutgers": RutgersScraper,
     "bu": BuScraper,
     "neu": NeuScraper,
