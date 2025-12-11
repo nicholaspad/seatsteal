@@ -1,5 +1,5 @@
 # Robots.txt for SeatSteal
-# https://seatsteal.com
+# https://seatsteal.app
 
 User-agent: *
 Allow: /
@@ -10,4 +10,4 @@ Allow: /privacy
 Allow: /terms
 
 # Sitemap location
-Sitemap: https://seatsteal.com/sitemap.xml
+Sitemap: https://seatsteal.app/sitemap.xml
