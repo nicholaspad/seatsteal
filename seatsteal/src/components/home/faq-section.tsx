@@ -27,7 +27,7 @@ export function FAQSection({ colleges }: FAQSectionProps) {
     colleges?: string[];
   }> = [
     {
-      question: "Which universities and colleges do you currently support?",
+      question: "Which universities are supported?",
       answer:
         collegesList.length > 0
           ? "We currently support the following universities:"
