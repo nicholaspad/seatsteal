@@ -37,7 +37,7 @@ export function FAQSection({ colleges }: FAQSectionProps) {
     {
       question: "How does SeatSteal work?",
       answer:
-        "Subscribe to classes, and SeatSteal continually monitors enrollment status and notifies you when seats become available.",
+        "Add courses to your watchlist, and SeatSteal automatically tracks class availability. When a seat opens up in a full class, you'll receive an instant notification via email or SMS so you can register before the spot fills up again.",
     },
     {
       question: "Can I monitor multiple courses at once?",
