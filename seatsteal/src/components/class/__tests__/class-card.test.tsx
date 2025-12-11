@@ -123,9 +123,7 @@ describe("ClassCard", () => {
         },
       );
 
-      const subscribeButton = screen.getByRole("button", {
-        name: /subscribe/i,
-      });
+      const subscribeButton = screen.getByRole("button", { name: /subscribe/i });
       expect(subscribeButton).not.toBeDisabled();
     });
 

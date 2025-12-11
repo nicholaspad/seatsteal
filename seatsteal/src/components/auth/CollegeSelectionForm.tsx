@@ -60,7 +60,8 @@ export function CollegeSelectionForm() {
         </Alert>
       )}
 
-      <div className="flex flex-col items-center">
+      <div className="space-y-2 flex flex-col items-center">
+        <label className="text-sm font-medium">Select Your College</label>
         <CollegeFilter
           value={selectedCollegeId}
           onValueChange={setSelectedCollegeId}
