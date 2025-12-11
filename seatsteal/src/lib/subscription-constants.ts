@@ -27,14 +27,14 @@ export function getSubscriptionFeatures(
         analyticsAccess: true,
         checkFrequency: 5, // 5 minutes
         maxSubscriptions: 5,
-        monthlyPrice: 2,
+        monthlyPrice: 1,
       };
     case "pro":
       return {
         analyticsAccess: true,
         checkFrequency: 1, // 1 minute
         maxSubscriptions: 20,
-        monthlyPrice: 5,
+        monthlyPrice: 4,
       };
     default:
       return getSubscriptionFeatures("free");
