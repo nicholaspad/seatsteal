@@ -255,7 +255,7 @@ export default function Courses() {
                     college:
                       searchParams.get("college") ||
                       profile?.collegeId?.toString() ||
-                      undefined,
+                      "all",
                     sort: searchParams.get("sort") || undefined,
                   }}
                 />
