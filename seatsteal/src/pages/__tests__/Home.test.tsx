@@ -27,7 +27,7 @@ describe("Home Page", () => {
 
       expect(screen.getByText("Course full?")).toBeInTheDocument();
       expect(
-        screen.getByText("Get notified when a spot opens."),
+        screen.getByText("Get notified when a seat opens up."),
       ).toBeInTheDocument();
     });
 

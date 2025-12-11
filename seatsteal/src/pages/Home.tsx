@@ -67,7 +67,11 @@ export default function Home() {
                     <span className="block w-3 h-3 bg-green-500 rounded-full animate-ping"></span>
                     <span className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-pulse"></span>
                   </span>
-                  Get notified when a spot opens.
+                  Get notified when a seat opens up.
+                </p>
+                <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+                  Track class availability and receive instant email or SMS
+                  alerts. The easiest way to get into full college classes.
                 </p>
               </div>
 
