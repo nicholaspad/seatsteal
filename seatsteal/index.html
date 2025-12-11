@@ -2,9 +2,201 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    
+    <!-- Primary Meta Tags -->
+    <title>SeatSteal - Course Enrollment Notifications | Get Notified When Seats Open</title>
+    <meta name="title" content="SeatSteal - Course Enrollment Notifications | Get Notified When Seats Open" />
+    <meta name="description" content="Never miss a spot in your dream class. SeatSteal monitors college course availability and sends instant notifications when seats open. Support for Brown, Cornell, Penn, USC, Northeastern, Rutgers, BU, and UMD. Free tier available." />
+    <meta name="keywords" content="course notifications, class registration, college courses, seat availability, course tracker, enrollment alerts, waitlist notifications, university registration, course monitoring, class availability" />
+    <meta name="author" content="SeatSteal" />
+    <meta name="robots" content="index, follow" />
+    <meta name="language" content="English" />
+    <meta name="revisit-after" content="3 days" />
+    
+    <!-- Viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>SeatSteal Beta</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://seatsteal.com" />
+    
+    <!-- Open Graph / Facebook -->
+    <!-- NOTE: og-image.png should be created from og-image.svg (1200x630px PNG) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://seatsteal.com/" />
+    <meta property="og:title" content="SeatSteal - Course Enrollment Notifications | Get Notified When Seats Open" />
+    <meta property="og:description" content="Never miss a spot in your dream class. SeatSteal monitors college course availability and sends instant notifications when seats open. Support for 8+ universities. Free tier available." />
+    <meta property="og:image" content="https://seatsteal.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:site_name" content="SeatSteal" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://seatsteal.com/" />
+    <meta name="twitter:title" content="SeatSteal - Course Enrollment Notifications | Get Notified When Seats Open" />
+    <meta name="twitter:description" content="Never miss a spot in your dream class. SeatSteal monitors college course availability and sends instant notifications when seats open. Free tier available." />
+    <meta name="twitter:image" content="https://seatsteal.com/og-image.png" />
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#000000" />
+    <meta name="msapplication-TileColor" content="#000000" />
+    
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "SeatSteal",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web",
+      "description": "Course enrollment notification service that monitors class availability and sends instant alerts when seats open at your university.",
+      "url": "https://seatsteal.com",
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "Free",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "Monitor 1 section with email notifications"
+        },
+        {
+          "@type": "Offer",
+          "name": "Plus",
+          "price": "2",
+          "priceCurrency": "USD",
+          "priceValidUntil": "2025-12-31",
+          "description": "Monitor 5 sections with email + SMS notifications and analytics"
+        },
+        {
+          "@type": "Offer",
+          "name": "Pro",
+          "price": "5",
+          "priceCurrency": "USD",
+          "priceValidUntil": "2025-12-31",
+          "description": "Monitor 20 sections with 1-minute checks and full analytics"
+        }
+      ]
+    }
+    </script>
+    
+    <!-- Organization Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "SeatSteal",
+      "url": "https://seatsteal.com",
+      "logo": "https://seatsteal.com/favicon.svg",
+      "description": "Course enrollment notification service for college students",
+      "sameAs": []
+    }
+    </script>
+    
+    <!-- WebSite Schema with Sitelinks Search Box -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "SeatSteal",
+      "url": "https://seatsteal.com",
+      "description": "Course enrollment notification service - get notified when seats open",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://seatsteal.com/courses?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    
+    <!-- Site Navigation Schema for Sitelinks -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Courses",
+          "description": "Browse and search available courses at your university",
+          "url": "https://seatsteal.com/courses"
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Pricing",
+          "description": "View pricing plans - Free, Plus ($2/mo), and Pro ($5/mo)",
+          "url": "https://seatsteal.com/#pricing"
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Login",
+          "description": "Sign in to your SeatSteal account",
+          "url": "https://seatsteal.com/login"
+        }
+      ]
+    }
+    </script>
+    
+    <!-- FAQ Schema for rich snippets -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How does SeatSteal work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Subscribe to classes, and SeatSteal continually monitors enrollment status and notifies you when seats become available."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Which universities does SeatSteal support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "SeatSteal currently supports Brown University, Cornell University, University of Pennsylvania, USC, Northeastern University, Rutgers University, Boston University, and University of Maryland."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I monitor multiple courses at once?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Free users can subscribe to 1 course, Plus users can subscribe to 5 courses, and Pro users can subscribe to 20 courses."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is SeatSteal free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes! SeatSteal offers a free tier that allows you to monitor 1 section with email notifications. Paid plans start at $2/month for additional features like SMS notifications and faster checking intervals."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I cancel my subscription anytime?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, you can cancel your subscription at any time. You'll maintain access until the end of your billing period."
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

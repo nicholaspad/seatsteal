@@ -24,6 +24,7 @@ import type { CourseWithClasses } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { useSearchParams } from "@/hooks/use-search-params";
 import { logError } from "@/lib/logger";
+import { useDocumentTitle, SEO_CONFIGS } from "@/hooks/use-document-title";
 
 interface CoursesData {
   courses: CourseWithClasses[];
@@ -132,6 +133,9 @@ function SearchSummary({
 export default function Courses() {
   const searchParams = useSearchParams();
   const { user, profile, profileLoading, loading: authLoading } = useSession();
+
+  // SEO: Set document title and meta description
+  useDocumentTitle(SEO_CONFIGS.courses);
 
   // All hooks must be declared before any conditional returns
   const isLoggedOut = !user;

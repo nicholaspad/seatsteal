@@ -7,6 +7,7 @@ import type { College } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { logError } from "@/lib/logger";
+import { useDocumentTitle, SEO_CONFIGS } from "@/hooks/use-document-title";
 
 async function getColleges(): Promise<College[]> {
   try {
@@ -27,6 +28,9 @@ async function getColleges(): Promise<College[]> {
 export default function Home() {
   const [colleges, setColleges] = useState<College[]>([]);
   const location = useLocation();
+
+  // SEO: Set document title and meta description
+  useDocumentTitle(SEO_CONFIGS.home);
 
   useEffect(() => {
     // Fetch colleges data

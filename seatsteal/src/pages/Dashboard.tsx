@@ -1,9 +1,13 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useSession } from "@/components/providers/SessionProvider";
 import { UserDashboard } from "@/components/class/user-dashboard";
+import { useDocumentTitle, SEO_CONFIGS } from "@/hooks/use-document-title";
 
 export default function Dashboard() {
   const { subscriptionTier, tierLoading } = useSession();
+
+  // SEO: Set document title and meta description
+  useDocumentTitle(SEO_CONFIGS.dashboard);
 
   return (
     <IonPage>

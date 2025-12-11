@@ -2,9 +2,13 @@ import { IonContent, IonPage } from "@ionic/react";
 import { Redirect } from "react-router-dom";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { useSession } from "@/components/providers/SessionProvider";
+import { useDocumentTitle, SEO_CONFIGS } from "@/hooks/use-document-title";
 
 export default function Login() {
   const { user, loading } = useSession();
+
+  // SEO: Set document title and meta description
+  useDocumentTitle(SEO_CONFIGS.login);
 
   if (loading) {
     return (

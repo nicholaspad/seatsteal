@@ -35,6 +35,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useDocumentTitle, SEO_CONFIGS } from "@/hooks/use-document-title";
 
 interface UserSettings {
   email: string;
@@ -45,6 +46,10 @@ interface UserSettings {
 
 export default function Settings() {
   const { user } = useSession();
+
+  // SEO: Set document title and meta description
+  useDocumentTitle(SEO_CONFIGS.settings);
+
   const [colleges, setColleges] = useState<College[]>([]);
   const [settings, setSettings] = useState<UserSettings>({
     email: "",
