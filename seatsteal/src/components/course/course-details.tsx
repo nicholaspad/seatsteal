@@ -75,12 +75,7 @@ export function CourseDetails({
 
   const { subscriptionTier: userTier, tierLoading } = useSubscriptionTier();
 
-  // Client-side utility to check premium access without database dependencies
-  const hasPremiumAccess = (tier: string): boolean => {
-    return tier === "plus" || tier === "pro";
-  };
-
-  const hasSummaryAccess = hasPremiumAccess(userTier);
+  const hasSummaryAccess = userTier === "pro";
 
   const fetchCourseData = useCallback(async () => {
     try {
@@ -308,8 +303,8 @@ export function CourseDetails({
                       ) : (
                         <div className="space-y-1 text-center">
                           <p className="font-medium">
-                            Course Summary is a premium feature. Subscribe to
-                            Plus/Pro to unlock!
+                            Course Summary is a Pro feature. Subscribe to Pro to
+                            unlock!
                           </p>
                           <Button
                             variant="ghost"

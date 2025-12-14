@@ -39,7 +39,6 @@ export function PricingTiers() {
         `Monitor ${plusFeatures.maxSubscriptions} sections`,
         `Checks every ${plusFeatures.checkFrequency} minutes`,
         "Email + SMS notifications",
-        "Section enrollment analytics",
       ],
       cta: "Subscribe",
       popular: true,

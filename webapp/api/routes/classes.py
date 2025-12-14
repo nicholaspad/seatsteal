@@ -130,10 +130,10 @@ async def get_enrollment_analysis(
     user=Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    """Get enrollment analysis for a class (Premium feature)"""
+    """Get enrollment analysis for a class (Pro feature)"""
     try:
-        # Require premium access
-        require_premium_access(user.id, db)
+        # Require Pro access (analytics is Pro-exclusive)
+        require_pro_access(user.id, db)
 
         # Get times opened in last 30 days
         thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)

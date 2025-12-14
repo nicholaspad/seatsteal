@@ -18,13 +18,6 @@ import {
   useSubscriptionStatus,
 } from "@/components/providers/SessionProvider";
 import { getSubscriptionFeatures } from "@/lib/subscription-constants";
-
-type SubscriptionTier = "free" | "plus" | "pro";
-
-// Client-side utility to check premium access without database dependencies
-const hasPremiumAccess = (tier: SubscriptionTier): boolean => {
-  return tier === "plus" || tier === "pro";
-};
 import type { ClassWithEnrollment } from "@/types/api";
 
 interface ClassCardProps {
@@ -61,8 +54,8 @@ export function ClassCard({
   const enrollment = classData.currentEnrollment;
   const isOpen = enrollment?.enrollmentStatus.toLowerCase() === "open";
   const isClosed = enrollment?.enrollmentStatus.toLowerCase() === "closed";
-  const hasAnalyticsAccess = hasPremiumAccess(userTier);
   const hasProAccess = userTier === "pro";
+  const hasAnalyticsAccess = hasProAccess;
 
   // Check if user has reached subscription limit
   const isAtLimit =
@@ -189,8 +182,8 @@ export function ClassCard({
                   ) : (
                     <div className="space-y-1 text-center">
                       <p className="font-medium">
-                        Enrollment Analysis is a premium feature. Subscribe to
-                        Plus/Pro to unlock!
+                        Enrollment Analysis is a Pro feature. Subscribe to Pro
+                        to unlock!
                       </p>
                       <Button
                         variant="ghost"

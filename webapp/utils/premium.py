@@ -23,8 +23,8 @@ TIER_FEATURES = {
     },
     "plus": {
         "max_subscriptions": 5,
-        "has_enrollment_analysis": True,
-        "has_course_summary": True,
+        "has_enrollment_analysis": False,
+        "has_course_summary": False,
         "has_priority_notifications": False,
     },
     "pro": {

@@ -29,7 +29,7 @@ export function getSubscriptionFeatures(
       };
     case "plus":
       return {
-        analyticsAccess: true,
+        analyticsAccess: false,
         checkFrequency: 5, // 5 minutes
         maxSubscriptions: 5,
         monthlyPrice: 1,
