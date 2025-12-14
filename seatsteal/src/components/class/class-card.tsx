@@ -10,7 +10,7 @@ import {
 import { EnrollmentBadge } from "./enrollment-badge";
 import { EnrollmentAnalysisModal } from "./enrollment-analysis-modal";
 import { SubscribeConfirmationModal } from "@/components/ui/subscribe-confirmation-modal";
-import { Bell, Sparkles, ExternalLink } from "lucide-react";
+import { Bell, Sparkles, ExternalLink, Eye } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
@@ -38,6 +38,8 @@ interface ClassCardProps {
   subscriptionsLoading?: boolean;
   className?: string;
   showPremiumFeatures?: boolean;
+  // Pro-exclusive: number of users watching this section
+  watcherCount?: number;
 }
 
 export function ClassCard({
@@ -47,7 +49,8 @@ export function ClassCard({
   isSubscribed = false,
   subscriptionsLoading = false,
   className,
-  showPremiumFeatures = true, // TODO: Set based on user subscription tier
+  showPremiumFeatures = true,
+  watcherCount,
 }: ClassCardProps) {
   const [buttonLoading, setButtonLoading] = useState(false);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
@@ -59,6 +62,7 @@ export function ClassCard({
   const isOpen = enrollment?.enrollmentStatus.toLowerCase() === "open";
   const isClosed = enrollment?.enrollmentStatus.toLowerCase() === "closed";
   const hasAnalyticsAccess = hasPremiumAccess(userTier);
+  const hasProAccess = userTier === "pro";
 
   // Check if user has reached subscription limit
   const isAtLimit =
@@ -120,6 +124,29 @@ export function ClassCard({
               <Badge variant="outline" className="text-xs flex items-center">
                 ID: {classData.classNumber}
               </Badge>
+            )}
+            {/* Pro-exclusive: Watcher count badge */}
+            {hasProAccess && watcherCount !== undefined && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="secondary"
+                    className="text-xs flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                  >
+                    <Eye className="h-3 w-3" />
+                    {watcherCount}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>
+                    {watcherCount === 0
+                      ? "No one else is watching this section"
+                      : watcherCount === 1
+                        ? "1 user is watching this section"
+                        : `${watcherCount} users are watching this section`}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
 

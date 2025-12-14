@@ -6,6 +6,9 @@ export interface SubscriptionFeatures {
   checkFrequency: number; // minutes between checks
   maxSubscriptions: number;
   monthlyPrice: number; // price in dollars
+  // Pro-exclusive features
+  watcherCountAccess: boolean; // Can see how many users are watching each section
+  priorityNotifications: boolean; // Gets notified before Plus users
 }
 
 /**
@@ -21,6 +24,8 @@ export function getSubscriptionFeatures(
         checkFrequency: 30, // 30 minutes
         maxSubscriptions: 1,
         monthlyPrice: 0,
+        watcherCountAccess: false,
+        priorityNotifications: false,
       };
     case "plus":
       return {
@@ -28,6 +33,8 @@ export function getSubscriptionFeatures(
         checkFrequency: 5, // 5 minutes
         maxSubscriptions: 5,
         monthlyPrice: 1,
+        watcherCountAccess: false,
+        priorityNotifications: false,
       };
     case "pro":
       return {
@@ -35,6 +42,8 @@ export function getSubscriptionFeatures(
         checkFrequency: 1, // 1 minute
         maxSubscriptions: 20,
         monthlyPrice: 4,
+        watcherCountAccess: true,
+        priorityNotifications: true,
       };
     default:
       return getSubscriptionFeatures("free");

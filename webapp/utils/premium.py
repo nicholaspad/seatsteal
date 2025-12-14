@@ -97,6 +97,18 @@ def require_premium_access(user_id: UUID, db: Session) -> None:
         )
 
 
+def require_pro_access(user_id: UUID, db: Session) -> None:
+    """Raise exception if user doesn't have Pro access"""
+    from fastapi import HTTPException, status
+
+    tier = get_user_subscription_tier(user_id, db)
+    if tier != "pro":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pro subscription required",
+        )
+
+
 def check_subscription_limit(user_id: UUID, db: Session) -> bool:
     """Check if user has reached their subscription limit"""
     tier = get_user_subscription_tier(user_id, db)

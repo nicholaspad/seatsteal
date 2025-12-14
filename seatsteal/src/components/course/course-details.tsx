@@ -48,6 +48,8 @@ interface CourseDetailsProps {
   onBack?: () => void;
   className?: string;
   collegeId?: number;
+  // Pro-exclusive: watcher counts per class (how many users are watching each section)
+  watcherCounts?: Record<number, number>;
 }
 
 export function CourseDetails({
@@ -61,6 +63,7 @@ export function CourseDetails({
   onBack,
   className,
   collegeId,
+  watcherCounts = {},
 }: CourseDetailsProps) {
   const [localCourse, setLocalCourse] = useState<CourseWithClasses | null>(
     course || null,
@@ -348,6 +351,7 @@ export function CourseDetails({
             subscriptions={subscriptions}
             subscriptionsLoading={subscriptionsLoading}
             onSubscriptionChange={onSubscriptionChange}
+            watcherCounts={watcherCounts}
           />
 
           {/* Footer Info */}

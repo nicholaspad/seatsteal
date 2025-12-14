@@ -99,6 +99,8 @@ export interface ClassWithEnrollment extends Class {
     enrollmentStatus: string;
     scrapedAt: string;
   };
+  // Pro-exclusive: number of users watching this section
+  subscriptionCount?: number;
 }
 
 export interface CourseWithClasses extends CourseWithCollege {

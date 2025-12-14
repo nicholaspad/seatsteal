@@ -17,6 +17,8 @@ interface ClassListProps {
     isSubscribed: boolean,
   ) => Promise<void> | void;
   className?: string;
+  // Pro-exclusive: watcher counts per class (how many users are watching each section)
+  watcherCounts?: Record<number, number>;
 }
 
 export function ClassList({
@@ -28,6 +30,7 @@ export function ClassList({
   subscriptionsLoading = false,
   onSubscriptionChange,
   className,
+  watcherCounts = {},
 }: ClassListProps) {
   if (loading) {
     return (
@@ -97,6 +100,7 @@ export function ClassList({
               isSubscribed={subscriptions.has(classItem.classId)}
               subscriptionsLoading={subscriptionsLoading}
               onSubscriptionChange={onSubscriptionChange}
+              watcherCount={watcherCounts[classItem.classId]}
             />
           ))}
         </div>

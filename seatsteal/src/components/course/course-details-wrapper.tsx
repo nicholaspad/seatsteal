@@ -10,6 +10,7 @@ import { UnsubscribeConfirmationModal } from "@/components/ui/unsubscribe-confir
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
+import { hasProAccess } from "@/lib/premium";
 import type {
   CourseWithClasses,
   SubscriptionsApiResponse,
@@ -34,6 +35,8 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
     subscription: SubscriptionWithDetails;
   } | null>(null);
   const [unsubscribing, setUnsubscribing] = useState(false);
+  // Pro-exclusive: watcher counts per class (how many users are watching each section)
+  const [watcherCounts, setWatcherCounts] = useState<Record<number, number>>({});
 
   // Handle client-side mounting
   useEffect(() => {
@@ -71,6 +74,32 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
 
     fetchSubscriptions();
   }, [mounted]);
+
+  // Fetch watcher counts for Pro users (Pro-exclusive feature)
+  useEffect(() => {
+    if (!mounted || !hasProAccess(userTier) || !course.classes?.length) return;
+
+    const fetchWatcherCounts = async () => {
+      try {
+        const classIds = course.classes.map((c) => c.classId).join(",");
+        const response = await fetchWithToasts(
+          `/api/classes/subscription-counts?classIds=${classIds}`,
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setWatcherCounts(data.data || {});
+          }
+        }
+        // Silently fail for non-Pro users or errors - this is a nice-to-have feature
+      } catch {
+        // Silently fail - watcher counts are not critical
+      }
+    };
+
+    fetchWatcherCounts();
+  }, [mounted, userTier, course.classes]);
 
   const handleConfirmedUnsubscribe = async (confirmData: {
     classId: number;
@@ -241,6 +270,7 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
           onSubscriptionChange={handleSubscriptionChange}
           onBack={handleBack}
           collegeId={profile?.collegeId}
+          watcherCounts={watcherCounts}
         />
       </div>
     </>
