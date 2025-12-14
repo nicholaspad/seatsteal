@@ -5,6 +5,8 @@ These constants define how often different user tiers receive notifications:
 - FREE_TIER_MINUTES: Free tier users get notified every 30 minutes (at :00 and :30)
 - PLUS_TIER_MINUTES: Plus tier users get notified every 5 minutes
 - PRO_TIER_MINUTES: Pro tier users get notified every minute (always)
+
+Pro users also get priority notifications - they receive alerts before other tiers.
 """
 
 # Notification cadence in minutes
@@ -13,6 +15,9 @@ NOTIFICATION_CADENCE = {
     "PLUS_TIER_MINUTES": 5,
     "PRO_TIER_MINUTES": 1,
 }
+
+# Pro users get notified this many seconds before Plus/Free users
+PRO_PRIORITY_DELAY_SECONDS = 30
 
 # User tier names
 USER_TIERS = {
