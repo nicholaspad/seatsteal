@@ -142,8 +142,8 @@ export function PricingTiers() {
           <CardContent className="flex-1 flex flex-col">
             <ul className="space-y-2 flex-1">
               {tier.features.map((feature) => (
-                <li key={feature} className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
+                <li key={feature} className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
                   <span className="text-sm">{feature}</span>
                 </li>
               ))}
