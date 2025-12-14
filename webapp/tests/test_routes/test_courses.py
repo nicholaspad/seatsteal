@@ -212,9 +212,9 @@ class TestGetCourseSummary:
     ):
         """Test successfully getting course summary (premium)."""
         with patch(
-            "api.routes.courses.require_premium_access", new_callable=AsyncMock
-        ) as mock_premium:
-            mock_premium.return_value = None  # User has premium access
+            "api.routes.courses.require_pro_access", new_callable=AsyncMock
+        ) as mock_pro:
+            mock_pro.return_value = None  # User has pro access
 
             response = await authenticated_client.get(
                 f"/api/courses/{test_course.id}/summary"
@@ -235,9 +235,9 @@ class TestGetCourseSummary:
     ):
         """Test getting summary for non-existent course."""
         with patch(
-            "api.routes.courses.require_premium_access", new_callable=AsyncMock
-        ) as mock_premium:
-            mock_premium.return_value = None
+            "api.routes.courses.require_pro_access", new_callable=AsyncMock
+        ) as mock_pro:
+            mock_pro.return_value = None
 
             response = await authenticated_client.get("/api/courses/99999/summary")
 
@@ -263,9 +263,9 @@ class TestGetCourseSummary:
         """Test getting summary without premium access."""
         from fastapi import HTTPException
 
-        with patch("api.routes.courses.require_premium_access") as mock_premium:
-            mock_premium.side_effect = HTTPException(
-                status_code=403, detail="Premium access required"
+        with patch("api.routes.courses.require_pro_access") as mock_pro:
+            mock_pro.side_effect = HTTPException(
+                status_code=403, detail="Pro subscription required"
             )
 
             response = await authenticated_client.get(

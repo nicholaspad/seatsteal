@@ -48,6 +48,8 @@ interface CourseDetailsProps {
   onBack?: () => void;
   className?: string;
   collegeId?: number;
+  // Pro-exclusive: watcher counts per class (how many users are watching each section)
+  watcherCounts?: Record<number, number>;
 }
 
 export function CourseDetails({
@@ -61,6 +63,7 @@ export function CourseDetails({
   onBack,
   className,
   collegeId,
+  watcherCounts = {},
 }: CourseDetailsProps) {
   const [localCourse, setLocalCourse] = useState<CourseWithClasses | null>(
     course || null,
@@ -72,12 +75,7 @@ export function CourseDetails({
 
   const { subscriptionTier: userTier, tierLoading } = useSubscriptionTier();
 
-  // Client-side utility to check premium access without database dependencies
-  const hasPremiumAccess = (tier: string): boolean => {
-    return tier === "plus" || tier === "pro";
-  };
-
-  const hasSummaryAccess = hasPremiumAccess(userTier);
+  const hasSummaryAccess = userTier === "pro";
 
   const fetchCourseData = useCallback(async () => {
     try {
@@ -305,8 +303,8 @@ export function CourseDetails({
                       ) : (
                         <div className="space-y-1 text-center">
                           <p className="font-medium">
-                            Course Summary is a premium feature. Subscribe to
-                            Plus/Pro to unlock!
+                            Course Summary is a Pro feature. Subscribe to Pro to
+                            unlock!
                           </p>
                           <Button
                             variant="ghost"
@@ -348,6 +346,7 @@ export function CourseDetails({
             subscriptions={subscriptions}
             subscriptionsLoading={subscriptionsLoading}
             onSubscriptionChange={onSubscriptionChange}
+            watcherCounts={watcherCounts}
           />
 
           {/* Footer Info */}

@@ -3,9 +3,13 @@
 Notification job script - Sends course availability notifications to subscribed users
 
 This script runs every minute and sends notifications based on user tier:
-- Pro users: Every minute
-- Plus users: Every 5 minutes
-- Free users: Every 30 minutes
+- Pro users: Every minute (with priority - notified first)
+- Plus users: Every 5 minutes (notified 30s after Pro)
+- Free users: Every 30 minutes (notified 30s after Pro)
+
+Pro users receive priority notifications - they are notified 30 seconds before
+Plus/Free users when seats become available. This gives Pro subscribers a
+competitive advantage in registering for high-demand courses.
 
 Usage:
     python send_notifs.py                    # Run once
@@ -39,7 +43,11 @@ from models.stripe_subscription import StripeSubscription
 from models.notification_log import NotificationLog
 from notifications.email_service import EmailService
 from notifications.sms_service import SMSService
-from notifications.constants import NOTIFICATION_CADENCE, USER_TIERS
+from notifications.constants import (
+    NOTIFICATION_CADENCE,
+    USER_TIERS,
+    PRO_PRIORITY_DELAY_SECONDS,
+)
 from config import settings
 
 
@@ -91,21 +99,62 @@ class NotificationJob:
                     f"📊 Notifications by tier: {', '.join(f'{tier}: {count}' for tier, count in tier_stats.items())}"
                 )
 
-                # Send notifications
+                # Separate Pro notifications from Plus/Free for priority sending
+                pro_notifications = [
+                    n for n in notifications if n["user_tier"] == USER_TIERS["PRO"]
+                ]
+                other_notifications = [
+                    n for n in notifications if n["user_tier"] != USER_TIERS["PRO"]
+                ]
+
+                # Send notifications with Pro priority
                 sent_count = 0
                 failed_count = 0
                 subscription_ids = []
 
-                for notification in notifications:
-                    try:
-                        self._send_notification(notification, db)
-                        sent_count += 1
-                        subscription_ids.append(notification["subscription_id"])
-                    except Exception as e:
-                        logger.error(
-                            f"❌ Failed to send notification for subscription {notification['subscription_id']}: {e}"
+                # Step 1: Send Pro notifications first (they get priority)
+                if pro_notifications:
+                    logger.info(
+                        f"⚡ Sending {len(pro_notifications)} Pro notifications first (priority)"
+                    )
+                    for notification in pro_notifications:
+                        try:
+                            self._send_notification(notification, db)
+                            sent_count += 1
+                            subscription_ids.append(notification["subscription_id"])
+                        except Exception as e:
+                            logger.error(
+                                f"❌ Failed to send notification for subscription {notification['subscription_id']}: {e}"
+                            )
+                            failed_count += 1
+
+                # Step 2: Wait before sending Plus/Free notifications (Pro priority delay)
+                if pro_notifications and other_notifications:
+                    logger.info(
+                        f"⏳ Waiting {PRO_PRIORITY_DELAY_SECONDS}s before sending Plus/Free notifications (Pro priority)"
+                    )
+                    if not self.dry_run:
+                        time.sleep(PRO_PRIORITY_DELAY_SECONDS)
+                    else:
+                        logger.info(
+                            f"🧪 DRY RUN: Would wait {PRO_PRIORITY_DELAY_SECONDS}s"
                         )
-                        failed_count += 1
+
+                # Step 3: Send Plus/Free notifications
+                if other_notifications:
+                    logger.info(
+                        f"📤 Sending {len(other_notifications)} Plus/Free notifications"
+                    )
+                    for notification in other_notifications:
+                        try:
+                            self._send_notification(notification, db)
+                            sent_count += 1
+                            subscription_ids.append(notification["subscription_id"])
+                        except Exception as e:
+                            logger.error(
+                                f"❌ Failed to send notification for subscription {notification['subscription_id']}: {e}"
+                            )
+                            failed_count += 1
 
                 # Deactivate subscriptions (skip in dry-run mode)
                 if not self.dry_run and subscription_ids:

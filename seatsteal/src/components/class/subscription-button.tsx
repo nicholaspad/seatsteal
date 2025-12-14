@@ -295,7 +295,7 @@ export function SubscriptionButton({
     if (userTier === "pro") {
       return `You've reached your limit of ${tierFeatures.maxSubscriptions} subscriptions`;
     }
-    const nextTier = userTier === "free" ? "Plus" : "Pro";
+    const nextTier = userTier === "free" ? "Plus/Pro" : "Pro";
     return `You've reached your limit of ${tierFeatures.maxSubscriptions} subscription${tierFeatures.maxSubscriptions === 1 ? "" : "s"}. Upgrade to ${nextTier} for more!`;
   };
 

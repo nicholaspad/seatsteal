@@ -10,7 +10,7 @@ import {
 import { EnrollmentBadge } from "./enrollment-badge";
 import { EnrollmentAnalysisModal } from "./enrollment-analysis-modal";
 import { SubscribeConfirmationModal } from "@/components/ui/subscribe-confirmation-modal";
-import { Bell, Sparkles, ExternalLink } from "lucide-react";
+import { Bell, Sparkles, ExternalLink, Eye } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
@@ -18,13 +18,6 @@ import {
   useSubscriptionStatus,
 } from "@/components/providers/SessionProvider";
 import { getSubscriptionFeatures } from "@/lib/subscription-constants";
-
-type SubscriptionTier = "free" | "plus" | "pro";
-
-// Client-side utility to check premium access without database dependencies
-const hasPremiumAccess = (tier: SubscriptionTier): boolean => {
-  return tier === "plus" || tier === "pro";
-};
 import type { ClassWithEnrollment } from "@/types/api";
 
 interface ClassCardProps {
@@ -38,6 +31,8 @@ interface ClassCardProps {
   subscriptionsLoading?: boolean;
   className?: string;
   showPremiumFeatures?: boolean;
+  // Pro-exclusive: number of users watching this section
+  watcherCount?: number;
 }
 
 export function ClassCard({
@@ -47,7 +42,8 @@ export function ClassCard({
   isSubscribed = false,
   subscriptionsLoading = false,
   className,
-  showPremiumFeatures = true, // TODO: Set based on user subscription tier
+  showPremiumFeatures = true,
+  watcherCount,
 }: ClassCardProps) {
   const [buttonLoading, setButtonLoading] = useState(false);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
@@ -58,7 +54,8 @@ export function ClassCard({
   const enrollment = classData.currentEnrollment;
   const isOpen = enrollment?.enrollmentStatus.toLowerCase() === "open";
   const isClosed = enrollment?.enrollmentStatus.toLowerCase() === "closed";
-  const hasAnalyticsAccess = hasPremiumAccess(userTier);
+  const hasProAccess = userTier === "pro";
+  const hasAnalyticsAccess = hasProAccess;
 
   // Check if user has reached subscription limit
   const isAtLimit =
@@ -70,7 +67,7 @@ export function ClassCard({
     if (userTier === "pro") {
       return `You've reached your limit of ${tierFeatures.maxSubscriptions} subscriptions`;
     }
-    const nextTier = userTier === "free" ? "Plus" : "Pro";
+    const nextTier = userTier === "free" ? "Plus/Pro" : "Pro";
     return `You've reached your limit of ${tierFeatures.maxSubscriptions} subscription${tierFeatures.maxSubscriptions === 1 ? "" : "s"}. Upgrade to ${nextTier} for more!`;
   };
 
@@ -121,6 +118,29 @@ export function ClassCard({
                 ID: {classData.classNumber}
               </Badge>
             )}
+            {/* Pro-exclusive: Watcher count badge */}
+            {hasProAccess && watcherCount !== undefined && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="secondary"
+                    className="text-xs flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                  >
+                    <Eye className="h-3 w-3" />
+                    {watcherCount}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>
+                    {watcherCount === 0
+                      ? "No one else is watching this section"
+                      : watcherCount === 1
+                        ? "1 user is watching this section"
+                        : `${watcherCount} users are watching this section`}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
 
           {/* Premium Enrollment Analysis Button - Always centered */}
@@ -162,8 +182,8 @@ export function ClassCard({
                   ) : (
                     <div className="space-y-1 text-center">
                       <p className="font-medium">
-                        Enrollment Analysis is a premium feature. Subscribe to
-                        Plus/Pro to unlock!
+                        Enrollment Analysis is a Pro feature. Subscribe to Pro
+                        to unlock!
                       </p>
                       <Button
                         variant="ghost"

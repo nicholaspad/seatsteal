@@ -23,7 +23,7 @@ from schemas.course import (
 )
 from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
-from utils.premium import require_premium_access
+from utils.premium import require_pro_access
 from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
@@ -512,10 +512,10 @@ async def get_course_summary(
     user=Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    """Get course summary statistics (Premium feature)"""
+    """Get course summary statistics (Pro feature)"""
     try:
-        # Require premium access
-        require_premium_access(user.id, db)
+        # Require Pro access (analytics is Pro-exclusive)
+        require_pro_access(user.id, db)
 
         # Verify course exists
         course_result = db.execute(

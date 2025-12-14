@@ -18,7 +18,7 @@ from schemas.class_schema import ClassWithCourse
 from schemas.course import EnrollmentStatus, CourseWithCollege
 from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
-from utils.premium import require_premium_access
+from utils.premium import require_premium_access, require_pro_access
 from utils.errors import log_and_raise_500
 
 router = APIRouter(prefix="/api/classes", tags=["classes"])
@@ -130,10 +130,10 @@ async def get_enrollment_analysis(
     user=Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    """Get enrollment analysis for a class (Premium feature)"""
+    """Get enrollment analysis for a class (Pro feature)"""
     try:
-        # Require premium access
-        require_premium_access(user.id, db)
+        # Require Pro access (analytics is Pro-exclusive)
+        require_pro_access(user.id, db)
 
         # Get times opened in last 30 days
         thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
@@ -298,3 +298,77 @@ async def get_enrollment_analysis(
         raise
     except Exception as e:
         log_and_raise_500("Failed to fetch enrollment analysis", e)
+
+
+@router.get("/subscription-counts")
+async def get_subscription_counts(
+    class_ids: str,
+    user=Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Get subscription counts for multiple classes (Pro-exclusive feature).
+
+    Returns how many users are watching each class/section.
+    This helps Pro users gauge competition for seats.
+
+    Args:
+        class_ids: Comma-separated list of class IDs (e.g., "123,456,789")
+    """
+    try:
+        # Require Pro access for this feature
+        require_pro_access(user.id, db)
+
+        # Parse class IDs from comma-separated string
+        try:
+            parsed_class_ids = [
+                int(cid.strip()) for cid in class_ids.split(",") if cid.strip()
+            ]
+        except ValueError:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail="Invalid class ID format")
+
+        if not parsed_class_ids:
+            return {"success": True, "data": {}}
+
+        # Limit to 100 class IDs per request to prevent abuse
+        if len(parsed_class_ids) > 100:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=400, detail="Maximum 100 class IDs per request"
+            )
+
+        # Get subscription counts for all requested classes in a single query
+        counts_query = (
+            select(Subscription.class_id, func.count().label("count"))
+            .where(
+                and_(
+                    Subscription.class_id.in_(parsed_class_ids),
+                    Subscription.is_active == True,
+                )
+            )
+            .group_by(Subscription.class_id)
+        )
+
+        counts_result = db.execute(counts_query)
+        counts_rows = counts_result.all()
+
+        # Build response dict with class_id -> count mapping
+        subscription_counts = {row.class_id: row.count for row in counts_rows}
+
+        # Include zero counts for classes with no subscriptions
+        for class_id in parsed_class_ids:
+            if class_id not in subscription_counts:
+                subscription_counts[class_id] = 0
+
+        return {
+            "success": True,
+            "data": subscription_counts,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_and_raise_500("Failed to fetch subscription counts", e)

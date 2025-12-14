@@ -23,8 +23,8 @@ TIER_FEATURES = {
     },
     "plus": {
         "max_subscriptions": 5,
-        "has_enrollment_analysis": True,
-        "has_course_summary": True,
+        "has_enrollment_analysis": False,
+        "has_course_summary": False,
         "has_priority_notifications": False,
     },
     "pro": {
@@ -94,6 +94,18 @@ def require_premium_access(user_id: UUID, db: Session) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Premium subscription required (Plus or Pro)",
+        )
+
+
+def require_pro_access(user_id: UUID, db: Session) -> None:
+    """Raise exception if user doesn't have Pro access"""
+    from fastapi import HTTPException, status
+
+    tier = get_user_subscription_tier(user_id, db)
+    if tier != "pro":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pro subscription required",
         )
 
 

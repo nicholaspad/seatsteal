@@ -20,13 +20,6 @@ import { cn } from "@/lib/utils";
 import { useSubscriptionTier } from "@/components/providers/SessionProvider";
 import type { CourseWithCollege, ClassWithEnrollment } from "@/types/api";
 
-type SubscriptionTier = "free" | "plus" | "pro";
-
-// Client-side utility to check premium access without database dependencies
-const hasPremiumAccess = (tier: SubscriptionTier): boolean => {
-  return tier === "plus" || tier === "pro";
-};
-
 interface CourseCardProps {
   course: CourseWithCollege;
   classes?: ClassWithEnrollment[];
@@ -45,7 +38,7 @@ const CourseCard = memo(function CourseCard({
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
 
   const { subscriptionTier: userTier, tierLoading } = useSubscriptionTier();
-  const hasSummaryAccess = hasPremiumAccess(userTier);
+  const hasSummaryAccess = userTier === "pro";
   // Memoized enrollment status calculations
   const { openClasses, closedClasses, totalClasses } = useMemo(() => {
     const open = classes.filter(
@@ -198,8 +191,8 @@ const CourseCard = memo(function CourseCard({
                 ) : (
                   <div className="space-y-1 text-center">
                     <p className="font-medium">
-                      Course Summary is a premium feature. Subscribe to Plus/Pro
-                      to unlock!
+                      Course Summary is a Pro feature. Subscribe to Pro to
+                      unlock!
                     </p>
                     <Button
                       variant="ghost"
