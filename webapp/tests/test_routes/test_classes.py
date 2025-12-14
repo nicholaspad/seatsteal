@@ -101,9 +101,9 @@ class TestGetEnrollmentAnalysis:
     ):
         """Test successfully getting enrollment analysis (premium)."""
         with patch(
-            "api.routes.classes.require_premium_access", new_callable=AsyncMock
-        ) as mock_premium:
-            mock_premium.return_value = None  # User has premium access
+            "api.routes.classes.require_pro_access", new_callable=AsyncMock
+        ) as mock_pro:
+            mock_pro.return_value = None  # User has pro access
 
             # Create some enrollment history
             now = datetime.now(timezone.utc)
@@ -140,9 +140,9 @@ class TestGetEnrollmentAnalysis:
     ):
         """Test that competition level is calculated correctly."""
         with patch(
-            "api.routes.classes.require_premium_access", new_callable=AsyncMock
-        ) as mock_premium:
-            mock_premium.return_value = None
+            "api.routes.classes.require_pro_access", new_callable=AsyncMock
+        ) as mock_pro:
+            mock_pro.return_value = None
 
             response = await authenticated_client.get(
                 f"/api/classes/{test_class.class_id}/enrollment-analysis"
@@ -176,9 +176,9 @@ class TestGetEnrollmentAnalysis:
         from fastapi import HTTPException
         from unittest.mock import MagicMock
 
-        with patch("api.routes.classes.require_premium_access") as mock_premium:
-            mock_premium.side_effect = HTTPException(
-                status_code=403, detail="Premium access required"
+        with patch("api.routes.classes.require_pro_access") as mock_pro:
+            mock_pro.side_effect = HTTPException(
+                status_code=403, detail="Pro subscription required"
             )
 
             response = await authenticated_client.get(
@@ -195,9 +195,9 @@ class TestGetEnrollmentAnalysis:
     ):
         """Test getting enrollment analysis with no enrollment history."""
         with patch(
-            "api.routes.classes.require_premium_access", new_callable=AsyncMock
-        ) as mock_premium:
-            mock_premium.return_value = None
+            "api.routes.classes.require_pro_access", new_callable=AsyncMock
+        ) as mock_pro:
+            mock_pro.return_value = None
 
             response = await authenticated_client.get(
                 f"/api/classes/{test_class.class_id}/enrollment-analysis"

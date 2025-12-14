@@ -203,9 +203,7 @@ class TestSanitizeErrorMessage:
 
         for msg in test_cases:
             result = sanitize_error_message(msg)
-            assert (
-                result == "An internal error occurred"
-            ), f"Failed to sanitize: {msg}"
+            assert result == "An internal error occurred", f"Failed to sanitize: {msg}"
 
     @pytest.mark.unit
     def test_preserves_generic_error_messages(self):

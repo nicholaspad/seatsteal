@@ -50,10 +50,8 @@ export function PricingTiers() {
       features: [
         `Monitor ${proFeatures.maxSubscriptions} sections`,
         `Checks every ${proFeatures.checkFrequency} minute`,
-        "Email + SMS notifications",
-        "Section enrollment analytics",
-        "See how many are watching each section",
-        "Priority notifications (30s head start)",
+        "Priority email + SMS notifications (30 seconds before non-Pro users)",
+        "Subscription and notification analytics",
       ],
       cta: "Subscribe",
       popular: false,

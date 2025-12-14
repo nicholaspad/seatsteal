@@ -11,6 +11,7 @@ from utils.premium import (
     get_user_active_subscription_count,
     get_subscription_features,
     require_premium_access,
+    require_pro_access,
     check_subscription_limit,
 )
 from models.user import Profile
@@ -365,8 +366,8 @@ class TestGetSubscriptionFeatures:
         features = get_subscription_features("plus")
 
         assert features["max_subscriptions"] == 5
-        assert features["has_enrollment_analysis"] is True
-        assert features["has_course_summary"] is True
+        assert features["has_enrollment_analysis"] is False
+        assert features["has_course_summary"] is False
         assert features["has_priority_notifications"] is False
 
     @pytest.mark.unit
@@ -466,6 +467,89 @@ class TestRequirePremiumAccess:
 
         # Should not raise
         require_premium_access(test_user.id, test_db)
+
+
+class TestRequireProAccess:
+    """Tests for require_pro_access function."""
+
+    @pytest.mark.unit
+    def test_free_user_raises_403(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        """Test that free tier user raises 403."""
+        with pytest.raises(HTTPException) as exc_info:
+            require_pro_access(test_user.id, test_db)
+
+        assert exc_info.value.status_code == 403
+        assert "Pro subscription required" in exc_info.value.detail
+
+    @pytest.mark.unit
+    def test_plus_user_raises_403(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        """Test that Plus tier user raises 403 (Pro required)."""
+        # Create Stripe customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_pro_access_plus",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create active Plus subscription
+        plus_sub = StripeSubscription(
+            user_id=test_user.id,
+            stripe_subscription_id="sub_plus_pro_test",
+            stripe_customer_id="cus_pro_access_plus",
+            status="active",
+            tier="plus",
+            price_id="price_plus",
+        )
+        test_db.add(plus_sub)
+        test_db.commit()
+
+        # Plus should NOT pass require_pro_access
+        with pytest.raises(HTTPException) as exc_info:
+            require_pro_access(test_user.id, test_db)
+
+        assert exc_info.value.status_code == 403
+        assert "Pro subscription required" in exc_info.value.detail
+
+    @pytest.mark.unit
+    def test_pro_user_succeeds(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        """Test that Pro tier user passes check."""
+        # Create Stripe customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_pro_access_pro",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Create active Pro subscription
+        pro_sub = StripeSubscription(
+            user_id=test_user.id,
+            stripe_subscription_id="sub_pro_access_test",
+            stripe_customer_id="cus_pro_access_pro",
+            status="active",
+            tier="pro",
+            price_id="price_pro",
+        )
+        test_db.add(pro_sub)
+        test_db.commit()
+
+        # Should not raise
+        require_pro_access(test_user.id, test_db)
 
 
 class TestCheckSubscriptionLimit:
