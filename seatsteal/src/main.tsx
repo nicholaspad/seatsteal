@@ -1,9 +1,9 @@
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 // @ts-expect-error - Font package doesn't have types
 import "@fontsource/inter";
 import "./index.css";
-import { IonApp, IonRouterOutlet, setupIonicReact } from "@ionic/react";
+import { IonApp, IonRouterOutlet, IonSpinner, setupIonicReact } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
 import { Route, Redirect } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -38,32 +38,47 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import ProtectedRoute from "@/components/guards/ProtectedRoute";
 import AdminRoute from "@/components/guards/AdminRoute";
 
-/* Pages */
-import Home from "@/pages/Home";
-import Login from "@/pages/Login";
-import LoginAdmin from "@/pages/LoginAdmin";
-import AuthCallback from "@/pages/AuthCallback";
-import VerifyRequest from "@/pages/VerifyRequest";
-import SelectCollege from "@/pages/SelectCollege";
-import Error from "@/pages/Error";
-import Courses from "@/pages/Courses";
-import CourseDetails from "@/pages/CourseDetails";
-import Dashboard from "@/pages/Dashboard";
-import Settings from "@/pages/Settings";
-import Offline from "@/pages/Offline";
-import PrivacyPolicy from "@/pages/PrivacyPolicy";
-import TermsOfService from "@/pages/TermsOfService";
-
-/* Admin Pages */
-import Admin from "@/pages/admin/Admin";
-import AdminColleges from "@/pages/admin/AdminColleges";
-import AdminPerformance from "@/pages/admin/AdminPerformance";
-import AdminScrapers from "@/pages/admin/AdminScrapers";
-import AdminUsers from "@/pages/admin/AdminUsers";
-import AdminNotifications from "@/pages/admin/AdminNotifications";
-
 /* Layout */
 import { ConditionalLayout } from "@/components/layout/ConditionalLayout";
+
+/*
+ * Eagerly loaded pages - critical for first paint / common entry points
+ * These are loaded in the main bundle for instant navigation
+ */
+import Home from "@/pages/Home";
+import Login from "@/pages/Login";
+import Courses from "@/pages/Courses";
+import AuthCallback from "@/pages/AuthCallback";
+import Error from "@/pages/Error";
+
+/*
+ * Lazily loaded pages - loaded on-demand when navigating
+ * This reduces initial bundle size and improves first paint time
+ */
+const CourseDetails = lazy(() => import("@/pages/CourseDetails"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const SelectCollege = lazy(() => import("@/pages/SelectCollege"));
+const VerifyRequest = lazy(() => import("@/pages/VerifyRequest"));
+const LoginAdmin = lazy(() => import("@/pages/LoginAdmin"));
+const Offline = lazy(() => import("@/pages/Offline"));
+const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("@/pages/TermsOfService"));
+
+/* Admin Pages - lazy loaded since only accessed by admins */
+const Admin = lazy(() => import("@/pages/admin/Admin"));
+const AdminColleges = lazy(() => import("@/pages/admin/AdminColleges"));
+const AdminPerformance = lazy(() => import("@/pages/admin/AdminPerformance"));
+const AdminScrapers = lazy(() => import("@/pages/admin/AdminScrapers"));
+const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
+const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications"));
+
+/* Loading fallback for lazy-loaded routes */
+const PageLoader = () => (
+  <div className="flex h-screen w-full items-center justify-center">
+    <IonSpinner name="crescent" />
+  </div>
+);
 
 setupIonicReact();
 
@@ -75,124 +90,122 @@ createRoot(document.getElementById("root")!).render(
           <IonApp>
             <IonReactRouter>
               <ConditionalLayout>
-                <IonRouterOutlet>
-                  {/* Public routes */}
-                  <Route exact path="/" component={Home} />
-                  <Route exact path="/courses" component={Courses} />
-                  <Route exact path="/offline" component={Offline} />
-                  <Route exact path="/privacy" component={PrivacyPolicy} />
-                  <Route exact path="/terms" component={TermsOfService} />
+                <Suspense fallback={<PageLoader />}>
+                  <IonRouterOutlet>
+                    {/* Public routes - eagerly loaded */}
+                    <Route exact path="/" component={Home} />
+                    <Route exact path="/courses" component={Courses} />
+                    <Route exact path="/login" component={Login} />
+                    <Route exact path="/auth/callback" component={AuthCallback} />
+                    <Route exact path="/error" component={Error} />
 
-                  {/* Protected course detail route */}
-                  <Route
-                    exact
-                    path="/courses/:id"
-                    render={() => (
-                      <ProtectedRoute>
-                        <CourseDetails />
-                      </ProtectedRoute>
-                    )}
-                  />
+                    {/* Public routes - lazily loaded */}
+                    <Route exact path="/offline" component={Offline} />
+                    <Route exact path="/privacy" component={PrivacyPolicy} />
+                    <Route exact path="/terms" component={TermsOfService} />
+                    <Route exact path="/login-admin" component={LoginAdmin} />
+                    <Route exact path="/verify-request" component={VerifyRequest} />
 
-                  {/* Auth routes */}
-                  <Route exact path="/login" component={Login} />
-                  <Route exact path="/login-admin" component={LoginAdmin} />
-                  <Route exact path="/auth/callback" component={AuthCallback} />
-                  <Route
-                    exact
-                    path="/verify-request"
-                    component={VerifyRequest}
-                  />
-                  <Route exact path="/error" component={Error} />
+                    {/* Protected course detail route */}
+                    <Route
+                      exact
+                      path="/courses/:id"
+                      render={() => (
+                        <ProtectedRoute>
+                          <CourseDetails />
+                        </ProtectedRoute>
+                      )}
+                    />
 
-                  {/* Protected routes */}
-                  <Route
-                    exact
-                    path="/select-college"
-                    render={() => (
-                      <ProtectedRoute>
-                        <SelectCollege />
-                      </ProtectedRoute>
-                    )}
-                  />
-                  <Route
-                    exact
-                    path="/dashboard"
-                    render={() => (
-                      <ProtectedRoute>
-                        <Dashboard />
-                      </ProtectedRoute>
-                    )}
-                  />
-                  <Route
-                    exact
-                    path="/settings"
-                    render={() => (
-                      <ProtectedRoute>
-                        <Settings />
-                      </ProtectedRoute>
-                    )}
-                  />
+                    {/* Protected routes */}
+                    <Route
+                      exact
+                      path="/select-college"
+                      render={() => (
+                        <ProtectedRoute>
+                          <SelectCollege />
+                        </ProtectedRoute>
+                      )}
+                    />
+                    <Route
+                      exact
+                      path="/dashboard"
+                      render={() => (
+                        <ProtectedRoute>
+                          <Dashboard />
+                        </ProtectedRoute>
+                      )}
+                    />
+                    <Route
+                      exact
+                      path="/settings"
+                      render={() => (
+                        <ProtectedRoute>
+                          <Settings />
+                        </ProtectedRoute>
+                      )}
+                    />
 
-                  {/* Admin routes */}
-                  <Route
-                    exact
-                    path="/admin"
-                    render={() => (
-                      <AdminRoute>
-                        <Admin />
-                      </AdminRoute>
-                    )}
-                  />
-                  <Route
-                    exact
-                    path="/admin/colleges"
-                    render={() => (
-                      <AdminRoute>
-                        <AdminColleges />
-                      </AdminRoute>
-                    )}
-                  />
-                  <Route
-                    exact
-                    path="/admin/performance"
-                    render={() => (
-                      <AdminRoute>
-                        <AdminPerformance />
-                      </AdminRoute>
-                    )}
-                  />
-                  <Route
-                    exact
-                    path="/admin/scrapers"
-                    render={() => (
-                      <AdminRoute>
-                        <AdminScrapers />
-                      </AdminRoute>
-                    )}
-                  />
-                  <Route
-                    exact
-                    path="/admin/users"
-                    render={() => (
-                      <AdminRoute>
-                        <AdminUsers />
-                      </AdminRoute>
-                    )}
-                  />
-                  <Route
-                    exact
-                    path="/admin/notifications"
-                    render={() => (
-                      <AdminRoute>
-                        <AdminNotifications />
-                      </AdminRoute>
-                    )}
-                  />
+                    {/* Admin routes */}
+                    <Route
+                      exact
+                      path="/admin"
+                      render={() => (
+                        <AdminRoute>
+                          <Admin />
+                        </AdminRoute>
+                      )}
+                    />
+                    <Route
+                      exact
+                      path="/admin/colleges"
+                      render={() => (
+                        <AdminRoute>
+                          <AdminColleges />
+                        </AdminRoute>
+                      )}
+                    />
+                    <Route
+                      exact
+                      path="/admin/performance"
+                      render={() => (
+                        <AdminRoute>
+                          <AdminPerformance />
+                        </AdminRoute>
+                      )}
+                    />
+                    <Route
+                      exact
+                      path="/admin/scrapers"
+                      render={() => (
+                        <AdminRoute>
+                          <AdminScrapers />
+                        </AdminRoute>
+                      )}
+                    />
+                    <Route
+                      exact
+                      path="/admin/users"
+                      render={() => (
+                        <AdminRoute>
+                          <AdminUsers />
+                        </AdminRoute>
+                      )}
+                    />
+                    <Route
+                      exact
+                      path="/admin/notifications"
+                      render={() => (
+                        <AdminRoute>
+                          <AdminNotifications />
+                        </AdminRoute>
+                      )}
+                    />
 
-                  {/* Fallback redirect */}
-                  <Route render={() => <Redirect to="/" />} />
-                </IonRouterOutlet>
+                    {/* Fallback redirect */}
+                    <Route render={() => <Redirect to="/" />} />
+                  </IonRouterOutlet>
+                </Suspense>
               </ConditionalLayout>
             </IonReactRouter>
             <Toaster position="top-center" />

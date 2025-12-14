@@ -19,7 +19,7 @@ async def get_colleges(db: Session = Depends(get_db)):
     """
     Get all active colleges.
 
-    Caching: Results cached for 30 minutes (college data rarely changes)
+    Caching: Results cached for 1 hour (college data rarely changes)
     """
     # Try to get from cache first
     cache_client = CacheClient.get_client()
@@ -50,7 +50,7 @@ async def get_colleges(db: Session = Depends(get_db)):
         # Store in cache (long TTL since college data rarely changes)
         if cache_client and cache_key:
             try:
-                ttl = 1800  # 30 minutes
+                ttl = 3600  # 1 hour
                 serialized = _serialize_for_cache(response)
                 cache_client.setex(cache_key, ttl, json.dumps(serialized))
                 logger.debug(f"Cached colleges: {cache_key} (TTL: {ttl}s)")
@@ -68,7 +68,7 @@ async def get_college(college_id: int, db: Session = Depends(get_db)):
     """
     Get college by ID.
 
-    Caching: Results cached for 30 minutes
+    Caching: Results cached for 1 hour
     """
     # Try to get from cache first
     cache_client = CacheClient.get_client()
@@ -97,7 +97,7 @@ async def get_college(college_id: int, db: Session = Depends(get_db)):
     # Store in cache
     if cache_client and cache_key:
         try:
-            ttl = 1800  # 30 minutes
+            ttl = 3600  # 1 hour
             serialized = _serialize_for_cache(response)
             cache_client.setex(cache_key, ttl, json.dumps(serialized))
             logger.debug(f"Cached college detail: {cache_key} (TTL: {ttl}s)")
