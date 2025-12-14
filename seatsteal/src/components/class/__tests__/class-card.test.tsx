@@ -200,7 +200,7 @@ describe("ClassCard", () => {
       );
       expect(subscribeButton).toHaveAttribute(
         "aria-label",
-        expect.stringContaining("Upgrade to Plus"),
+        expect.stringContaining("Upgrade to Plus/Pro"),
       );
     });
 
