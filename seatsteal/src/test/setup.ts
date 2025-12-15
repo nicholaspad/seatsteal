@@ -122,6 +122,12 @@ vi.mock("@ionic/react", () => ({
       { "data-testid": "ion-router-outlet" },
       children,
     ),
+  IonSpinner: ({ name, className }: { name?: string; className?: string }) =>
+    React.createElement("div", {
+      "data-testid": "ion-spinner",
+      "data-name": name,
+      className,
+    }),
   setupIonicReact: vi.fn(),
 }));
 
