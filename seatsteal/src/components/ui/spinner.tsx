@@ -10,10 +10,10 @@ export function Spinner({
     <div
       role="status"
       aria-label="Loading"
-      className={cn("size-4", className)}
+      className={cn("size-4 flex items-center justify-center", className)}
       {...props}
     >
-      <IonSpinner name="crescent" />
+      <IonSpinner name="crescent" className="w-full h-full" />
     </div>
   );
 }
