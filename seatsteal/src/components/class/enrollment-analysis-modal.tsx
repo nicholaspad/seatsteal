@@ -10,12 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Sparkles,
-  Calendar,
-  Clock,
-  TrendingUp,
-  Users,
-  Bell,
-  Target,
   CheckCircle,
   AlertCircle,
   XCircle,
@@ -160,8 +154,7 @@ export function EnrollmentAnalysisModal({
                       <div className="text-lg font-bold text-blue-600">
                         {analysisData.timesOpenedLast30Days}
                       </div>
-                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
-                        <Calendar className="h-3 w-3" />
+                      <p className="text-sm text-muted-foreground mt-1">
                         Times opened (30 days)
                       </p>
                     </div>
@@ -177,8 +170,7 @@ export function EnrollmentAnalysisModal({
                           ? `${analysisData.avgDaysToOpenLast30Days}`
                           : "N/A"}
                       </div>
-                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
-                        <Clock className="h-3 w-3" />
+                      <p className="text-sm text-muted-foreground mt-1">
                         Avg days to open (30 days)
                       </p>
                     </div>
@@ -196,8 +188,7 @@ export function EnrollmentAnalysisModal({
                             )
                           : "None found"}
                       </div>
-                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
-                        <Target className="h-3 w-3" />
+                      <p className="text-sm text-muted-foreground mt-1">
                         Most recent open seat
                       </p>
                     </div>
@@ -211,8 +202,8 @@ export function EnrollmentAnalysisModal({
                       <div className="text-lg font-bold text-orange-600">
                         {analysisData.subscriptionsCount}
                       </div>
-                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
-                        <Users className="h-3 w-3" /># subscriptions
+                      <p className="text-sm text-muted-foreground mt-1">
+                        # subscriptions
                       </p>
                     </div>
                   </CardContent>
@@ -225,8 +216,8 @@ export function EnrollmentAnalysisModal({
                       <div className="text-lg font-bold text-cyan-600">
                         {analysisData.notificationsSent}
                       </div>
-                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
-                        <Bell className="h-3 w-3" /># notifications sent
+                      <p className="text-sm text-muted-foreground mt-1">
+                        # notifications sent
                       </p>
                     </div>
                   </CardContent>
@@ -253,8 +244,7 @@ export function EnrollmentAnalysisModal({
                           {analysisData.competitionLevel.toUpperCase()}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
-                        <TrendingUp className="h-3 w-3" />
+                      <p className="text-sm text-muted-foreground mt-1">
                         Competition level
                       </p>
                     </div>
@@ -262,29 +252,6 @@ export function EnrollmentAnalysisModal({
                 </Card>
               </div>
 
-              {/* Competition Level Explanation */}
-              <Card>
-                <CardContent>
-                  <p className="text-sm mb-3">
-                    Competition level is calculated based on number of
-                    subscriptions, recent notification activity, opening
-                    frequency, and how quickly classes typically open.
-                  </p>
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <p>
-                      • <strong>Low:</strong> Few subscribers, good chance of
-                      success
-                    </p>
-                    <p>
-                      • <strong>Medium:</strong> Moderate competition, be
-                      prepared
-                    </p>
-                    <p>
-                      • <strong>High:</strong> Many watchers, very competitive
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
             </>
           ) : (
             !loading &&

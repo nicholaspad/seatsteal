@@ -300,6 +300,14 @@ export function ClassCard({
               )}
             </div>
           )}
+          {/* Pro-exclusive: Subscriber count hint */}
+          {hasProAccess && watcherCount !== undefined && (
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              {watcherCount === 1
+                ? "1 subscriber"
+                : `${watcherCount} subscribers`}
+            </p>
+          )}
         </CardContent>
       )}
 
