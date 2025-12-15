@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Users, Bell, BookOpen, TrendingUp } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { fetchWithToasts } from "@/lib/api";
+import { formatCompactDateTime } from "@/lib/date-utils";
 import type { CourseWithCollege } from "@/types/api";
 
 interface CourseSummaryData {
@@ -179,6 +180,11 @@ export function CourseSummaryModal({
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+
+              {/* Data Freshness Indicator */}
+              <div className="text-center text-xs text-muted-foreground">
+                Data as of {formatCompactDateTime(summaryData.generatedAt)}
               </div>
             </>
           ) : (

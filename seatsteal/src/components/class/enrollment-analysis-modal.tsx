@@ -285,6 +285,11 @@ export function EnrollmentAnalysisModal({
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Data Freshness Indicator */}
+              <div className="text-center text-xs text-muted-foreground">
+                Data as of {formatCompactDateTime(analysisData.generatedAt)}
+              </div>
             </>
           ) : (
             !loading &&
