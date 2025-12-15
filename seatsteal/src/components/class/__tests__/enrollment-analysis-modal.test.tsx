@@ -65,7 +65,9 @@ describe("EnrollmentAnalysisModal", () => {
 
       // Verify statistics labels are displayed (text only, no icons)
       expect(screen.getByText("Times opened (30 days)")).toBeInTheDocument();
-      expect(screen.getByText("Avg days to open (30 days)")).toBeInTheDocument();
+      expect(
+        screen.getByText("Avg days to open (30 days)"),
+      ).toBeInTheDocument();
       expect(screen.getByText("Most recent open seat")).toBeInTheDocument();
       expect(screen.getByText("# subscriptions")).toBeInTheDocument();
       expect(screen.getByText("# notifications sent")).toBeInTheDocument();
@@ -217,6 +219,38 @@ describe("EnrollmentAnalysisModal", () => {
       await waitFor(() => {
         expect(screen.getByText("HIGH")).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Data Freshness Indicator", () => {
+    it("displays data freshness timestamp", async () => {
+      vi.mocked(fetchWithToasts).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockAnalysisData),
+      } as Response);
+
+      customRender(
+        <EnrollmentAnalysisModal
+          isOpen={true}
+          onClose={() => {}}
+          classData={mockClassData}
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionTier: "pro",
+        },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/Data as of/)).toBeInTheDocument();
+      });
+
+      // Verify the timestamp is displayed
+      const freshnessText = screen.getByText(/Data as of/);
+      expect(freshnessText).toBeInTheDocument();
+      expect(freshnessText).toHaveClass("text-xs");
+      expect(freshnessText).toHaveClass("text-muted-foreground");
     });
   });
 });
