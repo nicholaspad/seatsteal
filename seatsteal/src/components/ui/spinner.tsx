@@ -1,17 +1,19 @@
-import { LoaderIcon } from "lucide-react";
+import { IonSpinner } from "@ionic/react";
 
 import { cn } from "@/lib/utils";
 
 export function Spinner({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<typeof LoaderIcon>) {
+}: React.ComponentPropsWithoutRef<"div">) {
   return (
-    <LoaderIcon
+    <div
       role="status"
       aria-label="Loading"
-      className={cn("size-4 animate-spin text-white", className)}
+      className={cn("size-4", className)}
       {...props}
-    />
+    >
+      <IonSpinner name="crescent" />
+    </div>
   );
 }
