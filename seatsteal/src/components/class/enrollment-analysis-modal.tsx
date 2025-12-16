@@ -15,7 +15,7 @@ import {
   XCircle,
   BarChart3,
 } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCompactDateTime } from "@/lib/date-utils";
 import { fetchWithToasts } from "@/lib/api";
 import type { ClassWithEnrollment } from "@/types/api";
@@ -127,23 +127,35 @@ export function EnrollmentAnalysisModal({
         </DialogHeader>
 
         <div className="space-y-6">
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <Spinner className="size-6" />
-              <span className="ml-2">Loading analysis...</span>
-            </div>
-          )}
+          {loading ? (
+            <>
+              {/* Statistics Grid Skeleton */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <Card key={idx}>
+                    <CardContent>
+                      <div className="text-center">
+                        <Skeleton className="h-7 w-16 mx-auto mb-2" />
+                        <Skeleton className="h-4 w-32 mx-auto" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
 
-          {error && (
+              {/* Data Freshness Indicator Skeleton */}
+              <div className="text-center">
+                <Skeleton className="h-3 w-48 mx-auto" />
+              </div>
+            </>
+          ) : error ? (
             <div className="text-center py-8 text-red-600">
               <p>Error: {error}</p>
               <Button onClick={fetchAnalysisData} className="mt-2">
                 Retry
               </Button>
             </div>
-          )}
-
-          {analysisData ? (
+          ) : analysisData ? (
             <>
               {/* Statistics Grid */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -258,21 +270,18 @@ export function EnrollmentAnalysisModal({
               </div>
             </>
           ) : (
-            !loading &&
-            !error && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
-                  <Sparkles className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  No Analysis Available
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Analysis will become available as more enrollment data is
-                  collected over time.
-                </p>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+                <Sparkles className="h-8 w-8 text-muted-foreground" />
               </div>
-            )
+              <h3 className="text-lg font-semibold mb-2">
+                No Analysis Available
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Analysis will become available as more enrollment data is
+                collected over time.
+              </p>
+            </div>
           )}
         </div>
       </DialogContent>

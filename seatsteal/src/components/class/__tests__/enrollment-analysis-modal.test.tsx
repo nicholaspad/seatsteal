@@ -121,12 +121,12 @@ describe("EnrollmentAnalysisModal", () => {
   });
 
   describe("Loading State", () => {
-    it("shows loading spinner when fetching data", () => {
+    it("shows skeleton loaders when fetching data", () => {
       vi.mocked(fetchWithToasts).mockImplementation(
         () => new Promise(() => {}), // Never resolves
       );
 
-      customRender(
+      const { container } = customRender(
         <EnrollmentAnalysisModal
           isOpen={true}
           onClose={() => {}}
@@ -139,7 +139,9 @@ describe("EnrollmentAnalysisModal", () => {
         },
       );
 
-      expect(screen.getByText("Loading analysis...")).toBeInTheDocument();
+      // Check for skeleton loaders (should have multiple skeleton elements)
+      const skeletons = container.querySelectorAll(".animate-pulse");
+      expect(skeletons.length).toBeGreaterThan(0);
     });
   });
 
