@@ -58,7 +58,8 @@ describe("Courses Page", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Home")).toBeInTheDocument();
-        expect(screen.getByText("Courses")).toBeInTheDocument();
+        // Use getAllByText since "Courses" appears in both breadcrumb and page heading
+        expect(screen.getAllByText("Courses").length).toBeGreaterThan(0);
       });
     });
 

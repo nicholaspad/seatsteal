@@ -19,6 +19,7 @@ import { CourseFilters } from "@/components/course/course-filters";
 import { PaginationLinks } from "@/components/layout/PaginationLinks";
 import { BookOpen } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { RouteAwareSkeleton } from "@/components/skeletons/RouteAwareSkeleton";
 import { useSession } from "@/components/providers/SessionProvider";
 import type { CourseWithClasses } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -226,6 +227,10 @@ export default function Courses() {
     );
   }
 
+  if (loading) {
+    return <RouteAwareSkeleton />;
+  }
+
   return (
     <IonPage>
       <IonContent>
@@ -265,23 +270,14 @@ export default function Courses() {
             {/* Main Content */}
             <div className="lg:col-span-3 space-y-6">
               {/* Search Summary */}
-              {!loading && (
-                <SearchSummary
-                  searchParams={searchParams}
-                  totalCourses={totalCourses}
-                  selectedCollege={selectedCollege}
-                />
-              )}
+              <SearchSummary
+                searchParams={searchParams}
+                totalCourses={totalCourses}
+                selectedCollege={selectedCollege}
+              />
 
               {/* Results */}
-              {loading ? (
-                <div className="text-center py-12">
-                  <Spinner className="size-12 mx-auto" />
-                  <p className="mt-4 text-muted-foreground">
-                    Loading courses...
-                  </p>
-                </div>
-              ) : courses.length === 0 ? (
+              {courses.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-center py-12">

@@ -29,7 +29,7 @@ describe("CourseDetails Page", () => {
   });
 
   describe("Loading State", () => {
-    it("shows loading spinner initially", () => {
+    it("shows skeleton loading screen initially", () => {
       // Never resolve to keep in loading state
       mockFetchWithToasts.mockImplementation(
         () =>
@@ -42,7 +42,9 @@ describe("CourseDetails Page", () => {
         routerEntries: ["/courses/1"],
       });
 
-      expect(screen.getByText("Loading course details...")).toBeInTheDocument();
+      // Check for skeleton elements (CourseDetailsSkeleton renders multiple skeleton loaders with animate-pulse class)
+      const skeletons = document.querySelectorAll(".animate-pulse");
+      expect(skeletons.length).toBeGreaterThan(0);
     });
   });
 
@@ -74,10 +76,10 @@ describe("CourseDetails Page", () => {
         routerEntries: ["/courses/1"],
       });
 
+      // Wait for skeleton to be replaced with actual content
       await waitFor(() => {
-        expect(
-          screen.queryByText("Loading course details..."),
-        ).not.toBeInTheDocument();
+        const skeletons = document.querySelectorAll(".animate-pulse");
+        expect(skeletons.length).toBe(0);
       });
 
       // CourseDetailsClient will be rendered with the course data
