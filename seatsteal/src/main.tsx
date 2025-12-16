@@ -91,7 +91,7 @@ createRoot(document.getElementById("root")!).render(
             <IonReactRouter>
               <ConditionalLayout>
                 <Suspense fallback={<PageLoader />}>
-                  <IonRouterOutlet>
+                  <IonRouterOutlet animated={false}>
                     {/* Public routes - eagerly loaded */}
                     <Route exact path="/" component={Home} />
                     <Route exact path="/courses" component={Courses} />
