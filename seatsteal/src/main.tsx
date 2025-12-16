@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 // @ts-expect-error - Font package doesn't have types
 import "@fontsource/inter";
 import "./index.css";
-import { IonApp, IonRouterOutlet, IonSpinner, setupIonicReact } from "@ionic/react";
+import { IonApp, IonRouterOutlet, setupIonicReact } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
 import { Route, Redirect } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -71,14 +71,12 @@ const AdminColleges = lazy(() => import("@/pages/admin/AdminColleges"));
 const AdminPerformance = lazy(() => import("@/pages/admin/AdminPerformance"));
 const AdminScrapers = lazy(() => import("@/pages/admin/AdminScrapers"));
 const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
-const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications"));
-
-/* Loading fallback for lazy-loaded routes */
-const PageLoader = () => (
-  <div className="flex h-screen w-full items-center justify-center">
-    <IonSpinner name="crescent" />
-  </div>
+const AdminNotifications = lazy(
+  () => import("@/pages/admin/AdminNotifications"),
 );
+
+/* Route-aware skeleton loader for lazy-loaded routes */
+import { RouteAwareSkeleton } from "@/components/skeletons";
 
 setupIonicReact();
 
@@ -90,13 +88,17 @@ createRoot(document.getElementById("root")!).render(
           <IonApp>
             <IonReactRouter>
               <ConditionalLayout>
-                <Suspense fallback={<PageLoader />}>
+                <Suspense fallback={<RouteAwareSkeleton />}>
                   <IonRouterOutlet animated={false}>
                     {/* Public routes - eagerly loaded */}
                     <Route exact path="/" component={Home} />
                     <Route exact path="/courses" component={Courses} />
                     <Route exact path="/login" component={Login} />
-                    <Route exact path="/auth/callback" component={AuthCallback} />
+                    <Route
+                      exact
+                      path="/auth/callback"
+                      component={AuthCallback}
+                    />
                     <Route exact path="/error" component={Error} />
 
                     {/* Public routes - lazily loaded */}
@@ -104,7 +106,11 @@ createRoot(document.getElementById("root")!).render(
                     <Route exact path="/privacy" component={PrivacyPolicy} />
                     <Route exact path="/terms" component={TermsOfService} />
                     <Route exact path="/login-admin" component={LoginAdmin} />
-                    <Route exact path="/verify-request" component={VerifyRequest} />
+                    <Route
+                      exact
+                      path="/verify-request"
+                      component={VerifyRequest}
+                    />
 
                     {/* Protected course detail route */}
                     <Route
