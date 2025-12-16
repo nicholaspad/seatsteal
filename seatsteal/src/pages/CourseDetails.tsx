@@ -5,7 +5,7 @@ import { CourseDetailsClient } from "@/components/course/course-details-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
+import { RouteAwareSkeleton } from "@/components/skeletons/RouteAwareSkeleton";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import type { CourseWithClasses, CourseDetailsApiResponse } from "@/types/api";
 
@@ -54,24 +54,7 @@ export default function CourseDetails() {
   }, [id]);
 
   if (loading) {
-    return (
-      <IonPage>
-        <IonContent>
-          <div className="container mx-auto px-4 py-8">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                  <Spinner className="size-12" />
-                  <p className="text-lg text-muted-foreground">
-                    Loading course details...
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
+    return <RouteAwareSkeleton />;
   }
 
   if (error || !course) {
