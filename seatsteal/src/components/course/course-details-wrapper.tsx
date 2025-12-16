@@ -238,24 +238,6 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
     history.push(coursesPath);
   };
 
-  // Show loading state during SSR/hydration
-  if (!mounted) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3"></div>
-            <div className="h-4 bg-muted rounded w-1/2"></div>
-            <div className="space-y-2">
-              <div className="h-3 bg-muted rounded"></div>
-              <div className="h-3 bg-muted rounded w-2/3"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       {/* Confirmation Modal */}

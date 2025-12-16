@@ -49,7 +49,7 @@ export function PricingTiers() {
       price: `$${proFeatures.monthlyPrice}`,
       features: [
         `Monitor ${proFeatures.maxSubscriptions} sections`,
-        `Checks every ${proFeatures.checkFrequency} minute`,
+        `Checks every minute`,
         "Priority email + SMS notifications (30 seconds before non-Pro users)",
         "Subscription and notification analytics",
       ],

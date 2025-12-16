@@ -37,7 +37,6 @@ import type { CourseWithClasses } from "@/types/api";
 interface CourseDetailsProps {
   courseId: number;
   course?: CourseWithClasses;
-  loading?: boolean;
   error?: string | null;
   subscriptions?: Set<number>;
   subscriptionsLoading?: boolean;
@@ -55,7 +54,6 @@ interface CourseDetailsProps {
 export function CourseDetails({
   courseId,
   course,
-  loading = false,
   error = null,
   subscriptions = new Set(),
   subscriptionsLoading = false,
@@ -68,7 +66,6 @@ export function CourseDetails({
   const [localCourse, setLocalCourse] = useState<CourseWithClasses | null>(
     course || null,
   );
-  const [localLoading, setLocalLoading] = useState(loading);
   const [localError, setLocalError] = useState<string | null>(error);
   const [filter, setFilter] = useState<FilterType>("all");
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
@@ -79,7 +76,6 @@ export function CourseDetails({
 
   const fetchCourseData = useCallback(async () => {
     try {
-      setLocalLoading(true);
       setLocalError(null);
 
       const response = await fetchWithToasts(`/api/courses/${courseId}`);
@@ -100,8 +96,6 @@ export function CourseDetails({
       setLocalError(
         err instanceof Error ? err.message : "Failed to load course",
       );
-    } finally {
-      setLocalLoading(false);
     }
   }, [courseId]);
 
@@ -139,25 +133,6 @@ export function CourseDetails({
   const lastScraperUpdate = localCourse?.lastScraperUpdate
     ? new Date(localCourse.lastScraperUpdate)
     : null;
-
-  if (localLoading) {
-    return (
-      <div className={cn("space-y-6", className)}>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-muted rounded w-1/3"></div>
-              <div className="h-4 bg-muted rounded w-1/2"></div>
-              <div className="space-y-2">
-                <div className="h-3 bg-muted rounded"></div>
-                <div className="h-3 bg-muted rounded w-2/3"></div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (localError) {
     return (

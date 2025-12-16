@@ -58,7 +58,7 @@ export default function Home() {
           <section className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-black"></div>
             <div className="container mx-auto px-4 text-center space-y-8 relative z-10">
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <h1 className="text-6xl md:text-8xl lg:text-9xl font-bold tracking-tight text-white drop-shadow-lg">
                   Course full?
                 </h1>
@@ -68,10 +68,6 @@ export default function Home() {
                     <span className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-pulse"></span>
                   </span>
                   Get notified when a seat opens up.
-                </p>
-                <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-                  Track class availability and receive instant email or SMS
-                  alerts. The easiest way to get into full college classes.
                 </p>
               </div>
 

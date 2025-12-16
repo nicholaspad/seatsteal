@@ -139,28 +139,28 @@ export function Header({ className }: HeaderProps) {
               <ThemeToggle />
             </Suspense>
 
-            {/* Authentication Menu */}
+            {/* Authentication Menu - hidden on mobile, available in mobile menu */}
             {isLoading ? (
-              <div className="h-9 w-20 sm:w-24 rounded-md bg-muted animate-pulse" />
+              <div className="hidden md:block h-9 w-20 sm:w-24 rounded-md bg-muted animate-pulse" />
             ) : user ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={async () => {
-                    await signOut();
-                    history.push("/");
-                  }}
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:ml-2 sm:inline">Logout</span>
-                </Button>
-              </>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  await signOut();
+                  history.push("/");
+                }}
+                className="hidden md:flex"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:ml-2 sm:inline">Logout</span>
+              </Button>
             ) : (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => history.push("/login")}
+                className="hidden md:flex"
               >
                 <LogIn className="h-4 w-4" />
                 <span className="hidden sm:ml-2 sm:inline">Login</span>

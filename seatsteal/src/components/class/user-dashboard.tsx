@@ -78,7 +78,6 @@ const UserDashboard = memo(function UserDashboard({
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithDetails[]>(
     [],
   );
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
   const [sort, setSort] = useState<SortType>("date");
@@ -98,12 +97,10 @@ const UserDashboard = memo(function UserDashboard({
 
   const fetchSubscriptions = useCallback(async () => {
     if (!user) {
-      setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
       setError(null);
 
       const response = await fetchWithToasts("/api/subscriptions");
@@ -124,8 +121,6 @@ const UserDashboard = memo(function UserDashboard({
       setError(
         err instanceof Error ? err.message : "Failed to load subscriptions",
       );
-    } finally {
-      setLoading(false);
     }
   }, [user]);
 
@@ -331,25 +326,6 @@ const UserDashboard = memo(function UserDashboard({
       ),
     };
   }, [filteredAndSortedSubscriptions, currentPage, itemsPerPage]);
-
-  if (loading) {
-    return (
-      <div className={cn("space-y-6", className)}>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="animate-pulse space-y-4">
-              <div className="h-6 bg-muted rounded w-1/4"></div>
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-20 bg-muted rounded"></div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (error) {
     return (

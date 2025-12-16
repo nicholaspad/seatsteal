@@ -224,8 +224,8 @@ export function CourseSummaryModal({
                 No Summary Available
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Summary will become available as subscription data is
-                collected over time.
+                Summary will become available as subscription data is collected
+                over time.
               </p>
             </div>
           )}
