@@ -133,10 +133,10 @@ export function ClassCard({
                 <TooltipContent side="top">
                   <p>
                     {watcherCount === 0
-                      ? "No one else is watching this section"
+                      ? "No one is subscribed to this section"
                       : watcherCount === 1
-                        ? "1 user is watching this section"
-                        : `${watcherCount} users are watching this section`}
+                        ? "1 user is subscribed to this section"
+                        : `${watcherCount} users are subscribed to this section`}
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -299,14 +299,6 @@ export function ClassCard({
                 </button>
               )}
             </div>
-          )}
-          {/* Pro-exclusive: Subscriber count hint */}
-          {hasProAccess && watcherCount !== undefined && (
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              {watcherCount === 1
-                ? "1 subscriber"
-                : `${watcherCount} subscribers`}
-            </p>
           )}
         </CardContent>
       )}
