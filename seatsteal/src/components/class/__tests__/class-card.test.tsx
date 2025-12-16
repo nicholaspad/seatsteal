@@ -344,4 +344,109 @@ describe("ClassCard", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  describe("Watcher Count Badge", () => {
+    it("shows watcher count badge with 0 for pro users when watcher count is 0", () => {
+      customRender(
+        <ClassCard
+          class={mockClosedClass}
+          showSubscriptionButton={true}
+          subscriptionsLoading={false}
+          isSubscribed={false}
+          watcherCount={0}
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionStatus: canSubscribeStatus,
+          subscriptionTier: "pro",
+        },
+      );
+
+      expect(screen.getByText("0")).toBeInTheDocument();
+    });
+
+    it("shows watcher count badge with 0 when user is the only subscriber", () => {
+      customRender(
+        <ClassCard
+          class={mockClosedClass}
+          showSubscriptionButton={true}
+          subscriptionsLoading={false}
+          isSubscribed={true}
+          watcherCount={1}
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionStatus: canSubscribeStatus,
+          subscriptionTier: "pro",
+        },
+      );
+
+      // Should show 0 (1 - 1) since user is subscribed and is the only subscriber
+      expect(screen.getByText("0")).toBeInTheDocument();
+    });
+
+    it("shows watcher count badge with correct count when user is subscribed with others", () => {
+      customRender(
+        <ClassCard
+          class={mockClosedClass}
+          showSubscriptionButton={true}
+          subscriptionsLoading={false}
+          isSubscribed={true}
+          watcherCount={5}
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionStatus: canSubscribeStatus,
+          subscriptionTier: "pro",
+        },
+      );
+
+      // Should show 4 (5 - 1) since user is subscribed and badge shows "other" subscribers
+      expect(screen.getByText("4")).toBeInTheDocument();
+    });
+
+    it("shows watcher count badge with correct count when user is not subscribed", () => {
+      customRender(
+        <ClassCard
+          class={mockClosedClass}
+          showSubscriptionButton={true}
+          subscriptionsLoading={false}
+          isSubscribed={false}
+          watcherCount={7}
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionStatus: canSubscribeStatus,
+          subscriptionTier: "pro",
+        },
+      );
+
+      expect(screen.getByText("7")).toBeInTheDocument();
+    });
+
+    it("does not show watcher count badge for non-pro users", () => {
+      customRender(
+        <ClassCard
+          class={mockClosedClass}
+          showSubscriptionButton={true}
+          subscriptionsLoading={false}
+          isSubscribed={false}
+          watcherCount={5}
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionStatus: canSubscribeStatus,
+          subscriptionTier: "free",
+        },
+      );
+
+      // Should not show the eye icon badge with count
+      expect(screen.queryByText("5")).not.toBeInTheDocument();
+    });
+  });
 });

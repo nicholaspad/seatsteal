@@ -127,16 +127,26 @@ export function ClassCard({
                     className="text-xs flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
                   >
                     <Eye className="h-3 w-3" />
-                    {watcherCount}
+                    {watcherCount === 0
+                      ? 0
+                      : isSubscribed
+                        ? watcherCount - 1
+                        : watcherCount}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top">
                   <p>
                     {watcherCount === 0
-                      ? "No one is subscribed to this section"
-                      : watcherCount === 1
-                        ? "1 user is subscribed to this section"
-                        : `${watcherCount} users are subscribed to this section`}
+                      ? "No subscribers"
+                      : isSubscribed
+                        ? watcherCount - 1 === 0
+                          ? "You're the only subscriber!"
+                          : watcherCount - 1 === 1
+                            ? "1 other subscriber"
+                            : `${watcherCount - 1} other subscribers`
+                        : watcherCount === 1
+                          ? "1 total subscriber"
+                          : `${watcherCount} total subscribers`}
                   </p>
                 </TooltipContent>
               </Tooltip>
