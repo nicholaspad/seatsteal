@@ -77,29 +77,31 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
     fetchSubscriptions();
   }, [mounted]);
 
-  // Fetch watcher counts for Pro users (Pro-exclusive feature)
-  useEffect(() => {
-    if (!mounted || !hasProAccess(userTier) || !course.classes?.length) return;
+  // Function to fetch watcher counts for Pro users (Pro-exclusive feature)
+  const fetchWatcherCounts = async () => {
+    if (!hasProAccess(userTier) || !course.classes?.length) return;
 
-    const fetchWatcherCounts = async () => {
-      try {
-        const classIds = course.classes.map((c) => c.classId).join(",");
-        const response = await fetchWithToasts(
-          `/api/classes/subscription-counts?class_ids=${classIds}`,
-        );
+    try {
+      const classIds = course.classes.map((c) => c.classId).join(",");
+      const response = await fetchWithToasts(
+        `/api/classes/subscription-counts?class_ids=${classIds}`,
+      );
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setWatcherCounts(data.data || {});
-          }
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setWatcherCounts(data.data || {});
         }
-        // Silently fail for non-Pro users or errors - this is a nice-to-have feature
-      } catch {
-        // Silently fail - watcher counts are not critical
       }
-    };
+      // Silently fail for non-Pro users or errors - this is a nice-to-have feature
+    } catch {
+      // Silently fail - watcher counts are not critical
+    }
+  };
 
+  // Fetch watcher counts on mount
+  useEffect(() => {
+    if (!mounted) return;
     fetchWatcherCounts();
   }, [mounted, userTier, course.classes]);
 
@@ -127,6 +129,8 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
       // Close confirmation modal and show success toast
       setConfirmUnsubscribe(null);
       toast.success("Unsubscribed successfully!");
+      // Refetch watcher counts to update the badge
+      fetchWatcherCounts();
     } catch (err) {
       if (err instanceof ServerErrorWithToast) {
         return;
@@ -203,6 +207,8 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
         if (data.success) {
           setSubscriptionsData((prev) => [...prev, data.data]);
           toast.success("You'll be notified when seats become available!");
+          // Refetch watcher counts to update the badge
+          fetchWatcherCounts();
         }
       } else {
         // Find subscription to delete and show confirmation modal
