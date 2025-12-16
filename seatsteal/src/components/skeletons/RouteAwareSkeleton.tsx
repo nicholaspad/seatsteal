@@ -3,6 +3,7 @@ import { CoursesSkeleton } from "./CoursesSkeleton";
 import { CourseDetailsSkeleton } from "./CourseDetailsSkeleton";
 import { DashboardSkeleton } from "./DashboardSkeleton";
 import { SettingsSkeleton } from "./SettingsSkeleton";
+import { LoginSkeleton } from "./LoginSkeleton";
 import { DefaultSkeleton } from "./DefaultSkeleton";
 
 /**
@@ -15,6 +16,10 @@ export function RouteAwareSkeleton() {
   const path = location.pathname;
 
   // Match routes to their specific skeletons
+  if (path === "/login" || path === "/login-admin") {
+    return <LoginSkeleton />;
+  }
+
   if (path === "/courses") {
     return <CoursesSkeleton />;
   }
