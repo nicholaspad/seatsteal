@@ -366,7 +366,28 @@ describe("ClassCard", () => {
       expect(screen.getByText("0")).toBeInTheDocument();
     });
 
-    it("shows watcher count badge with correct count when user is subscribed", () => {
+    it("shows watcher count badge with 0 when user is the only subscriber", () => {
+      customRender(
+        <ClassCard
+          class={mockClosedClass}
+          showSubscriptionButton={true}
+          subscriptionsLoading={false}
+          isSubscribed={true}
+          watcherCount={1}
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionStatus: canSubscribeStatus,
+          subscriptionTier: "pro",
+        },
+      );
+
+      // Should show 0 (1 - 1) since user is subscribed and is the only subscriber
+      expect(screen.getByText("0")).toBeInTheDocument();
+    });
+
+    it("shows watcher count badge with correct count when user is subscribed with others", () => {
       customRender(
         <ClassCard
           class={mockClosedClass}
@@ -383,7 +404,8 @@ describe("ClassCard", () => {
         },
       );
 
-      expect(screen.getByText("5")).toBeInTheDocument();
+      // Should show 4 (5 - 1) since user is subscribed and badge shows "other" subscribers
+      expect(screen.getByText("4")).toBeInTheDocument();
     });
 
     it("shows watcher count badge with correct count when user is not subscribed", () => {
