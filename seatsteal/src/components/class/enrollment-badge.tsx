@@ -19,7 +19,7 @@ export function EnrollmentBadge({
       <div className={cn("flex items-center gap-2", className)}>
         <Badge
           variant="outline"
-          className="text-muted-foreground font-medium min-w-[90px] justify-center"
+          className="text-muted-foreground font-medium min-w-[32px] sm:min-w-[90px] justify-center"
         >
           <HelpCircle className="h-3 w-3 sm:mr-1" />
           <span className="hidden sm:inline">NO DATA</span>
@@ -53,7 +53,7 @@ export function EnrollmentBadge({
     <div className={cn("flex items-center gap-2", className)}>
       <Badge
         variant={badgeVariant}
-        className={cn(statusColor, "font-medium min-w-[90px] justify-center")}
+        className={cn(statusColor, "font-medium min-w-[32px] sm:min-w-[90px] justify-center")}
       >
         <StatusIcon className="h-3 w-3 sm:mr-1" />
         <span className="hidden sm:inline">{status}</span>
