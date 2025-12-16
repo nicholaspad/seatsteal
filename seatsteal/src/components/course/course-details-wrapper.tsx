@@ -83,7 +83,7 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
       try {
         const classIds = course.classes.map((c) => c.classId).join(",");
         const response = await fetchWithToasts(
-          `/api/classes/subscription-counts?classIds=${classIds}`,
+          `/api/classes/subscription-counts?class_ids=${classIds}`,
         );
 
         if (response.ok) {
