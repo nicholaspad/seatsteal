@@ -18,7 +18,6 @@ import { FullWidthCTA } from "@/components/course/full-width-cta";
 import { CourseFilters } from "@/components/course/course-filters";
 import { PaginationLinks } from "@/components/layout/PaginationLinks";
 import { BookOpen } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
 import { RouteAwareSkeleton } from "@/components/skeletons/RouteAwareSkeleton";
 import { useSession } from "@/components/providers/SessionProvider";
 import type { CourseWithClasses } from "@/types/api";
@@ -168,36 +167,14 @@ export default function Courses() {
       ? courses[0].college
       : null;
 
-  // Show loading spinner while auth is initializing
+  // Show loading skeleton while auth is initializing
   if (authLoading) {
-    return (
-      <IonPage>
-        <IonContent>
-          <div className="container mx-auto px-4 py-8">
-            <div className="text-center py-12">
-              <Spinner className="size-12 mx-auto" />
-              <p className="mt-4 text-muted-foreground">Loading...</p>
-            </div>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
+    return <RouteAwareSkeleton />;
   }
 
   // Wait for profile to load before rendering to get correct initial college filter
   if (user && profileLoading) {
-    return (
-      <IonPage>
-        <IonContent>
-          <div className="container mx-auto px-4 py-8">
-            <div className="text-center py-12">
-              <Spinner className="size-12 mx-auto" />
-              <p className="mt-4 text-muted-foreground">Loading...</p>
-            </div>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
+    return <RouteAwareSkeleton />;
   }
 
   if (error) {
