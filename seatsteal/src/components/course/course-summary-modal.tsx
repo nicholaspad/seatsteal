@@ -8,7 +8,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Users, Bell, BookOpen, TrendingUp } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchWithToasts } from "@/lib/api";
 import { formatCompactDateTime } from "@/lib/date-utils";
 import type { CourseWithCollege } from "@/types/api";
@@ -80,23 +80,51 @@ export function CourseSummaryModal({
         </DialogHeader>
 
         <div className="space-y-6">
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <Spinner className="size-6" />
-              <span className="ml-2">Loading summary...</span>
-            </div>
-          )}
+          {loading ? (
+            <>
+              {/* Course Overview Skeleton */}
+              <Card>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <Skeleton className="h-4 w-24 mb-2" />
+                      <Skeleton className="h-5 w-full" />
+                    </div>
+                    <div>
+                      <Skeleton className="h-4 w-16 mb-2" />
+                      <Skeleton className="h-5 w-full" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {error && (
+              {/* Statistics Grid Skeleton */}
+              <div className="grid grid-cols-2 gap-4">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <Card key={idx}>
+                    <CardContent>
+                      <div className="text-center">
+                        <Skeleton className="h-8 w-16 mx-auto mb-2" />
+                        <Skeleton className="h-4 w-32 mx-auto" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Data Freshness Indicator Skeleton */}
+              <div className="text-center">
+                <Skeleton className="h-3 w-48 mx-auto" />
+              </div>
+            </>
+          ) : error ? (
             <div className="text-center py-8 text-red-600">
               <p>Error: {error}</p>
               <Button onClick={fetchSummaryData} className="mt-2">
                 Retry
               </Button>
             </div>
-          )}
-
-          {summaryData ? (
+          ) : summaryData ? (
             <>
               {/* Course Overview */}
               <Card>
@@ -188,21 +216,18 @@ export function CourseSummaryModal({
               </div>
             </>
           ) : (
-            !loading &&
-            !error && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
-                  <Sparkles className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  No Summary Available
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Summary will become available as subscription data is
-                  collected over time.
-                </p>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+                <Sparkles className="h-8 w-8 text-muted-foreground" />
               </div>
-            )
+              <h3 className="text-lg font-semibold mb-2">
+                No Summary Available
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Summary will become available as subscription data is
+                collected over time.
+              </p>
+            </div>
           )}
         </div>
       </DialogContent>
