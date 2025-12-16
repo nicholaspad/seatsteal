@@ -33,6 +33,7 @@ import {
   School,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { RouteAwareSkeleton } from "@/components/skeletons/RouteAwareSkeleton";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -208,23 +209,7 @@ export default function Settings() {
   const isValid = !phoneError;
 
   if (loading) {
-    return (
-      <IonPage>
-        <IonContent className="ion-padding">
-          <div className="container mx-auto py-8">
-            <div className="max-w-2xl mx-auto">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-center py-8">
-                    <Spinner className="size-8" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
+    return <RouteAwareSkeleton />;
   }
 
   return (
