@@ -119,7 +119,7 @@ export function ClassCard({
               </Badge>
             )}
             {/* Pro-exclusive: Watcher count badge */}
-            {hasProAccess && watcherCount !== undefined && (
+            {hasProAccess && watcherCount !== undefined && isClosed && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
@@ -127,26 +127,14 @@ export function ClassCard({
                     className="text-xs flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
                   >
                     <Eye className="h-3 w-3" />
-                    {watcherCount === 0
-                      ? 0
-                      : isSubscribed
-                        ? watcherCount - 1
-                        : watcherCount}
+                    {watcherCount}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top">
                   <p>
-                    {watcherCount === 0
-                      ? "No subscribers"
-                      : isSubscribed
-                        ? watcherCount - 1 === 0
-                          ? "You're the only subscriber!"
-                          : watcherCount - 1 === 1
-                            ? "1 other subscriber"
-                            : `${watcherCount - 1} other subscribers`
-                        : watcherCount === 1
-                          ? "1 total subscriber"
-                          : `${watcherCount} total subscribers`}
+                    {watcherCount === 1
+                      ? "1 total subscription"
+                      : `${watcherCount} total subscriptions`}
                   </p>
                 </TooltipContent>
               </Tooltip>

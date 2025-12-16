@@ -366,7 +366,7 @@ describe("ClassCard", () => {
       expect(screen.getByText("0")).toBeInTheDocument();
     });
 
-    it("shows watcher count badge with 0 when user is the only subscriber", () => {
+    it("shows watcher count badge with 1 when user is the only subscriber", () => {
       customRender(
         <ClassCard
           class={mockClosedClass}
@@ -383,8 +383,8 @@ describe("ClassCard", () => {
         },
       );
 
-      // Should show 0 (1 - 1) since user is subscribed and is the only subscriber
-      expect(screen.getByText("0")).toBeInTheDocument();
+      // Should show 1 total subscription
+      expect(screen.getByText("1")).toBeInTheDocument();
     });
 
     it("shows watcher count badge with correct count when user is subscribed with others", () => {
@@ -404,8 +404,8 @@ describe("ClassCard", () => {
         },
       );
 
-      // Should show 4 (5 - 1) since user is subscribed and badge shows "other" subscribers
-      expect(screen.getByText("4")).toBeInTheDocument();
+      // Should show 5 total subscriptions
+      expect(screen.getByText("5")).toBeInTheDocument();
     });
 
     it("shows watcher count badge with correct count when user is not subscribed", () => {
@@ -446,6 +446,27 @@ describe("ClassCard", () => {
       );
 
       // Should not show the eye icon badge with count
+      expect(screen.queryByText("5")).not.toBeInTheDocument();
+    });
+
+    it("does not show watcher count badge for open classes", () => {
+      customRender(
+        <ClassCard
+          class={mockOpenClass}
+          showSubscriptionButton={true}
+          subscriptionsLoading={false}
+          isSubscribed={false}
+          watcherCount={5}
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionStatus: canSubscribeStatus,
+          subscriptionTier: "pro",
+        },
+      );
+
+      // Should not show the eye icon badge with count for open classes
       expect(screen.queryByText("5")).not.toBeInTheDocument();
     });
   });
