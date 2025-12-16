@@ -108,16 +108,17 @@ export function ClassCard({
       <CardHeader
         className={cn("p-6", showSubscriptionButton && isClosed && "pb-0")}
       >
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+        <div className="grid grid-cols-[1fr_auto] items-center gap-4">
           <div className="flex items-center gap-2 justify-self-start">
             <h3 className="font-semibold text-lg leading-none">
               {classData.sectionCode}
             </h3>
-            {classData.classNumber && (
+            {/* Commented out ID badge - can be added back if needed */}
+            {/* {classData.classNumber && (
               <Badge variant="outline" className="text-xs flex items-center">
                 ID: {classData.classNumber}
               </Badge>
-            )}
+            )} */}
             {/* Pro-exclusive: Watcher count badge */}
             {hasProAccess && watcherCount !== undefined && isClosed && (
               <Tooltip>
@@ -141,9 +142,9 @@ export function ClassCard({
             )}
           </div>
 
-          {/* Premium Enrollment Analysis Button - Always centered */}
-          {showPremiumFeatures && (
-            <div className="flex items-center justify-self-center">
+          <div className="flex items-center gap-2 justify-self-end">
+            {/* Premium Enrollment Analysis Button */}
+            {showPremiumFeatures && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div>
@@ -195,10 +196,8 @@ export function ClassCard({
                   )}
                 </TooltipContent>
               </Tooltip>
-            </div>
-          )}
+            )}
 
-          <div className="flex justify-self-end">
             <EnrollmentBadge class={classData} />
           </div>
         </div>
