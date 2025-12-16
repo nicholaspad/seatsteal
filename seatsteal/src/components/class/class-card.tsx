@@ -124,10 +124,10 @@ export function ClassCard({
                 <TooltipTrigger asChild>
                   <Badge
                     variant="secondary"
-                    className="text-xs flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 leading-none"
+                    className="text-xs inline-flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 h-5 px-2"
                   >
-                    <Eye className="h-3 w-3" />
-                    <span className="leading-none">{watcherCount}</span>
+                    <Eye className="h-3 w-3 shrink-0" />
+                    <span className="leading-none pt-px">{watcherCount}</span>
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top">
