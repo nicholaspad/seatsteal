@@ -124,14 +124,16 @@ export function ClassCard({
                 <TooltipTrigger asChild>
                   <Badge
                     variant="secondary"
-                    className="text-xs flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                    className="text-xs flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 leading-none"
                   >
                     <Eye className="h-3 w-3" />
-                    {watcherCount === 0
-                      ? 0
-                      : isSubscribed
-                        ? watcherCount - 1
-                        : watcherCount}
+                    <span className="leading-none">
+                      {watcherCount === 0
+                        ? 0
+                        : isSubscribed
+                          ? watcherCount - 1
+                          : watcherCount}
+                    </span>
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top">
