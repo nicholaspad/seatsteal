@@ -294,5 +294,9 @@ export const useSubscriptionStatus = () => {
     subscriptionStatusLoading,
     refreshSubscriptionStatus,
   } = useSession();
-  return { subscriptionStatus, subscriptionStatusLoading, refreshSubscriptionStatus };
+  return {
+    subscriptionStatus,
+    subscriptionStatusLoading,
+    refreshSubscriptionStatus,
+  };
 };

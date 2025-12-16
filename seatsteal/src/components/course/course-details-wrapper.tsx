@@ -36,7 +36,9 @@ export function CourseDetailsWrapper({ course }: CourseDetailsWrapperProps) {
   } | null>(null);
   const [unsubscribing, setUnsubscribing] = useState(false);
   // Pro-exclusive: watcher counts per class (how many users are watching each section)
-  const [watcherCounts, setWatcherCounts] = useState<Record<number, number>>({});
+  const [watcherCounts, setWatcherCounts] = useState<Record<number, number>>(
+    {},
+  );
 
   // Handle client-side mounting
   useEffect(() => {
