@@ -16,7 +16,9 @@ describe("ProtectedRoute", () => {
       { loading: true },
     );
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    // Should show skeleton loading state (elements with animate-pulse class)
+    const skeletonElements = document.querySelectorAll(".animate-pulse");
+    expect(skeletonElements.length).toBeGreaterThan(0);
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
   });
 
@@ -64,8 +66,9 @@ describe("ProtectedRoute", () => {
       { loading: false, profileLoading: false },
     );
 
-    // Content should be rendered immediately
+    // Content should be rendered immediately, no skeleton loading state
     expect(screen.getByText("Immediate Content")).toBeInTheDocument();
-    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+    const skeletonElements = document.querySelectorAll(".animate-pulse");
+    expect(skeletonElements.length).toBe(0);
   });
 });
