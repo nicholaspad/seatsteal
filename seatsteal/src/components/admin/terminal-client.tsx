@@ -61,11 +61,17 @@ export function TerminalClient() {
     try {
       const wsUrl = await getWebSocketUrl();
 
+      // Validate WebSocket URL
+      if (!wsUrl.startsWith("ws://") && !wsUrl.startsWith("wss://")) {
+        throw new Error("Invalid WebSocket URL scheme");
+      }
+
       ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => {
         setIsConnected(true);
         setIsConnecting(false);
+        setError(null);
         terminal.current?.focus();
       };
 
@@ -95,13 +101,24 @@ export function TerminalClient() {
       ws.current.onerror = () => {
         setIsConnected(false);
         setIsConnecting(false);
-        setError("WebSocket connection failed");
+        // Don't override existing error messages
+        if (!error) {
+          setError("WebSocket connection failed - check console for details");
+        }
       };
     } catch (err) {
       setIsConnecting(false);
-      setError(err instanceof Error ? err.message : "Failed to connect");
+      // Capture the actual error message including SecurityError
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : "Failed to connect";
+      setError(`Connection error: ${errorMessage}`);
+      console.error("WebSocket connection error:", err);
     }
-  }, [getWebSocketUrl]);
+  }, [getWebSocketUrl, error]);
 
   const disconnect = useCallback(() => {
     if (ws.current) {
@@ -261,15 +278,31 @@ export function TerminalClient() {
         </div>
       )}
 
+      {/* Quick command button */}
+      <Card>
+        <CardContent className="py-2">
+          <Button
+            variant="default"
+            size="lg"
+            onClick={sendManageCommand}
+            disabled={!isConnected}
+            className="w-full"
+          >
+            <Play className="h-5 w-5 mr-2" />
+            Run ./manage.sh
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Mobile control buttons */}
       <Card>
-        <CardHeader className="py-3">
+        <CardHeader className="py-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <TerminalIcon className="h-4 w-4" />
             Navigation Controls
           </CardTitle>
         </CardHeader>
-        <CardContent className="py-3">
+        <CardContent className="py-2">
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -313,22 +346,6 @@ export function TerminalClient() {
             className="w-full"
             style={{ height: "calc(100vh - 380px)", minHeight: "300px" }}
           />
-        </CardContent>
-      </Card>
-
-      {/* Quick command button */}
-      <Card>
-        <CardContent className="py-3">
-          <Button
-            variant="default"
-            size="lg"
-            onClick={sendManageCommand}
-            disabled={!isConnected}
-            className="w-full"
-          >
-            <Play className="h-5 w-5 mr-2" />
-            Run ./manage.sh
-          </Button>
         </CardContent>
       </Card>
     </div>
