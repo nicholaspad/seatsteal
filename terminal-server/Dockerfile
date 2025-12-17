@@ -15,6 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app.py .
 
+# Copy management scripts and utilities
+COPY manage.sh .
+COPY utils/ ./utils/
+RUN chmod +x manage.sh
+
 # Create non-root user for security
 RUN useradd -m -s /bin/bash appuser
 USER appuser

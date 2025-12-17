@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   ArrowUp,
   ArrowDown,
@@ -12,7 +12,6 @@ import {
   Play,
   RefreshCw,
   Square,
-  Terminal as TerminalIcon,
 } from "lucide-react";
 import { config } from "@/lib/config";
 import { supabase } from "@/lib/supabase";
@@ -89,6 +88,13 @@ export function TerminalClient() {
         setIsConnected(true);
         setIsConnecting(false);
         terminal.current?.focus();
+        // Fit terminal to container after connection
+        setTimeout(() => {
+          if (fitAddon.current && terminal.current) {
+            fitAddon.current.fit();
+            sendResize(terminal.current.rows, terminal.current.cols);
+          }
+        }, 100);
       };
 
       ws.current.onmessage = (event) => {
@@ -193,7 +199,7 @@ export function TerminalClient() {
     fitAddon.current.fit();
 
     // Handle terminal input
-    terminal.current.onData((data) => {
+    terminal.current.onData((data: string) => {
       sendInput(data);
     });
 
@@ -289,9 +295,10 @@ export function TerminalClient() {
         </div>
       )}
 
-      {/* Quick command button */}
+      {/* Terminal controls */}
       <Card>
-        <CardContent className="py-2">
+        <CardContent className="py-3 space-y-3">
+          {/* manage.sh button */}
           <Button
             variant="default"
             size="lg"
@@ -302,18 +309,8 @@ export function TerminalClient() {
             <Play className="h-5 w-5 mr-2" />
             Run ./manage.sh
           </Button>
-        </CardContent>
-      </Card>
 
-      {/* Mobile control buttons */}
-      <Card>
-        <CardHeader className="py-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <TerminalIcon className="h-4 w-4" />
-            Navigation Controls
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="py-2">
+          {/* Navigation buttons */}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -336,7 +333,7 @@ export function TerminalClient() {
               Down
             </Button>
             <Button
-              variant="default"
+              variant="outline"
               size="lg"
               onClick={sendEnter}
               disabled={!isConnected}
@@ -354,7 +351,7 @@ export function TerminalClient() {
         <CardContent className="p-0">
           <div
             ref={terminalRef}
-            className="w-full"
+            className="w-full h-full"
             style={{ height: "calc(100vh - 380px)", minHeight: "300px" }}
           />
         </CardContent>
