@@ -35,17 +35,20 @@ export function TerminalClient() {
       throw new Error("Not authenticated");
     }
 
-    // Convert HTTP URL to WebSocket URL
-    let wsBaseUrl = config.api.baseUrl
-      .replace("https://", "wss://")
-      .replace("http://", "ws://");
-
-    let wsUrl = `${wsBaseUrl}/api/admin/terminal?token=${encodeURIComponent(session.access_token)}`;
-
-    // Add Vercel bypass secret if present
-    if (config.api.vercelBypassSecret) {
-      wsUrl += `&x-vercel-protection-bypass=${config.api.vercelBypassSecret}`;
+    // Check if we're on Vercel (serverless doesn't support WebSockets)
+    if (config.api.baseUrl.includes("vercel.app")) {
+      throw new Error(
+        "Terminal requires a persistent server connection. WebSockets are not supported on Vercel serverless. Use this feature with EC2 or local backend.",
+      );
     }
+
+    // Convert HTTP URL to WebSocket URL
+    // Must match page protocol to avoid mixed content errors
+    const isSecure = window.location.protocol === "https:";
+    let wsBaseUrl = config.api.baseUrl
+      .replace(/^https?:\/\//, isSecure ? "wss://" : "ws://");
+
+    const wsUrl = `${wsBaseUrl}/api/admin/terminal?token=${encodeURIComponent(session.access_token)}`;
 
     return wsUrl;
   }, []);
