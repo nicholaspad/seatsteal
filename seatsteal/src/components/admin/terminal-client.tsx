@@ -61,7 +61,25 @@ export function TerminalClient() {
     try {
       const wsUrl = await getWebSocketUrl();
 
-      ws.current = new WebSocket(wsUrl);
+      let socket: WebSocket;
+      try {
+        socket = new WebSocket(wsUrl);
+      } catch (err) {
+        // Handle synchronous WebSocket errors (e.g., SecurityError)
+        setIsConnecting(false);
+        if (err instanceof Error && err.name === "SecurityError") {
+          setError(
+            "WebSocket not supported in this environment. Terminal requires a server that supports WebSocket connections.",
+          );
+        } else {
+          setError(
+            err instanceof Error ? err.message : "Failed to create WebSocket",
+          );
+        }
+        return;
+      }
+
+      ws.current = socket;
 
       ws.current.onopen = () => {
         setIsConnected(true);
@@ -88,14 +106,18 @@ export function TerminalClient() {
         if (event.code === 4001) {
           setError("Unauthorized - admin access required");
         } else if (event.code !== 1000) {
-          setError(`Connection closed (code: ${event.code})`);
+          setError(
+            "WebSocket not supported in this environment. Terminal requires a server that supports WebSocket connections (not available on Vercel).",
+          );
         }
       };
 
       ws.current.onerror = () => {
         setIsConnected(false);
         setIsConnecting(false);
-        setError("WebSocket connection failed");
+        setError(
+          "WebSocket connection failed. Terminal requires a server that supports WebSocket connections.",
+        );
       };
     } catch (err) {
       setIsConnecting(false);
@@ -261,15 +283,31 @@ export function TerminalClient() {
         </div>
       )}
 
+      {/* Quick command button */}
+      <Card>
+        <CardContent className="py-2">
+          <Button
+            variant="default"
+            size="lg"
+            onClick={sendManageCommand}
+            disabled={!isConnected}
+            className="w-full"
+          >
+            <Play className="h-5 w-5 mr-2" />
+            Run ./manage.sh
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Mobile control buttons */}
       <Card>
-        <CardHeader className="py-3">
+        <CardHeader className="py-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <TerminalIcon className="h-4 w-4" />
             Navigation Controls
           </CardTitle>
         </CardHeader>
-        <CardContent className="py-3">
+        <CardContent className="py-2">
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -313,22 +351,6 @@ export function TerminalClient() {
             className="w-full"
             style={{ height: "calc(100vh - 380px)", minHeight: "300px" }}
           />
-        </CardContent>
-      </Card>
-
-      {/* Quick command button */}
-      <Card>
-        <CardContent className="py-3">
-          <Button
-            variant="default"
-            size="lg"
-            onClick={sendManageCommand}
-            disabled={!isConnected}
-            className="w-full"
-          >
-            <Play className="h-5 w-5 mr-2" />
-            Run ./manage.sh
-          </Button>
         </CardContent>
       </Card>
     </div>
