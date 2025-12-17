@@ -143,8 +143,8 @@ async def terminal_websocket(
         if slave_fd > 2:
             os.close(slave_fd)
 
-        # Change to home directory
-        os.chdir(os.path.expanduser("~"))
+        # Change to /app directory where scripts are located
+        os.chdir("/app")
 
         # Execute bash
         os.execvp("/bin/bash", ["/bin/bash", "--login"])

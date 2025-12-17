@@ -92,7 +92,10 @@ export function TerminalClient() {
         setTimeout(() => {
           if (fitAddon.current && terminal.current) {
             fitAddon.current.fit();
-            sendResize(terminal.current.rows, terminal.current.cols);
+            const rows = terminal.current.rows;
+            const cols = terminal.current.cols;
+            console.log(`Terminal fitted: ${rows}x${cols}`);
+            sendResize(rows, cols);
           }
         }, 100);
       };
@@ -196,7 +199,13 @@ export function TerminalClient() {
     terminal.current.loadAddon(new WebLinksAddon());
 
     terminal.current.open(terminalRef.current);
-    fitAddon.current.fit();
+
+    // Initial fit after a short delay to ensure DOM is ready
+    setTimeout(() => {
+      if (fitAddon.current) {
+        fitAddon.current.fit();
+      }
+    }, 50);
 
     // Handle terminal input
     terminal.current.onData((data: string) => {
@@ -213,7 +222,15 @@ export function TerminalClient() {
 
     window.addEventListener("resize", handleResize);
 
+    // Fit on mount after a delay
+    const initialFitTimer = setTimeout(() => {
+      if (fitAddon.current) {
+        fitAddon.current.fit();
+      }
+    }, 200);
+
     return () => {
+      clearTimeout(initialFitTimer);
       window.removeEventListener("resize", handleResize);
       terminal.current?.dispose();
       terminal.current = null;
