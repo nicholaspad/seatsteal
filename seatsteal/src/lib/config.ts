@@ -32,6 +32,15 @@ const getVercelBypassSecret = (): string | undefined => {
   return undefined;
 };
 
+/**
+ * Get the terminal server WebSocket URL.
+ * Terminal requires a dedicated server with WebSocket support (not available on Vercel).
+ * Falls back to the main API URL for local development.
+ */
+const getTerminalServerUrl = (): string | undefined => {
+  return import.meta.env.VITE_TERMINAL_SERVER_URL || undefined;
+};
+
 export const config = {
   supabase: {
     url: import.meta.env.VITE_SUPABASE_URL || "",
@@ -41,5 +50,9 @@ export const config = {
     baseUrl: getApiBaseUrl(),
     /** Bypass secret for Vercel-protected preview deployments */
     vercelBypassSecret: getVercelBypassSecret(),
+  },
+  terminal: {
+    /** Dedicated terminal server URL (WebSocket-enabled) */
+    serverUrl: getTerminalServerUrl(),
   },
 } as const;

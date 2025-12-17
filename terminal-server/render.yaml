@@ -1,0 +1,24 @@
+# Render Blueprint for Terminal Server
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: seatsteal-terminal
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Use Oregon region (closest to most US users)
+    region: oregon
+    plan: starter
+    # Health check configuration
+    healthCheckPath: /health
+    # Environment variables (set these in Render dashboard or use envVarGroups)
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false

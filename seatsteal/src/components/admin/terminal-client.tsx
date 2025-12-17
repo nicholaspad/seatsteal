@@ -35,15 +35,19 @@ export function TerminalClient() {
       throw new Error("Not authenticated");
     }
 
+    // Use dedicated terminal server if configured, otherwise fall back to main API
+    // Terminal requires WebSocket support which is not available on Vercel serverless
+    const baseUrl = config.terminal.serverUrl || config.api.baseUrl;
+
     // Convert HTTP URL to WebSocket URL
-    let wsBaseUrl = config.api.baseUrl
+    const wsBaseUrl = baseUrl
       .replace("https://", "wss://")
       .replace("http://", "ws://");
 
     let wsUrl = `${wsBaseUrl}/api/admin/terminal?token=${encodeURIComponent(session.access_token)}`;
 
-    // Add Vercel bypass secret if present
-    if (config.api.vercelBypassSecret) {
+    // Add Vercel bypass secret if present and using main API
+    if (!config.terminal.serverUrl && config.api.vercelBypassSecret) {
       wsUrl += `&x-vercel-protection-bypass=${config.api.vercelBypassSecret}`;
     }
 
@@ -106,18 +110,20 @@ export function TerminalClient() {
         if (event.code === 4001) {
           setError("Unauthorized - admin access required");
         } else if (event.code !== 1000) {
-          setError(
-            "WebSocket not supported in this environment. Terminal requires a server that supports WebSocket connections (not available on Vercel).",
-          );
+          const hint = config.terminal.serverUrl
+            ? ""
+            : " Configure VITE_TERMINAL_SERVER_URL to point to a WebSocket-enabled server.";
+          setError(`WebSocket connection closed unexpectedly.${hint}`);
         }
       };
 
       ws.current.onerror = () => {
         setIsConnected(false);
         setIsConnecting(false);
-        setError(
-          "WebSocket connection failed. Terminal requires a server that supports WebSocket connections.",
-        );
+        const hint = config.terminal.serverUrl
+          ? ""
+          : " Configure VITE_TERMINAL_SERVER_URL to point to a WebSocket-enabled server (e.g., Render).";
+        setError(`WebSocket connection failed.${hint}`);
       };
     } catch (err) {
       setIsConnecting(false);
