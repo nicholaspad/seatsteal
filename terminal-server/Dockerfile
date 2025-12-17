@@ -9,13 +9,13 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY requirements.txt .
+COPY terminal-server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app.py .
+COPY terminal-server/app.py .
 
-# Copy management scripts and utilities
+# Copy management scripts and utilities from repository root
 COPY manage.sh .
 COPY utils/ ./utils/
 RUN chmod +x manage.sh

@@ -5,8 +5,10 @@ services:
   - type: web
     name: seatsteal-terminal
     runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    # Dockerfile path relative to repository root
+    dockerfilePath: ./terminal-server/Dockerfile
+    # Docker context set to repository root to access manage.sh and utils/
+    dockerContext: ./..
     # Use Oregon region (closest to most US users)
     region: oregon
     plan: starter

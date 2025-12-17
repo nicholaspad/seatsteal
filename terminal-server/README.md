@@ -17,6 +17,14 @@ A dedicated WebSocket server for the admin terminal feature. This is required be
 └─────────────────┘                    └──────────────────┘
 ```
 
+## Scripts and Utilities
+
+The terminal server includes management scripts from the repository root:
+- `manage.sh` - Main management script (from repository root)
+- `utils/` - Utility scripts folder (from repository root)
+
+These are copied into the Docker container at build time and are accessible when you connect to the terminal via the web interface.
+
 ## Deployment to Render
 
 ### Option A: Deploy via Render Dashboard (Recommended)
@@ -27,7 +35,7 @@ A dedicated WebSocket server for the admin terminal feature. This is required be
    - Go to your Render Dashboard
    - Click **"New +"** → **"Web Service"**
    - Connect your GitHub repository (or use "Deploy from a public Git repository")
-   - Set the **Root Directory** to `terminal-server`
+   - **Important:** Leave the Root Directory empty (use repository root for Docker context)
 
 3. **Configure the service:**
    | Setting | Value |
@@ -36,6 +44,8 @@ A dedicated WebSocket server for the admin terminal feature. This is required be
    | Region | Oregon (US West) or closest to your users |
    | Branch | `main` (or your production branch) |
    | Runtime | Docker |
+   | Dockerfile Path | `terminal-server/Dockerfile` |
+   | Docker Context | `.` (repository root) |
    | Instance Type | Starter ($7/month) or Free (limited) |
 
 4. **Set Environment Variables:**
