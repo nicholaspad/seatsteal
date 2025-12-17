@@ -13,6 +13,7 @@ import {
   Bell,
   Activity,
   Building2,
+  Terminal,
 } from "lucide-react";
 
 interface AdminLayoutProps {
@@ -49,6 +50,11 @@ const navigation = [
     name: "Notifications",
     href: "/admin/notifications",
     icon: Bell,
+  },
+  {
+    name: "Terminal",
+    href: "/admin/terminal",
+    icon: Terminal,
   },
 ];
 

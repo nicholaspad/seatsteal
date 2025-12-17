@@ -74,6 +74,7 @@ const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
 const AdminNotifications = lazy(
   () => import("@/pages/admin/AdminNotifications"),
 );
+const AdminTerminal = lazy(() => import("@/pages/admin/AdminTerminal"));
 
 /* Route-aware skeleton loader for lazy-loaded routes */
 import { RouteAwareSkeleton } from "@/components/skeletons";
@@ -204,6 +205,15 @@ createRoot(document.getElementById("root")!).render(
                       render={() => (
                         <AdminRoute>
                           <AdminNotifications />
+                        </AdminRoute>
+                      )}
+                    />
+                    <Route
+                      exact
+                      path="/admin/terminal"
+                      render={() => (
+                        <AdminRoute>
+                          <AdminTerminal />
                         </AdminRoute>
                       )}
                     />
