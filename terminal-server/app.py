@@ -1,33 +1,64 @@
-"""Admin terminal WebSocket endpoint for interactive shell access."""
+"""Minimal FastAPI app for terminal WebSocket endpoint (Render deployment)."""
 
 import asyncio
+import fcntl
 import os
 import pty
 import select
 import struct
-import fcntl
 import termios
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
-from sqlalchemy import select as sql_select
-from sqlalchemy.orm import Session
+from pydantic_settings import BaseSettings
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-from config import settings
-from db.session import SessionLocal
-from models.user import Profile
 
-router = APIRouter(prefix="/api/admin", tags=["admin-terminal"])
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
+    SUPABASE_URL: str
+    SUPABASE_SERVICE_ROLE_KEY: str
+    DATABASE_URL: str
+    ALLOWED_ORIGINS: str = "*"
+
+    class Config:
+        env_file = ".env"
+
+
+settings = Settings()
+
+app = FastAPI(title="SeatSteal Terminal Server")
+
+# Configure CORS
+origins = (
+    settings.ALLOWED_ORIGINS.split(",") if settings.ALLOWED_ORIGINS != "*" else ["*"]
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Supabase client for token verification
 supabase: Client = create_client(
-    settings.VITE_SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
+    settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
 )
 
 
-async def verify_admin_token(token: str) -> Optional[Profile]:
+def get_db_connection():
+    """Get a database connection."""
+    return psycopg2.connect(settings.DATABASE_URL, cursor_factory=RealDictCursor)
+
+
+async def verify_admin_token(token: str) -> Optional[dict]:
     """Verify the token and return the admin profile if valid."""
     try:
         # Verify JWT token with Supabase
@@ -39,19 +70,23 @@ async def verify_admin_token(token: str) -> Optional[Profile]:
         user_id = UUID(user_response.user.id)
 
         # Get user profile from database
-        db: Session = SessionLocal()
+        conn = get_db_connection()
         try:
-            result = db.execute(sql_select(Profile).where(Profile.id == user_id))
-            profile = result.scalar_one_or_none()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, role FROM profiles WHERE id = %s", (str(user_id),)
+                )
+                profile = cur.fetchone()
 
-            if not profile or profile.role != "admin":
-                return None
+                if not profile or profile["role"] != "admin":
+                    return None
 
-            return profile
+                return profile
         finally:
-            db.close()
+            conn.close()
 
-    except Exception:
+    except Exception as e:
+        print(f"Auth error: {e}")
         return None
 
 
@@ -61,7 +96,13 @@ def set_winsize(fd: int, rows: int, cols: int) -> None:
     fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
 
-@router.websocket("/terminal")
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Render."""
+    return {"status": "healthy"}
+
+
+@app.websocket("/api/admin/terminal")
 async def terminal_websocket(
     websocket: WebSocket,
     token: str = Query(..., description="Authentication token"),
@@ -71,14 +112,6 @@ async def terminal_websocket(
 
     Admin-only endpoint that spawns a PTY and provides bidirectional
     communication between the WebSocket and the shell.
-
-    Query parameters:
-        token: JWT authentication token
-
-    Messages:
-        - Text messages: Sent to the PTY as stdin
-        - JSON messages with type "resize": Resize the terminal
-          Format: {"type": "resize", "rows": 24, "cols": 80}
     """
     # Verify admin authentication
     profile = await verify_admin_token(token)
@@ -110,11 +143,8 @@ async def terminal_websocket(
         if slave_fd > 2:
             os.close(slave_fd)
 
-        # Change to the project root directory
-        project_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        )
-        os.chdir(project_root)
+        # Change to home directory
+        os.chdir(os.path.expanduser("~"))
 
         # Execute bash
         os.execvp("/bin/bash", ["/bin/bash", "--login"])
