@@ -19,12 +19,33 @@ from psycopg2.extras import RealDictCursor
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """Application settings loaded from environment variables.
 
-    SUPABASE_URL: str
+    These match webapp/config.py as the source of truth.
+    """
+
+    # Core (required for terminal server itself)
+    VITE_SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE_KEY: str
     DATABASE_URL: str
     ALLOWED_ORIGINS: str = "*"
+
+    # GitHub (required for EC2 deployment)
+    GITHUB_TOKEN: str
+
+    # AWS (required for EC2 operations and SES email)
+    AWS_REGION: str
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    AWS_SES_FROM_EMAIL: str
+
+    # Frontend URL (required for notification links)
+    FRONTEND_URL: str
+
+    # Twilio (required for SMS notifications)
+    TWILIO_ACCOUNT_SID: str
+    TWILIO_AUTH_TOKEN: str
+    TWILIO_FROM_NUMBER: str
 
     class Config:
         env_file = ".env"
@@ -49,7 +70,7 @@ app.add_middleware(
 
 # Supabase client for token verification
 supabase: Client = create_client(
-    settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
+    settings.VITE_SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
 )
 
 

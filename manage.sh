@@ -9,8 +9,9 @@ set -e  # Exit on error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Required environment variables for various scripts
+# Uses same names as webapp/config.py (source of truth)
 REQUIRED_VARS=(
-    "SUPABASE_URL"
+    "VITE_SUPABASE_URL"
     "SUPABASE_SERVICE_ROLE_KEY"
     "AWS_ACCESS_KEY_ID"
     "AWS_SECRET_ACCESS_KEY"
@@ -18,14 +19,13 @@ REQUIRED_VARS=(
     "GITHUB_TOKEN"
 )
 
-# Function to load environment variables from .env file
+# Function to load environment variables from .env file if it exists
 load_env() {
     local env_file="$SCRIPT_DIR/.env"
 
     if [[ ! -f "$env_file" ]]; then
-        echo "Error: .env file not found at $env_file"
-        echo "Please create a .env file with the required environment variables."
-        exit 1
+        # No .env file - will use current environment variables
+        return 1
     fi
 
     # Read .env file and export variables
@@ -49,19 +49,9 @@ load_env() {
         fi
     done < "$env_file"
 
-    # Handle SUPABASE_URL alias (in .env it's VITE_SUPABASE_URL)
-    if [[ -z "$SUPABASE_URL" && -n "$VITE_SUPABASE_URL" ]]; then
-        export SUPABASE_URL="$VITE_SUPABASE_URL"
-    fi
-
-    # Handle AWS_REGION alias (some configs use AWS_DEFAULT_REGION)
-    if [[ -z "$AWS_REGION" && -n "$AWS_DEFAULT_REGION" ]]; then
-        export AWS_REGION="$AWS_DEFAULT_REGION"
-    fi
-    if [[ -z "$AWS_DEFAULT_REGION" && -n "$AWS_REGION" ]]; then
-        export AWS_DEFAULT_REGION="$AWS_REGION"
-    fi
+    return 0
 }
+
 
 # Function to check if all required environment variables are set
 check_env_vars() {
@@ -79,20 +69,25 @@ check_env_vars() {
     return 0
 }
 
-# Check environment variables, load from .env if needed
+# Check environment variables, load from .env if available
 if ! check_env_vars; then
-    load_env
+    # Try loading from .env file
+    if load_env; then
+        echo "Loaded environment from .env file"
+    else
+        echo "No .env file found, using current environment variables"
+    fi
 
     # Check again after loading
     if ! check_env_vars; then
-        echo "Error: Missing required environment variables after loading .env:"
+        echo "Error: Missing required environment variables:"
         for var in "${REQUIRED_VARS[@]}"; do
             if [[ -z "${!var}" ]]; then
                 echo "  - $var"
             fi
         done
         echo ""
-        echo "Please ensure these variables are set in your .env file."
+        echo "Please set these variables in your environment or .env file."
         exit 1
     fi
 fi

@@ -54,7 +54,7 @@ These are copied into the Docker container at build time and are accessible when
    **Required for Terminal Server:**
    | Variable | Description | Example |
    |----------|-------------|---------|
-   | `SUPABASE_URL` | Your Supabase project URL | `https://abc123.supabase.co` |
+   | `VITE_SUPABASE_URL` | Your Supabase project URL | `https://abc123.supabase.co` |
    | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (from Supabase dashboard → Settings → API) | `eyJhbGci...` |
    | `DATABASE_URL` | PostgreSQL connection string (from Supabase dashboard → Settings → Database → Connection string → URI) | `postgresql://postgres:...@db.abc123.supabase.co:5432/postgres` |
    | `ALLOWED_ORIGINS` | Comma-separated list of allowed frontend URLs | `https://seatsteal.vercel.app,https://yourdomain.com` |
@@ -69,7 +69,7 @@ These are copied into the Docker container at build time and are accessible when
    |----------|-------------|--------------|
    | `AWS_ACCESS_KEY_ID` | AWS access key | EC2 instance management |
    | `AWS_SECRET_ACCESS_KEY` | AWS secret access key | EC2 instance management |
-   | `AWS_DEFAULT_REGION` | AWS region (e.g., `us-east-1`) | EC2 instance management |
+   | `AWS_REGION` | AWS region (e.g., `us-east-1`) | EC2 instance management |
    | `GITHUB_TOKEN` | GitHub personal access token | EC2 setup scripts |
 
 5. **Deploy:**
@@ -149,7 +149,7 @@ websocat "ws://localhost:10000/api/admin/terminal?token=YOUR_JWT_TOKEN"
 ### Core Terminal Server (Required)
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SUPABASE_URL` | Yes | Supabase project URL |
+| `VITE_SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key for admin operations |
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `ALLOWED_ORIGINS` | No | CORS allowed origins (default: `*`) |
@@ -164,7 +164,7 @@ websocat "ws://localhost:10000/api/admin/terminal?token=YOUR_JWT_TOKEN"
 |----------|----------|-------------|
 | `AWS_ACCESS_KEY_ID` | For EC2 operations | AWS access key |
 | `AWS_SECRET_ACCESS_KEY` | For EC2 operations | AWS secret access key |
-| `AWS_DEFAULT_REGION` | For EC2 operations | AWS region (e.g., `us-east-1`) |
+| `AWS_REGION` | For EC2 operations | AWS region (e.g., `us-east-1`) |
 | `GITHUB_TOKEN` | For EC2 setup | GitHub personal access token |
 
 **Note:** The terminal includes Vercel CLI, AWS CLI, Git, Node.js, and npm pre-installed.

@@ -16,18 +16,110 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SSH_KEY="$REPO_ROOT/seatsteal.pem"
 
+# Required environment variables for notifs/scraper deployment
+# These must be present either in current environment or .env file
+REQUIRED_DEPLOY_VARS=(
+    "DATABASE_URL"
+    "VITE_SUPABASE_URL"
+    "SUPABASE_SERVICE_ROLE_KEY"
+    "GITHUB_TOKEN"
+    "AWS_REGION"
+    "AWS_ACCESS_KEY_ID"
+    "AWS_SECRET_ACCESS_KEY"
+    "AWS_SES_FROM_EMAIL"
+    "FRONTEND_URL"
+    "TWILIO_ACCOUNT_SID"
+    "TWILIO_AUTH_TOKEN"
+    "TWILIO_FROM_NUMBER"
+)
+
+# Function to load environment variables from .env file
+load_env() {
+    local env_file="$REPO_ROOT/.env"
+
+    if [[ ! -f "$env_file" ]]; then
+        return 1
+    fi
+
+    echo -e "${GREEN}📄 Loading environment from .env file...${NC}"
+
+    # Read .env file and export variables
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Skip empty lines and comments
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+
+        # Extract variable name and value
+        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            local var_name="${BASH_REMATCH[1]}"
+            local var_value="${BASH_REMATCH[2]}"
+
+            # Remove surrounding quotes if present
+            var_value="${var_value#\"}"
+            var_value="${var_value%\"}"
+            var_value="${var_value#\'}"
+            var_value="${var_value%\'}"
+
+            # Export the variable
+            export "$var_name=$var_value"
+        fi
+    done < "$env_file"
+
+    return 0
+}
+
+# Function to check if all required environment variables are set
+check_required_vars() {
+    local missing_vars=()
+
+    for var in "${REQUIRED_DEPLOY_VARS[@]}"; do
+        if [[ -z "${!var}" ]]; then
+            missing_vars+=("$var")
+        fi
+    done
+
+    if [[ ${#missing_vars[@]} -gt 0 ]]; then
+        echo -e "${RED}❌ Error: Missing required environment variables:${NC}"
+        for var in "${missing_vars[@]}"; do
+            echo -e "${RED}  - $var${NC}"
+        done
+        echo ""
+        echo "Please set these variables in your environment or .env file."
+        exit 1
+    fi
+}
+
+# Function to build docker environment flags from current env vars
+build_docker_env_flags() {
+    local flags=""
+
+    for var in "${REQUIRED_DEPLOY_VARS[@]}"; do
+        if [[ -n "${!var}" ]]; then
+            local value="${!var}"
+            flags+=" -e $var=\"$value\""
+        fi
+    done
+
+    echo "$flags"
+}
+
 echo -e "${YELLOW}🚀 EC2 Deployment Script for seatsteal/webapp${NC}"
 echo "========================================"
+
+# Load environment variables from .env if it exists
+if ! load_env; then
+    echo -e "${YELLOW}⚠️  No .env file found, using current environment variables${NC}"
+fi
+
+# Check required environment variables
+echo -e "${YELLOW}🔍 Checking required environment variables...${NC}"
+check_required_vars
+echo -e "${GREEN}✅ All required environment variables present${NC}"
+echo ""
 
 # Check local dependencies
 echo -e "${YELLOW}🔍 Checking local dependencies...${NC}"
 if ! command -v ssh &> /dev/null; then
     echo -e "${RED}❌ Error: ssh is not installed. Please install OpenSSH client.${NC}"
-    exit 1
-fi
-
-if ! command -v scp &> /dev/null; then
-    echo -e "${RED}❌ Error: scp is not installed. Please install OpenSSH client.${NC}"
     exit 1
 fi
 
@@ -43,6 +135,9 @@ echo ""
 # Sync credentials from Supabase if local files don't exist (for terminal-server redeployments)
 source "$SCRIPT_DIR/ec2-credentials.sh"
 sync_credentials || true
+
+# Build docker environment flags from current environment
+DOCKER_ENV_FLAGS=$(build_docker_env_flags)
 
 # Function to display menu
 display_menu() {
@@ -121,32 +216,40 @@ echo -e "${GREEN}📋 Using EC2 host: $EC2_HOST${NC}"
 
 echo -e "${GREEN}📡 Preparing EC2 instance...${NC}"
 
-# Ensure seatsteal directory exists on remote before copying files
+# Ensure seatsteal directory exists on remote
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@"$EC2_HOST" "mkdir -p ~/seatsteal"
 
-echo -e "${GREEN}📄 Copying .env file to EC2...${NC}"
-scp -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$REPO_ROOT/.env" ec2-user@"$EC2_HOST":~/seatsteal/.env
-
 echo -e "${GREEN}📡 Connecting to ec2-user@$EC2_HOST...${NC}"
+
+# Pass environment variables to remote script
+# We export them at the start of the SSH session
+export_env_vars() {
+    local exports=""
+    for var in "${REQUIRED_DEPLOY_VARS[@]}"; do
+        if [[ -n "${!var}" ]]; then
+            # Properly escape the value for shell
+            local value="${!var}"
+            # Escape single quotes by replacing ' with '\''
+            value="${value//\'/\'\\\'\'}"
+            exports+="export $var='$value'"$'\n'
+        fi
+    done
+    echo "$exports"
+}
+
+ENV_EXPORTS=$(export_env_vars)
 
 # Execute deployment commands on remote server
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@"$EC2_HOST" << EOF
 set -e
 
-# Load environment variables from .env
-if [[ -f ~/seatsteal/.env ]]; then
-    set -a
-    source ~/seatsteal/.env
-    set +a
-fi
+# Set environment variables from local environment
+$ENV_EXPORTS
 
-# Check if GITHUB_TOKEN is set
+# Verify GITHUB_TOKEN is set
 if [[ -z "\$GITHUB_TOKEN" ]]; then
-    echo "❌ Error: GITHUB_TOKEN not found in .env file"
-    echo "Please create a GitHub Personal Access Token and add it to your .env file:"
-    echo "  1. Go to https://github.com/settings/tokens"
-    echo "  2. Generate a new token with 'repo' scope"
-    echo "  3. Add to .env: GITHUB_TOKEN=ghp_xxxxxxxxxxxxx"
+    echo "❌ Error: GITHUB_TOKEN not set in environment"
+    echo "Please set GITHUB_TOKEN in your environment or .env file"
     exit 1
 fi
 
@@ -236,8 +339,20 @@ cd ~/seatsteal/webapp
 echo "📥 Pulling latest changes..."
 cd ~/seatsteal && git pull && cd webapp
 
-echo "📄 Copying .env file to webapp directory..."
-cp ../.env .env
+# Build docker environment flags from current environment
+# All required vars were exported at the start of this script
+build_docker_env_args() {
+    local args=""
+    for var in DATABASE_URL VITE_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GITHUB_TOKEN AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SES_FROM_EMAIL FRONTEND_URL TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_FROM_NUMBER; do
+        if [[ -n "\${!var}" ]]; then
+            args+=" -e \$var=\"\${!var}\""
+        fi
+    done
+    echo "\$args"
+}
+
+DOCKER_ENV_ARGS=\$(build_docker_env_args)
+echo "📋 Docker environment args prepared (\$(echo "\$DOCKER_ENV_ARGS" | tr -cd '-' | wc -c | tr -d ' ') env vars)"
 
 # Service-specific deployment
 if [[ "$SERVICE" == "all" ]]; then
@@ -256,7 +371,7 @@ if [[ "$SERVICE" == "all" ]]; then
     echo "🚀 Starting notifs container..."
     sg docker -c "docker run -d \\
         --name \"seatsteal-notifs\" \\
-        --env-file .env \\
+        \$DOCKER_ENV_ARGS \\
         \"seatsteal-notifs\""
 
     echo "✅ notifs deployment completed!"
@@ -281,7 +396,7 @@ if [[ "$SERVICE" == "all" ]]; then
     echo "🚀 Starting scraper container..."
     sg docker -c "docker run -d \\
         --name \"seatsteal-scraper\" \\
-        --env-file .env \\
+        \$DOCKER_ENV_ARGS \\
         \"seatsteal-scraper\""
 
     echo "✅ scraper deployment completed!"
@@ -308,7 +423,7 @@ else
     echo "🚀 Starting $SERVICE container..."
     sg docker -c "docker run -d \\
         --name \"seatsteal-$SERVICE\" \\
-        --env-file .env \\
+        \$DOCKER_ENV_ARGS \\
         \"seatsteal-$SERVICE\""
 
     echo "✅ Deployment completed successfully!"

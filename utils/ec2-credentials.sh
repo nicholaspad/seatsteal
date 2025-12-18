@@ -4,8 +4,8 @@
 # Provides functions to store/retrieve EC2 credentials from Supabase database
 # This allows credentials to persist across terminal-server redeployments on Render.
 #
-# Required environment variables:
-#   SUPABASE_URL - e.g., https://xxx.supabase.co
+# Required environment variables (same as webapp/config.py):
+#   VITE_SUPABASE_URL - e.g., https://xxx.supabase.co
 #   SUPABASE_SERVICE_ROLE_KEY - service role key for admin access
 #
 # Usage: Source this file in other scripts
@@ -20,7 +20,7 @@ LOCAL_HOST_JSON="$CRED_SCRIPT_DIR/ec2-host.json"
 
 # Check if Supabase credentials are available
 _has_supabase_creds() {
-    [[ -n "$SUPABASE_URL" ]] && [[ -n "$SUPABASE_SERVICE_ROLE_KEY" ]]
+    [[ -n "$VITE_SUPABASE_URL" ]] && [[ -n "$SUPABASE_SERVICE_ROLE_KEY" ]]
 }
 
 # Store credentials in Supabase
@@ -48,7 +48,7 @@ store_credentials() {
 
     # First, deactivate all existing active credentials
     curl -s -X PATCH \
-        "${SUPABASE_URL}/rest/v1/ec2_credentials?is_active=eq.true" \
+        "${VITE_SUPABASE_URL}/rest/v1/ec2_credentials?is_active=eq.true" \
         -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Content-Type: application/json" \
@@ -73,7 +73,7 @@ store_credentials() {
     # Insert new credentials
     local response
     response=$(curl -s -w "\n%{http_code}" -X POST \
-        "${SUPABASE_URL}/rest/v1/ec2_credentials" \
+        "${VITE_SUPABASE_URL}/rest/v1/ec2_credentials" \
         -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Content-Type: application/json" \
@@ -104,7 +104,7 @@ retrieve_credentials() {
     # Get the latest active credentials
     local response
     response=$(curl -s \
-        "${SUPABASE_URL}/rest/v1/ec2_credentials?is_active=eq.true&order=created_at.desc&limit=1" \
+        "${VITE_SUPABASE_URL}/rest/v1/ec2_credentials?is_active=eq.true&order=created_at.desc&limit=1" \
         -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Accept: application/json")
@@ -155,7 +155,7 @@ delete_credentials() {
 
     local response
     response=$(curl -s -w "\n%{http_code}" -X PATCH \
-        "${SUPABASE_URL}/rest/v1/ec2_credentials?is_active=eq.true" \
+        "${VITE_SUPABASE_URL}/rest/v1/ec2_credentials?is_active=eq.true" \
         -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Content-Type: application/json" \
@@ -183,7 +183,7 @@ has_remote_credentials() {
 
     local response
     response=$(curl -s \
-        "${SUPABASE_URL}/rest/v1/ec2_credentials?is_active=eq.true&select=id&limit=1" \
+        "${VITE_SUPABASE_URL}/rest/v1/ec2_credentials?is_active=eq.true&select=id&limit=1" \
         -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
         -H "Accept: application/json")

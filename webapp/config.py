@@ -60,13 +60,6 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "https://seatsteal.app"
     """Base URL for the frontend application"""
 
-    # Scraper
-    SCRAPER_CONCURRENT_LIMIT: int = 5
-    """Maximum number of concurrent scraping tasks"""
-
-    SCRAPER_RATE_LIMIT: int = 100
-    """Maximum requests per minute for scrapers"""
-
     # Stripe
     STRIPE_SECRET_KEY: str = ""
     """Stripe secret API key"""
@@ -138,14 +131,6 @@ class Settings(BaseSettings):
         if "@" not in v or "." not in v.split("@")[1]:
             raise ValueError("AWS_SES_FROM_EMAIL must be a valid email address")
         return v.lower()
-
-    @field_validator("SCRAPER_CONCURRENT_LIMIT", "SCRAPER_RATE_LIMIT")
-    @classmethod
-    def validate_positive_int(cls, v: int) -> int:
-        """Validate positive integers"""
-        if v <= 0:
-            raise ValueError("Value must be positive")
-        return v
 
     @property
     def is_production(self) -> bool:
