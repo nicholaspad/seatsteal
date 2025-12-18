@@ -38,13 +38,13 @@ class Settings(BaseSettings):
     """Supabase service role key for admin operations"""
 
     # AWS SES
-    AWS_REGION: str
+    AWS_REGION: str = ""
     """AWS region for SES (e.g., us-east-1)"""
 
-    AWS_ACCESS_KEY_ID: str
+    AWS_ACCESS_KEY_ID: str = ""
     """AWS access key ID for SES"""
 
-    AWS_SECRET_ACCESS_KEY: str
+    AWS_SECRET_ACCESS_KEY: str = ""
     """AWS secret access key for SES"""
 
     AWS_SES_FROM_EMAIL: str = "notifications@seatsteal.app"
@@ -169,6 +169,13 @@ class Settings(BaseSettings):
             self.TWILIO_ACCOUNT_SID
             and self.TWILIO_AUTH_TOKEN
             and self.TWILIO_FROM_NUMBER
+        )
+
+    @property
+    def aws_ses_enabled(self) -> bool:
+        """Check if AWS SES is configured for email notifications"""
+        return bool(
+            self.AWS_REGION and self.AWS_ACCESS_KEY_ID and self.AWS_SECRET_ACCESS_KEY
         )
 
     @property

@@ -56,20 +56,29 @@ class EmailService:
     SES_PRODUCTION_RATE_PER_SECOND = 14  # Default, can be higher
 
     def __init__(self):
-        """Initialize AWS SES client and load email templates"""
-        self.ses_client = boto3.client(
-            "ses",
-            region_name=settings.AWS_REGION,
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        )
+        """Initialize AWS SES client if configured, and load email templates"""
+        self.ses_client = None
         self.from_email = settings.AWS_SES_FROM_EMAIL
 
         # Set up Jinja2 template environment
         template_dir = Path(__file__).parent / "templates"
         self.jinja_env = Environment(loader=FileSystemLoader(str(template_dir)))
 
-        logger.info(f"EmailService initialized with sender: {self.from_email}")
+        if settings.aws_ses_enabled:
+            self.ses_client = boto3.client(
+                "ses",
+                region_name=settings.AWS_REGION,
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            )
+            logger.info(f"EmailService initialized with sender: {self.from_email}")
+        else:
+            logger.warning("AWS SES not configured, email notifications disabled")
+
+    @property
+    def is_enabled(self) -> bool:
+        """Check if email service is properly configured and ready"""
+        return self.ses_client is not None
 
     async def send_magic_link(self, to_email: str, magic_link: str) -> bool:
         """
@@ -82,6 +91,12 @@ class EmailService:
         Returns:
             True if email sent successfully, False otherwise
         """
+        if not self.is_enabled:
+            logger.warning(
+                f"Cannot send magic link to {to_email}: email service not configured"
+            )
+            return False
+
         try:
             template = self.jinja_env.get_template("magic_link.html")
             html_body = template.render(
@@ -137,6 +152,12 @@ class EmailService:
         Returns:
             True if email sent successfully, False otherwise
         """
+        if not self.is_enabled:
+            logger.warning(
+                f"Cannot send course notification to {to_email}: email service not configured"
+            )
+            return False
+
         try:
             template = self.jinja_env.get_template("course_notification.html")
             html_body = template.render(
@@ -204,6 +225,16 @@ View course: {settings.effective_frontend_url}/courses/{course_code}
         Returns:
             Dict with success/failure counts
         """
+        if not self.is_enabled:
+            logger.warning(
+                "Cannot send batch notifications: email service not configured"
+            )
+            return {
+                "total": len(notifications),
+                "successful": 0,
+                "failed": len(notifications),
+            }
+
         successful = 0
         failed = 0
 
@@ -241,6 +272,12 @@ View course: {settings.effective_frontend_url}/courses/{course_code}
         Returns:
             True if sent successfully, False otherwise
         """
+        if not self.is_enabled:
+            logger.warning(
+                f"Cannot send subscription confirmation to {to_email}: email service not configured"
+            )
+            return False
+
         try:
             subject = f"✅ Watching {course_code}"
 
@@ -303,6 +340,10 @@ SeatSteal
         Returns:
             True if verification initiated successfully
         """
+        if not self.is_enabled:
+            logger.warning(f"Cannot verify email {email}: email service not configured")
+            return False
+
         try:
             self.ses_client.verify_email_identity(EmailAddress=email)
             logger.info(f"Verification email sent to {email}")
