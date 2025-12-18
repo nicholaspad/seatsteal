@@ -53,7 +53,7 @@ while true; do
       echo ""
       echo "Running scraper for $college..."
       echo ""
-      cd "$PROJECT_DIR/webapp" && source venv/bin/activate && python scraper/run_scraper.py run --college "$college"
+      cd "$PROJECT_DIR/webapp" && (source venv/bin/activate 2>/dev/null || true) && python scraper/run_scraper.py run --college "$college"
       echo ""
       echo "=========================================="
       echo "  Operation finished!"
@@ -67,7 +67,7 @@ while true; do
       echo "  Add College & Scraper"
       echo "=========================================="
       echo ""
-      cd "$PROJECT_DIR/webapp" && source venv/bin/activate && python scripts/add_college_scraper.py
+      cd "$PROJECT_DIR/webapp" && (source venv/bin/activate 2>/dev/null || true) && python scripts/add_college_scraper.py
       echo ""
       echo "=========================================="
       echo "  Operation finished!"
@@ -94,7 +94,7 @@ while true; do
       echo "Are you sure? (yes/no):"
       read -r confirm
       if [ "$confirm" = "yes" ]; then
-        cd "$PROJECT_DIR/webapp" && source venv/bin/activate && python scripts/clear_college.py --college "$college" --confirm
+        cd "$PROJECT_DIR/webapp" && (source venv/bin/activate 2>/dev/null || true) && python scripts/clear_college.py --college "$college" --confirm
       else
         echo "Operation cancelled."
       fi
@@ -111,7 +111,7 @@ while true; do
       echo "  Term Codes for All Colleges"
       echo "=========================================="
       echo ""
-      cd "$PROJECT_DIR/webapp" && source venv/bin/activate && python scripts/term_codes_table.py
+      cd "$PROJECT_DIR/webapp" && (source venv/bin/activate 2>/dev/null || true) && python scripts/term_codes_table.py
       echo ""
       echo "=========================================="
       echo "  Operation finished!"

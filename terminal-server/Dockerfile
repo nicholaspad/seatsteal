@@ -29,11 +29,19 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
 WORKDIR /app
 
 # Copy requirements first for better caching
+# Use webapp/requirements-full.txt for scraper and dev tool support
+COPY webapp/requirements-full.txt ./requirements-full.txt
+RUN pip install --no-cache-dir -r requirements-full.txt
+
+# Also install terminal-server specific deps (newer versions override)
 COPY terminal-server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY terminal-server/app.py .
+
+# Copy entire webapp directory for local utils scripts
+COPY webapp/ ./webapp/
 
 # Copy management scripts and utilities from repository root
 COPY manage.sh .

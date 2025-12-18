@@ -100,9 +100,8 @@ display_menu() {
   echo ""
   echo "Select an option:"
   echo ""
-  echo "  1) Vercel"
-  echo "  2) EC2"
-  echo "  3) Local"
+  echo "  1) EC2"
+  echo "  2) Local"
   echo ""
   echo "  0) Exit"
   echo ""
@@ -120,15 +119,10 @@ while true; do
   case $choice in
     1)
       clear
-      ./utils/deploy.sh
-      # After submenu exits, return to main menu
-      ;;
-    2)
-      clear
       ./utils/service.sh
       # After submenu exits, return to main menu
       ;;
-    3)
+    2)
       clear
       ./utils/local.sh
       # After submenu exits, return to main menu

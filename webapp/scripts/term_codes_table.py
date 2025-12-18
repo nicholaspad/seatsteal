@@ -270,7 +270,7 @@ def display_term_codes_table():
 
     # Fetch term codes from all colleges
     colleges = {
-        "brown": fetch_brown_terms,
+        # "brown": fetch_brown_terms, // Disabled for now due to AWS blocking requests
         "bu": fetch_bu_terms,
         "cornell": fetch_cornell_terms,
         "neu": fetch_neu_terms,
