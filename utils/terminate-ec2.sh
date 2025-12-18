@@ -48,6 +48,12 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
+# First, try to sync credentials from Supabase (in case local files were wiped)
+echo -e "${YELLOW}🔍 Checking for existing instance credentials...${NC}"
+source "$SCRIPT_DIR/ec2-credentials.sh"
+sync_credentials || true
+echo ""
+
 # Check if ec2-host.json file exists
 if [[ ! -f "$EC2_HOST_FILE" ]]; then
     echo -e "${RED}❌ Error: EC2 host file not found at $EC2_HOST_FILE${NC}"
