@@ -42,11 +42,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // Prevent race conditions between initial auth and auth state changes
   const initializingRef = useRef(false);
+  // Track if initial data load has completed (to avoid showing loading skeleton on background refreshes)
+  const initialLoadCompleteRef = useRef(false);
 
   // Function to fetch user's profile from backend
-  const fetchUserProfile = async () => {
+  // silent = true means don't show loading state (used for background refreshes)
+  const fetchUserProfile = async (silent = false) => {
     try {
-      setProfileLoading(true);
+      if (!silent) setProfileLoading(true);
       const response = await fetchWithToasts("/api/user/settings");
 
       if (response.ok) {
@@ -68,14 +71,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Function to fetch user's subscription tier
-  const fetchSubscriptionTier = async (userId: string) => {
+  // silent = true means don't show loading state (used for background refreshes)
+  const fetchSubscriptionTier = async (userId: string, silent = false) => {
     if (!userId) {
       setTierLoading(false);
       return;
     }
 
     try {
-      setTierLoading(true);
+      if (!silent) setTierLoading(true);
       const response = await fetchWithToasts("/api/user/subscription-tier");
 
       if (response.ok) {
@@ -97,9 +101,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Function to fetch user's subscription status (count, limit, tier)
-  const fetchSubscriptionStatus = async () => {
+  // silent = true means don't show loading state (used for background refreshes)
+  const fetchSubscriptionStatus = async (silent = false) => {
     try {
-      setSubscriptionStatusLoading(true);
+      if (!silent) setSubscriptionStatusLoading(true);
       const response = await fetchWithToasts("/api/subscriptions/status");
 
       if (response.ok) {
@@ -153,7 +158,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           fetchUserProfile(),
           fetchSubscriptionTier(user.id),
           fetchSubscriptionStatus(),
-        ]);
+        ]).then(() => {
+          initialLoadCompleteRef.current = true;
+        });
       } catch {
         setUser(null);
         setProfile(null);
@@ -181,6 +188,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setTierLoading(false);
         setSubscriptionStatusLoading(false);
         setLoading(false);
+        // Reset initial load flag so next sign-in shows proper loading state
+        initialLoadCompleteRef.current = false;
         return;
       }
 
@@ -190,15 +199,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        // Use silent mode for background refreshes (TOKEN_REFRESHED after initial load)
+        // to avoid flashing loading skeletons when returning to the tab
+        const isSilentRefresh =
+          event === "TOKEN_REFRESHED" && initialLoadCompleteRef.current;
+
         // Use session data directly if available to avoid redundant getUser() call
         if (session?.user) {
           setUser(session.user);
           setLoading(false);
           // Fetch profile, tier, and subscription status in parallel for better performance
+          // Use silent mode for TOKEN_REFRESHED to avoid showing loading skeleton
           Promise.all([
-            fetchUserProfile(),
-            fetchSubscriptionTier(session.user.id),
-            fetchSubscriptionStatus(),
+            fetchUserProfile(isSilentRefresh),
+            fetchSubscriptionTier(session.user.id, isSilentRefresh),
+            fetchSubscriptionStatus(isSilentRefresh),
           ]);
           return;
         }
@@ -229,10 +244,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           } else {
             setUser(user);
             // Fetch profile, tier, and subscription status in parallel for better performance
+            // Use silent mode for TOKEN_REFRESHED to avoid showing loading skeleton
             Promise.all([
-              fetchUserProfile(),
-              fetchSubscriptionTier(user.id),
-              fetchSubscriptionStatus(),
+              fetchUserProfile(isSilentRefresh),
+              fetchSubscriptionTier(user.id, isSilentRefresh),
+              fetchSubscriptionStatus(isSilentRefresh),
             ]);
           }
           setLoading(false);
