@@ -17,6 +17,14 @@ A dedicated WebSocket server for the admin terminal feature. This is required be
 └─────────────────┘                    └──────────────────┘
 ```
 
+## Scripts and Utilities
+
+The terminal server includes management scripts from the repository root:
+- `manage.sh` - Main management script (from repository root)
+- `utils/` - Utility scripts folder (from repository root)
+
+These are copied into the Docker container at build time and are accessible when you connect to the terminal via the web interface.
+
 ## Deployment to Render
 
 ### Option A: Deploy via Render Dashboard (Recommended)
@@ -27,7 +35,7 @@ A dedicated WebSocket server for the admin terminal feature. This is required be
    - Go to your Render Dashboard
    - Click **"New +"** → **"Web Service"**
    - Connect your GitHub repository (or use "Deploy from a public Git repository")
-   - Set the **Root Directory** to `terminal-server`
+   - **Important:** Leave the Root Directory empty (use repository root for Docker context)
 
 3. **Configure the service:**
    | Setting | Value |
@@ -36,17 +44,33 @@ A dedicated WebSocket server for the admin terminal feature. This is required be
    | Region | Oregon (US West) or closest to your users |
    | Branch | `main` (or your production branch) |
    | Runtime | Docker |
+   | Dockerfile Path | `terminal-server/Dockerfile` |
+   | Docker Context | `.` (repository root) |
    | Instance Type | Starter ($7/month) or Free (limited) |
 
 4. **Set Environment Variables:**
    In the Render dashboard, add these environment variables:
 
+   **Required for Terminal Server:**
    | Variable | Description | Example |
    |----------|-------------|---------|
    | `SUPABASE_URL` | Your Supabase project URL | `https://abc123.supabase.co` |
    | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (from Supabase dashboard → Settings → API) | `eyJhbGci...` |
    | `DATABASE_URL` | PostgreSQL connection string (from Supabase dashboard → Settings → Database → Connection string → URI) | `postgresql://postgres:...@db.abc123.supabase.co:5432/postgres` |
    | `ALLOWED_ORIGINS` | Comma-separated list of allowed frontend URLs | `https://seatsteal.vercel.app,https://yourdomain.com` |
+
+   **Optional for Management Scripts (Vercel deployments):**
+   | Variable | Description | Required For |
+   |----------|-------------|--------------|
+   | `VERCEL_TOKEN` | Vercel authentication token (from Vercel dashboard → Settings → Tokens) | Deploying to Vercel via scripts |
+
+   **Optional for Management Scripts (AWS/EC2 operations):**
+   | Variable | Description | Required For |
+   |----------|-------------|--------------|
+   | `AWS_ACCESS_KEY_ID` | AWS access key | EC2 instance management |
+   | `AWS_SECRET_ACCESS_KEY` | AWS secret access key | EC2 instance management |
+   | `AWS_DEFAULT_REGION` | AWS region (e.g., `us-east-1`) | EC2 instance management |
+   | `GITHUB_TOKEN` | GitHub personal access token | EC2 setup scripts |
 
 5. **Deploy:**
    - Click **"Create Web Service"**
@@ -122,12 +146,28 @@ websocat "ws://localhost:10000/api/admin/terminal?token=YOUR_JWT_TOKEN"
 
 ## Environment Variables Reference
 
+### Core Terminal Server (Required)
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key for admin operations |
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `ALLOWED_ORIGINS` | No | CORS allowed origins (default: `*`) |
+
+### Management Scripts - Vercel CLI (Optional)
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VERCEL_TOKEN` | For Vercel deployments | Authentication token for Vercel CLI |
+
+### Management Scripts - AWS CLI (Optional)
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AWS_ACCESS_KEY_ID` | For EC2 operations | AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | For EC2 operations | AWS secret access key |
+| `AWS_DEFAULT_REGION` | For EC2 operations | AWS region (e.g., `us-east-1`) |
+| `GITHUB_TOKEN` | For EC2 setup | GitHub personal access token |
+
+**Note:** The terminal includes Vercel CLI, AWS CLI, Git, Node.js, and npm pre-installed.
 
 ## Security Notes
 

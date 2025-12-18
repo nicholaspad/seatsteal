@@ -380,15 +380,15 @@ const UserDashboard = memo(function UserDashboard({
                     className="h-auto py-1 px-2 text-xs text-muted-foreground hover:text-foreground"
                   >
                     {managingSubscription ? (
-                      <>
+                      <span className="flex items-center">
                         <Spinner className="size-3 mr-1" />
                         Loading...
-                      </>
+                      </span>
                     ) : (
-                      <>
+                      <span className="flex items-center">
                         Manage
                         <ExternalLink className="h-3 w-3 ml-1" />
-                      </>
+                      </span>
                     )}
                   </Button>
                 }

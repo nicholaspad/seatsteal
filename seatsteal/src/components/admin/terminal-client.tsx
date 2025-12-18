@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   ArrowUp,
   ArrowDown,
@@ -12,7 +12,6 @@ import {
   Play,
   RefreshCw,
   Square,
-  Terminal as TerminalIcon,
 } from "lucide-react";
 import { config } from "@/lib/config";
 import { supabase } from "@/lib/supabase";
@@ -89,6 +88,16 @@ export function TerminalClient() {
         setIsConnected(true);
         setIsConnecting(false);
         terminal.current?.focus();
+        // Fit terminal to container after connection
+        setTimeout(() => {
+          if (fitAddon.current && terminal.current) {
+            fitAddon.current.fit();
+            const rows = terminal.current.rows;
+            const cols = terminal.current.cols;
+            console.log(`Terminal fitted: ${rows}x${cols}`);
+            sendResize(rows, cols);
+          }
+        }, 100);
       };
 
       ws.current.onmessage = (event) => {
@@ -190,10 +199,16 @@ export function TerminalClient() {
     terminal.current.loadAddon(new WebLinksAddon());
 
     terminal.current.open(terminalRef.current);
-    fitAddon.current.fit();
+
+    // Initial fit after a short delay to ensure DOM is ready
+    setTimeout(() => {
+      if (fitAddon.current) {
+        fitAddon.current.fit();
+      }
+    }, 50);
 
     // Handle terminal input
-    terminal.current.onData((data) => {
+    terminal.current.onData((data: string) => {
       sendInput(data);
     });
 
@@ -207,7 +222,15 @@ export function TerminalClient() {
 
     window.addEventListener("resize", handleResize);
 
+    // Fit on mount after a delay
+    const initialFitTimer = setTimeout(() => {
+      if (fitAddon.current) {
+        fitAddon.current.fit();
+      }
+    }, 200);
+
     return () => {
+      clearTimeout(initialFitTimer);
       window.removeEventListener("resize", handleResize);
       terminal.current?.dispose();
       terminal.current = null;
@@ -289,9 +312,10 @@ export function TerminalClient() {
         </div>
       )}
 
-      {/* Quick command button */}
-      <Card>
-        <CardContent className="py-2">
+      {/* Terminal controls */}
+      <Card className="py-3">
+        <CardContent className="pt-4 space-y-3">
+          {/* manage.sh button */}
           <Button
             variant="default"
             size="lg"
@@ -302,18 +326,8 @@ export function TerminalClient() {
             <Play className="h-5 w-5 mr-2" />
             Run ./manage.sh
           </Button>
-        </CardContent>
-      </Card>
 
-      {/* Mobile control buttons */}
-      <Card>
-        <CardHeader className="py-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <TerminalIcon className="h-4 w-4" />
-            Navigation Controls
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="py-2">
+          {/* Navigation buttons */}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -336,7 +350,7 @@ export function TerminalClient() {
               Down
             </Button>
             <Button
-              variant="default"
+              variant="outline"
               size="lg"
               onClick={sendEnter}
               disabled={!isConnected}
@@ -354,7 +368,7 @@ export function TerminalClient() {
         <CardContent className="p-0">
           <div
             ref={terminalRef}
-            className="w-full"
+            className="w-full h-full"
             style={{ height: "calc(100vh - 380px)", minHeight: "300px" }}
           />
         </CardContent>
