@@ -5,18 +5,6 @@
 
 set -e  # Exit on error
 
-# Instance type options with specifications
-instance_types=(
-  "t4g.nano  (2 vCPUs, 0.5 GB)  - ~\$3/month"
-  "t4g.micro (2 vCPUs, 1.0 GB)  - ~\$6/month"
-  "t4g.small (2 vCPUs, 2.0 GB)  - ~\$12/month"
-)
-
-# Instance type codes (what gets returned)
-type_codes=("t4g.nano" "t4g.micro" "t4g.small")
-
-selected=0  # Default to t4g.nano (index 0)
-
 # Function to display menu (output to /dev/tty to avoid command substitution capture)
 display_menu() {
   echo "==========================================" >/dev/tty
@@ -24,56 +12,39 @@ display_menu() {
   echo "==========================================" >/dev/tty
   echo "" >/dev/tty
   echo "Choose an instance type:" >/dev/tty
-  echo "(Use ↑/↓ arrows to navigate, Enter to select)" >/dev/tty
   echo "" >/dev/tty
-
-  for i in "${!instance_types[@]}"; do
-    if [ $i -eq $selected ]; then
-      echo "  → ${instance_types[$i]}" >/dev/tty
-    else
-      echo "    ${instance_types[$i]}" >/dev/tty
-    fi
-  done
+  echo "  1) t4g.nano  (2 vCPUs, 0.5 GB)  - ~\$3/month" >/dev/tty
+  echo "  2) t4g.micro (2 vCPUs, 1.0 GB)  - ~\$6/month" >/dev/tty
+  echo "  3) t4g.small (2 vCPUs, 2.0 GB)  - ~\$12/month" >/dev/tty
+  echo "" >/dev/tty
+  echo "  0) Cancel" >/dev/tty
+  echo "" >/dev/tty
 }
 
 # Clear screen and show menu (redirect to /dev/tty)
 clear >/dev/tty
 display_menu
 
-# Read arrow keys
-while true; do
-  # Read a single character
-  read -rsn1 key
+# Read user input
+echo -n "Enter choice: " >/dev/tty
+read -r choice
 
-  # Check if it's an escape sequence (arrow keys start with ESC)
-  if [[ $key == $'\x1b' ]]; then
-    # Try to read more characters (arrow keys send ESC [ A/B/C/D)
-    read -rsn2 rest
-    case $rest in
-      '[A')  # Up arrow
-        ((selected--))
-        if [ $selected -lt 0 ]; then
-          selected=$((${#instance_types[@]} - 1))
-        fi
-        clear >/dev/tty
-        display_menu
-        ;;
-      '[B')  # Down arrow
-        ((selected++))
-        if [ $selected -ge ${#instance_types[@]} ]; then
-          selected=0
-        fi
-        clear >/dev/tty
-        display_menu
-        ;;
-      *)
-        # Standalone escape key or unknown sequence - exit without output
-        exit 0
-        ;;
-    esac
-  elif [[ $key == "" ]]; then
-    # Enter key pressed - output selected type code to stdout (for command substitution)
-    echo "${type_codes[$selected]}"
+case $choice in
+  1)
+    echo "t4g.nano"
+    ;;
+  2)
+    echo "t4g.micro"
+    ;;
+  3)
+    echo "t4g.small"
+    ;;
+  0)
+    # Cancel - output nothing
     exit 0
-  fi
-done
+    ;;
+  *)
+    echo "Invalid option." >/dev/tty
+    exit 1
+    ;;
+esac

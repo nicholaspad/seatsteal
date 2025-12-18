@@ -16,69 +16,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SSH_KEY="$REPO_ROOT/seatsteal.pem"
 
-# Menu options
-options=("notifs" "scraper" "all (notifs + scraper)")
-selected=0
+echo -e "${YELLOW}🛑 EC2 Container Killer${NC}"
+echo "================================"
+echo ""
 
 # Function to display menu
 display_menu() {
   echo "Select service to kill:"
-  echo "(Use ↑/↓ arrows to navigate, Enter to select)"
   echo ""
-
-  for i in "${!options[@]}"; do
-    if [ $i -eq $selected ]; then
-      echo "  → ${options[$i]}"
-    else
-      echo "    ${options[$i]}"
-    fi
-  done
+  echo "  1) notifs"
+  echo "  2) scraper"
+  echo "  3) all (notifs + scraper)"
+  echo ""
+  echo "  0) Cancel"
+  echo ""
 }
 
-# Clear screen and show menu
-clear
-echo -e "${YELLOW}🛑 EC2 Container Killer${NC}"
-echo "================================"
-echo ""
+# Show menu
 display_menu
 
-# Read arrow keys
-while true; do
-  read -rsn1 key
-
-  if [[ $key == $'\x1b' ]]; then
-    read -rsn2 key
-    case $key in
-      '[A')  # Up arrow
-        ((selected--))
-        if [ $selected -lt 0 ]; then
-          selected=$((${#options[@]} - 1))
-        fi
-        clear
-        echo -e "${YELLOW}🛑 EC2 Container Killer${NC}"
-        echo "================================"
-        echo ""
-        display_menu
-        ;;
-      '[B')  # Down arrow
-        ((selected++))
-        if [ $selected -ge ${#options[@]} ]; then
-          selected=0
-        fi
-        clear
-        echo -e "${YELLOW}🛑 EC2 Container Killer${NC}"
-        echo "================================"
-        echo ""
-        display_menu
-        ;;
-    esac
-  elif [[ $key == "" ]]; then
-    break
-  fi
-done
-
-# Set SERVICE and CONTAINER_NAME based on selection
-choice=$((selected + 1))
+# Read user input
+read -r -p "Enter choice: " choice
 
 case $choice in
     1)
@@ -92,6 +50,14 @@ case $choice in
     3)
         SERVICE="all"
         CONTAINER_NAME=""
+        ;;
+    0)
+        echo "Cancelled."
+        exit 0
+        ;;
+    *)
+        echo "Invalid option."
+        exit 1
         ;;
 esac
 

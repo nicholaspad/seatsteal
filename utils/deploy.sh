@@ -5,10 +5,6 @@
 
 set -e  # Exit on error
 
-# Menu options
-options=("Both frontend and backend" "Frontend only (seatsteal)" "Backend only (webapp)")
-selected=0  # Default to "Both" (index 0)
-
 # Function to display menu
 display_menu() {
   echo "=========================================="
@@ -16,66 +12,28 @@ display_menu() {
   echo "=========================================="
   echo ""
   echo "What would you like to deploy?"
-  echo "(Use ↑/↓ arrows to navigate, Enter to select)"
   echo ""
-
-  for i in "${!options[@]}"; do
-    if [ $i -eq $selected ]; then
-      echo "  → ${options[$i]}"
-    else
-      echo "    ${options[$i]}"
-    fi
-  done
+  echo "  1) Both frontend and backend"
+  echo "  2) Frontend only (seatsteal)"
+  echo "  3) Backend only (webapp)"
+  echo ""
+  echo "  0) Back"
+  echo ""
 }
 
 # Clear screen and show menu
 clear
 display_menu
 
-# Read arrow keys
-while true; do
-  # Read a single character
-  read -rsn1 key
-
-  # Check if it's an escape sequence (arrow keys start with ESC)
-  if [[ $key == $'\x1b' ]]; then
-    read -rsn2 key  # Read the rest of the escape sequence
-    case $key in
-      '[A')  # Up arrow
-        ((selected--))
-        if [ $selected -lt 0 ]; then
-          selected=$((${#options[@]} - 1))
-        fi
-        clear
-        display_menu
-        ;;
-      '[B')  # Down arrow
-        ((selected++))
-        if [ $selected -ge ${#options[@]} ]; then
-          selected=0
-        fi
-        clear
-        display_menu
-        ;;
-    esac
-  elif [[ $key == "" ]]; then
-    # Enter key pressed
-    break
-  fi
-done
-
-# Clear screen before deployment
-clear
-echo "=========================================="
-echo "  SeatSteal Deployment"
-echo "=========================================="
-echo ""
-
-# Execute based on selection
-choice=$((selected + 1))
+# Read user input
+read -r -p "Enter choice: " choice
 
 case $choice in
   1)
+    clear
+    echo "=========================================="
+    echo "  SeatSteal Deployment"
+    echo "=========================================="
     echo ""
     echo "🚀 Deploying both frontend and backend to Vercel..."
     echo ""
@@ -95,16 +53,33 @@ case $choice in
     echo "✅ All deployments complete!"
     ;;
   2)
+    clear
+    echo "=========================================="
+    echo "  SeatSteal Deployment"
+    echo "=========================================="
     echo ""
     echo "🚀 Deploying frontend to Vercel..."
     cd seatsteal && vercel --prod
     echo "✅ Frontend deployment complete!"
     ;;
   3)
+    clear
+    echo "=========================================="
+    echo "  SeatSteal Deployment"
+    echo "=========================================="
     echo ""
     echo "🚀 Deploying backend to Vercel..."
     cd webapp && vercel --prod
     echo "✅ Backend deployment complete!"
+    ;;
+  0)
+    # Go back to parent menu
+    exit 0
+    ;;
+  *)
+    echo ""
+    echo "Invalid option."
+    exit 1
     ;;
 esac
 
