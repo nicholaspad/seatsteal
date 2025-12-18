@@ -268,6 +268,16 @@ echo -e "${GREEN}✅ Public DNS: $PUBLIC_DNS${NC}"
 echo -e "${GREEN}✅ Instance info saved to: $EC2_HOST_FILE${NC}"
 echo ""
 
+# Step 8: Store credentials in Supabase for persistence across terminal-server redeployments
+echo -e "${YELLOW}📦 Storing credentials in Supabase...${NC}"
+source "$SCRIPT_DIR/ec2-credentials.sh"
+if store_credentials "$PEM_FILE" "$EC2_HOST_FILE"; then
+    echo -e "${GREEN}✅ Credentials stored in Supabase${NC}"
+else
+    echo -e "${YELLOW}⚠️  Could not store credentials in Supabase (local files still work)${NC}"
+fi
+echo ""
+
 # Display summary
 echo "=========================================="
 echo -e "${GREEN}✅ EC2 Instance Successfully Created!${NC}"

@@ -40,6 +40,10 @@ fi
 echo -e "${GREEN}✅ Local dependencies satisfied${NC}"
 echo ""
 
+# Sync credentials from Supabase if local files don't exist (for terminal-server redeployments)
+source "$SCRIPT_DIR/ec2-credentials.sh"
+sync_credentials || true
+
 # Function to display menu
 display_menu() {
   echo "Select service to deploy:"

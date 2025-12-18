@@ -19,6 +19,10 @@ SSH_KEY="$REPO_ROOT/seatsteal.pem"
 echo -e "${YELLOW}🔑 EC2 Login Script${NC}"
 echo "================================"
 
+# Sync credentials from Supabase if local files don't exist (for terminal-server redeployments)
+source "$SCRIPT_DIR/ec2-credentials.sh"
+sync_credentials || true
+
 # Check if jq is installed for JSON parsing
 if ! command -v jq &> /dev/null; then
     echo -e "${RED}❌ Error: jq is not installed (required for JSON parsing).${NC}"

@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
     ca-certificates \
     gnupg \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js and npm (for Vercel CLI)

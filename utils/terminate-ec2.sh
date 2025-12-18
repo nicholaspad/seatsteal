@@ -5,6 +5,9 @@
 
 set -e  # Exit on any error
 
+# Disable AWS CLI pager to avoid interactive prompts
+export AWS_PAGER=""
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -78,16 +81,8 @@ INSTANCE_STATE=$(aws ec2 describe-instances \
 
 if [[ "$INSTANCE_STATE" == "not-found" || "$INSTANCE_STATE" == "None" || "$INSTANCE_STATE" == "terminated" ]]; then
     echo -e "${YELLOW}⚠️  Warning: Instance $INSTANCE_ID is already terminated or not found.${NC}"
+    echo -e "${YELLOW}Proceeding with cleanup of remaining resources...${NC}"
     echo ""
-
-    # Ask if user wants to clean up resources anyway
-    echo -n "Clean up key pair and security group anyway? (y/N): "
-    read -r CLEANUP_ANYWAY
-
-    if [[ ! "$CLEANUP_ANYWAY" =~ ^[Yy]$ ]]; then
-        echo "Exiting without cleanup."
-        exit 0
-    fi
 
     SKIP_TERMINATION=true
 else
@@ -150,7 +145,17 @@ aws ec2 delete-key-pair \
 echo -e "${GREEN}✅ Key pair deleted from AWS${NC}"
 echo ""
 
-# Step 6: Delete local files
+# Step 6: Deactivate credentials in Supabase
+echo -e "${YELLOW}🗑️  Deactivating credentials in Supabase...${NC}"
+source "$SCRIPT_DIR/ec2-credentials.sh"
+if delete_credentials; then
+    echo -e "${GREEN}✅ Credentials deactivated in Supabase${NC}"
+else
+    echo -e "${YELLOW}⚠️  Could not deactivate credentials in Supabase${NC}"
+fi
+echo ""
+
+# Step 7: Delete local files
 echo -e "${YELLOW}🗑️  Cleaning up local files...${NC}"
 
 if [[ -f "$PEM_FILE" ]]; then
