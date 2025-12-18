@@ -108,7 +108,7 @@ export default function Settings() {
     if (user) {
       fetchData();
     }
-  }, [user, fetchData]);
+  }, [user?.id, fetchData]);
 
   const handleCollegeChange = (value: string) => {
     const collegeId = parseInt(value);

@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, useRef } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import { supabase } from "@/lib/supabase";
 import { fetchWithToasts } from "@/lib/api";
 import type { User } from "@supabase/supabase-js";
@@ -42,6 +50,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // Prevent race conditions between initial auth and auth state changes
   const initializingRef = useRef(false);
+
+  // Track previous user ID to detect actual user changes
+  const previousUserIdRef = useRef<string | null>(null);
 
   // Function to fetch user's profile from backend
   const fetchUserProfile = async () => {
@@ -147,6 +158,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
 
         setUser(user);
+        previousUserIdRef.current = user.id;
         setLoading(false);
         // Fetch profile, tier, and subscription status in parallel for better performance
         Promise.all([
@@ -184,7 +196,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      if (event === "SIGNED_IN") {
         // Prevent race condition with initial auth
         if (initializingRef.current) {
           return;
@@ -193,6 +205,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         // Use session data directly if available to avoid redundant getUser() call
         if (session?.user) {
           setUser(session.user);
+          previousUserIdRef.current = session.user.id;
           setLoading(false);
           // Fetch profile, tier, and subscription status in parallel for better performance
           Promise.all([
@@ -228,6 +241,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             setSubscriptionStatusLoading(false);
           } else {
             setUser(user);
+            previousUserIdRef.current = user.id;
             // Fetch profile, tier, and subscription status in parallel for better performance
             Promise.all([
               fetchUserProfile(),
@@ -247,6 +261,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
         }
       }
+
+      if (event === "TOKEN_REFRESHED") {
+        // Token refresh is automatic and doesn't invalidate user data
+        // Only refetch if user.id actually changed (extremely rare)
+        if (session?.user && session.user.id !== previousUserIdRef.current) {
+          setUser(session.user);
+          previousUserIdRef.current = session.user.id;
+          Promise.all([
+            fetchUserProfile(),
+            fetchSubscriptionTier(session.user.id),
+            fetchSubscriptionStatus(),
+          ]);
+        }
+        // If user hasn't changed, do nothing - prevents unnecessary rerenders!
+        return;
+      }
     });
 
     return () => {
@@ -254,20 +284,39 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Memoize to stabilize function identity for context
+  const memoizedFetchSubscriptionStatus = useCallback(
+    fetchSubscriptionStatus,
+    [],
+  );
+
+  const contextValue = useMemo(
+    () => ({
+      user,
+      profile,
+      loading,
+      profileLoading,
+      subscriptionTier,
+      tierLoading,
+      subscriptionStatus,
+      subscriptionStatusLoading,
+      refreshSubscriptionStatus: memoizedFetchSubscriptionStatus,
+    }),
+    [
+      user,
+      profile,
+      loading,
+      profileLoading,
+      subscriptionTier,
+      tierLoading,
+      subscriptionStatus,
+      subscriptionStatusLoading,
+      memoizedFetchSubscriptionStatus,
+    ],
+  );
+
   return (
-    <SessionContext.Provider
-      value={{
-        user,
-        profile,
-        loading,
-        profileLoading,
-        subscriptionTier,
-        tierLoading,
-        subscriptionStatus,
-        subscriptionStatusLoading,
-        refreshSubscriptionStatus: fetchSubscriptionStatus,
-      }}
-    >
+    <SessionContext.Provider value={contextValue}>
       {children}
     </SessionContext.Provider>
   );
