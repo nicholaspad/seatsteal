@@ -156,13 +156,7 @@ export default function Courses() {
       setData(result);
       setLoading(false);
     });
-  }, [
-    searchParams.toString(),
-    isLoggedOut,
-    authLoading,
-    user?.id,
-    profileLoading,
-  ]);
+  }, [searchParams.toString(), isLoggedOut, authLoading, user, profileLoading]);
 
   const { courses, totalCourses, currentPage, totalPages, error } = data;
 

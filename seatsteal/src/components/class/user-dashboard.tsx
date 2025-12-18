@@ -122,7 +122,7 @@ const UserDashboard = memo(function UserDashboard({
         err instanceof Error ? err.message : "Failed to load subscriptions",
       );
     }
-  }, [user?.id]);
+  }, [user]);
 
   const fetchWeeklyTrends = useCallback(async () => {
     if (!user) return;
@@ -144,7 +144,7 @@ const UserDashboard = memo(function UserDashboard({
       // Set empty array on error - backend always returns 7 days of data
       setWeeklyTrend([]);
     }
-  }, [user?.id]);
+  }, [user]);
 
   // Fetch user subscriptions and trends
   useEffect(() => {
