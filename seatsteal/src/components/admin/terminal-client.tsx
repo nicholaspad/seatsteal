@@ -258,6 +258,14 @@ export function TerminalClient() {
     sendInput("\r");
   }, [sendInput]);
 
+  // Send number followed by enter
+  const sendNumber = useCallback(
+    (num: string) => {
+      sendInput(`${num}\r`);
+    },
+    [sendInput],
+  );
+
   // Send manage.sh command
   const sendManageCommand = useCallback(() => {
     sendInput("./manage.sh\r");
@@ -359,6 +367,22 @@ export function TerminalClient() {
               <CornerDownLeft className="h-5 w-5 mr-1" />
               Enter
             </Button>
+          </div>
+
+          {/* Number buttons */}
+          <div className="flex gap-1">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((num) => (
+              <Button
+                key={num}
+                variant="outline"
+                size="lg"
+                onClick={() => sendNumber(num)}
+                disabled={!isConnected}
+                className="flex-1 min-w-0 px-2"
+              >
+                {num}
+              </Button>
+            ))}
           </div>
         </CardContent>
       </Card>
