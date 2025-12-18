@@ -5,6 +5,9 @@
 
 set -e  # Exit on any error
 
+# Disable AWS CLI pager to avoid interactive prompts
+export AWS_PAGER=""
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -58,16 +61,21 @@ fi
 echo -e "${GREEN}✅ AWS CLI is configured${NC}"
 echo ""
 
-# Check if an instance already exists
-if [[ -f "$EC2_HOST_FILE" ]]; then
-    echo -e "${YELLOW}🔍 Checking for existing instance...${NC}"
+# Check if jq is installed for JSON parsing
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}❌ Error: jq is not installed (required for JSON parsing).${NC}"
+    echo "Please install it: brew install jq (macOS) or apt install jq (Linux)"
+    exit 1
+fi
 
-    # Check if jq is installed for JSON parsing
-    if ! command -v jq &> /dev/null; then
-        echo -e "${RED}❌ Error: jq is not installed (required for JSON parsing).${NC}"
-        echo "Please install it: brew install jq (macOS) or apt install jq (Linux)"
-        exit 1
-    fi
+# First, try to sync credentials from Supabase (in case local files were cleaned up but instance still exists)
+echo -e "${YELLOW}🔍 Checking for existing instance credentials...${NC}"
+source "$SCRIPT_DIR/ec2-credentials.sh"
+sync_credentials || true
+
+# Check if an instance already exists (from local files or synced from Supabase)
+if [[ -f "$EC2_HOST_FILE" ]]; then
+    echo -e "${YELLOW}🔍 Found credentials, verifying instance state...${NC}"
 
     # Try to read existing instance ID from JSON
     EXISTING_INSTANCE_ID=$(jq -r '.instance_id // empty' "$EC2_HOST_FILE" 2>/dev/null || echo "")
