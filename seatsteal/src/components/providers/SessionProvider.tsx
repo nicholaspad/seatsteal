@@ -203,10 +203,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Use silent mode for background refreshes (TOKEN_REFRESHED after initial load)
-        // to avoid flashing loading skeletons when returning to the tab
+        // Use silent mode for background refreshes after initial load to avoid
+        // flashing loading skeletons when returning to the tab.
+        // Both TOKEN_REFRESHED and SIGNED_IN can fire on tab visibility change.
         const isSilentRefresh =
-          event === "TOKEN_REFRESHED" && initialLoadCompleteRef.current;
+          (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") &&
+          initialLoadCompleteRef.current;
         console.log("[SessionProvider] isSilentRefresh:", isSilentRefresh, "event:", event, "initialLoadComplete:", initialLoadCompleteRef.current);
 
         // Use session data directly if available to avoid redundant getUser() call
