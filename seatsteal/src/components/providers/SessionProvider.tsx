@@ -206,15 +206,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
         // Use session data directly if available to avoid redundant getUser() call
         if (session?.user) {
-          setUser(session.user);
+          // Only update user state if it's a different user to avoid triggering
+          // re-renders and effect dependencies (e.g., Courses.tsx refetch)
+          setUser((prevUser) =>
+            prevUser?.id === session.user.id ? prevUser : session.user,
+          );
           setLoading(false);
-          // Fetch profile, tier, and subscription status in parallel for better performance
-          // Use silent mode for TOKEN_REFRESHED to avoid showing loading skeleton
-          Promise.all([
-            fetchUserProfile(isSilentRefresh),
-            fetchSubscriptionTier(session.user.id, isSilentRefresh),
-            fetchSubscriptionStatus(isSilentRefresh),
-          ]);
+
+          // For silent refreshes (TOKEN_REFRESHED after initial load), skip refetching
+          // profile/tier/subscription data since it was already loaded
+          if (!isSilentRefresh) {
+            // Fetch profile, tier, and subscription status in parallel for better performance
+            Promise.all([
+              fetchUserProfile(),
+              fetchSubscriptionTier(session.user.id),
+              fetchSubscriptionStatus(),
+            ]);
+          }
           return;
         }
 
@@ -242,14 +250,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             setTierLoading(false);
             setSubscriptionStatusLoading(false);
           } else {
-            setUser(user);
-            // Fetch profile, tier, and subscription status in parallel for better performance
-            // Use silent mode for TOKEN_REFRESHED to avoid showing loading skeleton
-            Promise.all([
-              fetchUserProfile(isSilentRefresh),
-              fetchSubscriptionTier(user.id, isSilentRefresh),
-              fetchSubscriptionStatus(isSilentRefresh),
-            ]);
+            // Only update user state if it's a different user to avoid triggering
+            // re-renders and effect dependencies
+            setUser((prevUser) =>
+              prevUser?.id === user.id ? prevUser : user,
+            );
+
+            // For silent refreshes (TOKEN_REFRESHED after initial load), skip refetching
+            // profile/tier/subscription data since it was already loaded
+            if (!isSilentRefresh) {
+              // Fetch profile, tier, and subscription status in parallel for better performance
+              Promise.all([
+                fetchUserProfile(),
+                fetchSubscriptionTier(user.id),
+                fetchSubscriptionStatus(),
+              ]);
+            }
           }
           setLoading(false);
         } catch (error) {
