@@ -306,23 +306,25 @@ class TestRateLimitDecorator:
     async def test_rate_limit_decorator_allows_request(self):
         """Test decorator allows request when under limit."""
 
-        @rate_limit(max_requests=10, window_seconds=60)
-        async def test_endpoint(request: Request):
-            return {"message": "success"}
-
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
         mock_request.headers.get.return_value = None
         mock_request.client.host = "192.168.1.1"
 
-        mock_check = AsyncMock(
-            return_value=(
+        async def mock_check_rate_limit(
+            request, max_requests, window_seconds, identifier=None
+        ):
+            return (
                 True,
                 {"remaining": 9, "reset_time": int(time.time() + 60), "retry_after": 0},
             )
-        )
 
-        with patch.object(rate_limiter, "check_rate_limit", mock_check):
+        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
+
+            @rate_limit(max_requests=10, window_seconds=60)
+            async def test_endpoint(request: Request):
+                return {"message": "success"}
+
             response = await test_endpoint(mock_request)
             assert response["message"] == "success"
 
@@ -330,15 +332,13 @@ class TestRateLimitDecorator:
     async def test_rate_limit_decorator_blocks_request(self):
         """Test decorator blocks request when limit exceeded."""
 
-        @rate_limit(max_requests=10, window_seconds=60)
-        async def test_endpoint(request: Request):
-            return {"message": "success"}
-
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
 
-        mock_check = AsyncMock(
-            return_value=(
+        async def mock_check_rate_limit(
+            request, max_requests, window_seconds, identifier=None
+        ):
+            return (
                 False,
                 {
                     "remaining": 0,
@@ -346,9 +346,13 @@ class TestRateLimitDecorator:
                     "retry_after": 30,
                 },
             )
-        )
 
-        with patch.object(rate_limiter, "check_rate_limit", mock_check):
+        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
+
+            @rate_limit(max_requests=10, window_seconds=60)
+            async def test_endpoint(request: Request):
+                return {"message": "success"}
+
             with pytest.raises(HTTPException) as exc_info:
                 await test_endpoint(mock_request)
 
@@ -403,25 +407,27 @@ class TestRateLimitDecorator:
     async def test_rate_limit_decorator_adds_headers_to_response(self):
         """Test decorator adds rate limit headers to response."""
 
-        @rate_limit(max_requests=10, window_seconds=60)
-        async def test_endpoint(request: Request):
-            mock_response = MagicMock()
-            mock_response.headers = {}
-            return mock_response
-
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
 
         reset_time = int(time.time() + 60)
 
-        mock_check = AsyncMock(
-            return_value=(
+        async def mock_check_rate_limit(
+            request, max_requests, window_seconds, identifier=None
+        ):
+            return (
                 True,
                 {"remaining": 9, "reset_time": reset_time, "retry_after": 0},
             )
-        )
 
-        with patch.object(rate_limiter, "check_rate_limit", mock_check):
+        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
+
+            @rate_limit(max_requests=10, window_seconds=60)
+            async def test_endpoint(request: Request):
+                mock_response = MagicMock()
+                mock_response.headers = {}
+                return mock_response
+
             response = await test_endpoint(mock_request)
             assert response.headers["X-RateLimit-Limit"] == "10"
             assert response.headers["X-RateLimit-Remaining"] == "9"
@@ -443,8 +449,8 @@ class TestRateLimitMiddleware:
         async def call_next(request):
             return mock_response
 
-        mock_check = AsyncMock(
-            return_value=(
+        async def mock_check_rate_limit(request, max_requests, window_seconds):
+            return (
                 True,
                 {
                     "remaining": 999,
@@ -452,9 +458,8 @@ class TestRateLimitMiddleware:
                     "retry_after": 0,
                 },
             )
-        )
 
-        with patch.object(rate_limiter, "check_rate_limit", mock_check):
+        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
             response = await rate_limit_middleware(mock_request, call_next)
 
             assert response == mock_response
@@ -472,14 +477,13 @@ class TestRateLimitMiddleware:
 
         reset_time = int(time.time() + 30)
 
-        mock_check = AsyncMock(
-            return_value=(
+        async def mock_check_rate_limit(request, max_requests, window_seconds):
+            return (
                 False,
                 {"remaining": 0, "reset_time": reset_time, "retry_after": 30},
             )
-        )
 
-        with patch.object(rate_limiter, "check_rate_limit", mock_check):
+        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
             response = await rate_limit_middleware(mock_request, call_next)
 
             assert response.status_code == 429
