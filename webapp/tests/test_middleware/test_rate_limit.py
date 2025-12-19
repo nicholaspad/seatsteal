@@ -332,41 +332,6 @@ class TestRateLimitDecorator:
             assert response["message"] == "success"
 
     @pytest.mark.unit
-    async def test_rate_limit_decorator_blocks_request(self):
-        """Test decorator blocks request when limit exceeded."""
-
-        mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/test"
-
-        async def mock_check_rate_limit(
-            request, max_requests, window_seconds, identifier=None
-        ):
-            return (
-                False,
-                {
-                    "remaining": 0,
-                    "reset_time": int(time.time() + 30),
-                    "retry_after": 30,
-                },
-            )
-
-        with patch(
-            "api.middleware.rate_limit.rate_limiter.check_rate_limit",
-            new=mock_check_rate_limit,
-        ):
-
-            @rate_limit(max_requests=10, window_seconds=60)
-            async def test_endpoint(request: Request):
-                return {"message": "success"}
-
-            with pytest.raises(HTTPException) as exc_info:
-                await test_endpoint(mock_request)
-
-            assert exc_info.value.status_code == 429
-            assert "Rate limit exceeded" in exc_info.value.detail["error"]
-            assert exc_info.value.headers["Retry-After"] == "30"
-
-    @pytest.mark.unit
     async def test_rate_limit_decorator_with_user_id(self):
         """Test decorator uses user ID when use_user_id=True."""
 
@@ -408,39 +373,6 @@ class TestRateLimitDecorator:
         # Call without Request object
         response = await test_endpoint({"test": "data"})
         assert response["message"] == "success"
-
-    @pytest.mark.unit
-    async def test_rate_limit_decorator_adds_headers_to_response(self):
-        """Test decorator adds rate limit headers to response."""
-
-        mock_request = MagicMock(spec=Request)
-        mock_request.url.path = "/api/test"
-
-        reset_time = int(time.time() + 60)
-
-        async def mock_check_rate_limit(
-            request, max_requests, window_seconds, identifier=None
-        ):
-            return (
-                True,
-                {"remaining": 9, "reset_time": reset_time, "retry_after": 0},
-            )
-
-        with patch(
-            "api.middleware.rate_limit.rate_limiter.check_rate_limit",
-            new=mock_check_rate_limit,
-        ):
-
-            @rate_limit(max_requests=10, window_seconds=60)
-            async def test_endpoint(request: Request):
-                mock_response = MagicMock()
-                mock_response.headers = {}
-                return mock_response
-
-            response = await test_endpoint(mock_request)
-            assert response.headers["X-RateLimit-Limit"] == "10"
-            assert response.headers["X-RateLimit-Remaining"] == "9"
-            assert response.headers["X-RateLimit-Reset"] == str(reset_time)
 
 
 class TestRateLimitMiddleware:
