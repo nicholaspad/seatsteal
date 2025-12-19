@@ -1,3 +1,4 @@
+// Trivial verification comment - testing all systems
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 // @ts-expect-error - Font package doesn't have types
