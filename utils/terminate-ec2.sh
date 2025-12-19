@@ -165,7 +165,7 @@ echo ""
 echo -e "${YELLOW}🗑️  Cleaning up local files...${NC}"
 
 if [[ -f "$PEM_FILE" ]]; then
-    rm "$PEM_FILE"
+    rm -f "$PEM_FILE"
     echo -e "${GREEN}✅ Deleted: $PEM_FILE${NC}"
 fi
 
