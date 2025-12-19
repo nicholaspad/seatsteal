@@ -655,9 +655,11 @@ export function CollegesClient() {
                     disabled={termsLoading}
                     className="w-full"
                   >
-                    <Download
-                      className={`h-4 w-4 mr-2 ${termsLoading ? "animate-spin" : ""}`}
-                    />
+                    {termsLoading ? (
+                      <Spinner className="mr-2" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
                     {termsLoading
                       ? "Fetching..."
                       : "Fetch Available Term Codes"}
