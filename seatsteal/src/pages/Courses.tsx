@@ -144,27 +144,17 @@ export default function Courses() {
   });
   const [loading, setLoading] = useState(true);
 
-  // DEBUG: Track mount/unmount
   useEffect(() => {
-    console.log("[Courses] Component MOUNTED");
-    return () => console.log("[Courses] Component UNMOUNTED");
-  }, []);
-
-  useEffect(() => {
-    console.log("[Courses] useEffect triggered - authLoading:", authLoading, "profileLoading:", profileLoading, "user:", !!user, "isLoggedOut:", isLoggedOut);
     // Wait for auth to load before fetching data
     // This prevents race condition where API call happens before auth completes
     if (authLoading || (user && profileLoading)) {
-      console.log("[Courses] useEffect - skipping fetch (auth/profile loading)");
       return;
     }
 
-    console.log("[Courses] useEffect - setting loading=true and fetching data");
     setLoading(true);
     getCoursesData(searchParams, isLoggedOut).then((result) => {
       setData(result);
       setLoading(false);
-      console.log("[Courses] useEffect - fetch complete, loading=false");
     });
   }, [searchParams.toString(), isLoggedOut, authLoading, user, profileLoading]);
 
@@ -179,13 +169,11 @@ export default function Courses() {
 
   // Show loading skeleton while auth is initializing
   if (authLoading) {
-    console.log("[Courses] Rendering skeleton due to authLoading=true");
     return <RouteAwareSkeleton />;
   }
 
   // Wait for profile to load before rendering to get correct initial college filter
   if (user && profileLoading) {
-    console.log("[Courses] Rendering skeleton due to user && profileLoading=true");
     return <RouteAwareSkeleton />;
   }
 
@@ -217,7 +205,6 @@ export default function Courses() {
   }
 
   if (loading) {
-    console.log("[Courses] Rendering skeleton due to local loading=true");
     return <RouteAwareSkeleton />;
   }
 
