@@ -45,6 +45,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // Track if initial data load has completed (to avoid showing loading skeleton on background refreshes)
   const initialLoadCompleteRef = useRef(false);
 
+  // DEBUG: Track state changes
+  console.log("[SessionProvider] Render - loading:", loading, "profileLoading:", profileLoading, "tierLoading:", tierLoading, "initialLoadComplete:", initialLoadCompleteRef.current);
+
   // Function to fetch user's profile from backend
   // silent = true means don't show loading state (used for background refreshes)
   const fetchUserProfile = async (silent = false) => {
@@ -179,6 +182,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[SessionProvider] onAuthStateChange - event:", event, "hasSession:", !!session, "initializingRef:", initializingRef.current, "initialLoadComplete:", initialLoadCompleteRef.current);
       if (event === "SIGNED_OUT" || !session?.user) {
         setUser(null);
         setProfile(null);
@@ -203,14 +207,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         // to avoid flashing loading skeletons when returning to the tab
         const isSilentRefresh =
           event === "TOKEN_REFRESHED" && initialLoadCompleteRef.current;
+        console.log("[SessionProvider] isSilentRefresh:", isSilentRefresh, "event:", event, "initialLoadComplete:", initialLoadCompleteRef.current);
 
         // Use session data directly if available to avoid redundant getUser() call
         if (session?.user) {
           // Only update user state if it's a different user to avoid triggering
           // re-renders and effect dependencies (e.g., Courses.tsx refetch)
-          setUser((prevUser) =>
-            prevUser?.id === session.user.id ? prevUser : session.user,
-          );
+          setUser((prevUser) => {
+            const isSameUser = prevUser?.id === session.user.id;
+            console.log("[SessionProvider] setUser - prevUser.id:", prevUser?.id, "session.user.id:", session.user.id, "isSameUser:", isSameUser);
+            return isSameUser ? prevUser : session.user;
+          });
           setLoading(false);
 
           // For silent refreshes (TOKEN_REFRESHED after initial load), skip refetching
