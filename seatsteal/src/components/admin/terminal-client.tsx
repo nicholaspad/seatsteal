@@ -6,8 +6,6 @@ import "@xterm/xterm/css/xterm.css";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  ArrowUp,
-  ArrowDown,
   CornerDownLeft,
   Play,
   RefreshCw,
@@ -243,14 +241,9 @@ export function TerminalClient() {
     connect();
   }, [connect]);
 
-  // Send up arrow
-  const sendUp = useCallback(() => {
-    sendInput("\x1b[A");
-  }, [sendInput]);
-
-  // Send down arrow
-  const sendDown = useCallback(() => {
-    sendInput("\x1b[B");
+  // Send Ctrl-D (EOF)
+  const sendCtrlD = useCallback(() => {
+    sendInput("\x04");
   }, [sendInput]);
 
   // Send enter
@@ -335,27 +328,16 @@ export function TerminalClient() {
             Run ./manage.sh
           </Button>
 
-          {/* Navigation buttons */}
+          {/* Control buttons */}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               size="lg"
-              onClick={sendUp}
+              onClick={sendCtrlD}
               disabled={!isConnected}
               className="flex-1 min-w-[80px]"
             >
-              <ArrowUp className="h-5 w-5 mr-1" />
-              Up
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={sendDown}
-              disabled={!isConnected}
-              className="flex-1 min-w-[80px]"
-            >
-              <ArrowDown className="h-5 w-5 mr-1" />
-              Down
+              Ctrl-D
             </Button>
             <Button
               variant="outline"
@@ -371,7 +353,7 @@ export function TerminalClient() {
 
           {/* Number buttons */}
           <div className="flex gap-1">
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((num) => (
+            {["0", "1", "2"].map((num) => (
               <Button
                 key={num}
                 variant="outline"
