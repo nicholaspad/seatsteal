@@ -3,7 +3,6 @@ import { Link, useLocation, useHistory } from "react-router-dom";
 import { useSession } from "@/components/providers/SessionProvider";
 import { signOut } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Home,
   BookOpen,
@@ -78,9 +77,6 @@ export function Header({ className }: HeaderProps) {
             className="flex items-center space-x-2"
           >
             <span className="font-bold text-lg">SeatSteal</span>
-            <Badge variant="secondary" className="text-xs">
-              BETA
-            </Badge>
           </Link>
 
           {/* Desktop Navigation */}
