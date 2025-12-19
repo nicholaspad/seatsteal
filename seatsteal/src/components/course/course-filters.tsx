@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CourseSearch } from "@/components/course/course-search";
 import type { College } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -88,26 +89,29 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
           {/* College Filter */}
           <div className="space-y-2">
             <label className="text-sm font-medium">College</label>
-            <Select
-              name="college"
-              defaultValue={initialValues.college || "all"}
-              onValueChange={(value: string) =>
-                handleFilterChange("college", value)
-              }
-              disabled={loading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Colleges" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Colleges</SelectItem>
-                {colleges.map((college) => (
-                  <SelectItem key={college.id} value={college.id.toString()}>
-                    {college.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {loading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : (
+              <Select
+                name="college"
+                defaultValue={initialValues.college || "all"}
+                onValueChange={(value: string) =>
+                  handleFilterChange("college", value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Colleges" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Colleges</SelectItem>
+                  {colleges.map((college) => (
+                    <SelectItem key={college.id} value={college.id.toString()}>
+                      {college.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {/* Display term name for selected college */}
             {initialValues.college &&
               initialValues.college !== "all" &&
