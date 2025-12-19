@@ -8,9 +8,9 @@ Analysis of low-hanging fruit to increase profitability and user stickiness.
 Add subtle upgrade prompts for free users - next to tier badge and when hitting subscription limits.
 
 ### 2. Annual Billing Option (Profitability) ✅ Implemented
-Add annual plans with ~17% discount:
-- Plus: $10/year (vs $12/year monthly)
-- Pro: $40/year (vs $48/year monthly)
+Add annual plans with 25% discount:
+- Plus: $9/year (vs $12/year monthly)
+- Pro: $36/year (vs $48/year monthly)
 
 ### 3. Referral Program (Growth) ✅ Implemented
 Give both referrer and referee 1 week of Pro free via Stripe coupon.
@@ -73,8 +73,8 @@ You need to create annual price products in Stripe and add the price IDs to your
 
 1. Go to [Stripe Dashboard → Products](https://dashboard.stripe.com/products)
 2. For each tier (Plus, Pro), add a new price:
-   - **Plus Annual**: $10/year recurring
-   - **Pro Annual**: $40/year recurring
+   - **Plus Annual**: $9/year recurring
+   - **Pro Annual**: $36/year recurring
 3. Copy the price IDs (start with `price_`)
 4. Add to your `.env` file:
    ```

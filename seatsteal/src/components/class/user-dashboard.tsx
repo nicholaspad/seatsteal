@@ -459,25 +459,12 @@ const UserDashboard = memo(function UserDashboard({
               </div>
             </CardContent>
           </Card>
-
-          {/* Referral Card */}
-          <ReferralCard />
         </div>
 
         {/* Main Content */}
         <div className="lg:col-span-3 space-y-6">
           {/* Header */}
           {showHeader && (
-            // <div className="flex items-center justify-between">
-            //   <div className="text-center space-y-2">
-            //     <h1 className="text-2xl font-bold">{title}</h1>
-            //     <p className="text-muted-foreground">
-            //       Showing {paginatedSubscriptions.length} of{" "}
-            //       {filteredAndSortedSubscriptions.length} subscriptions
-            //     </p>
-            //   </div>
-            // </div>
-
             <div className="text-center space-y-2">
               <h1 className="text-2xl font-bold">{title}</h1>
               <p className="text-muted-foreground">
@@ -486,6 +473,9 @@ const UserDashboard = memo(function UserDashboard({
               </p>
             </div>
           )}
+
+          {/* Referral Card */}
+          <ReferralCard />
 
           {/* Weekly Notifications Trend */}
           <Card>

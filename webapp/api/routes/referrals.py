@@ -4,7 +4,7 @@ import secrets
 import string
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel
 from typing import Optional
 import stripe
@@ -16,6 +16,8 @@ from models.stripe_customer import StripeCustomer
 from api.middleware.auth import require_auth
 from config import settings
 from utils.errors import log_and_raise_500
+from utils.stripe_utils import create_stripe_customer
+from utils.cache import invalidate_user_caches
 from loguru import logger
 
 router = APIRouter(prefix="/api/referrals", tags=["referrals"])
@@ -172,7 +174,7 @@ async def apply_referral_code(
 
         # Mark the referral as used
         referral.referee_id = user.id
-        referral.used_at = db.execute(select(db.func.now())).scalar()
+        referral.used_at = db.execute(select(func.now())).scalar()
 
         # Create a new unused referral code for the referrer
         while True:
@@ -256,6 +258,49 @@ async def create_referral_coupon() -> str:
         return ""
 
 
+async def get_or_create_stripe_customer(
+    user_id, db: Session
+) -> Optional[StripeCustomer]:
+    """Get or create a Stripe customer for a user"""
+    # Check if customer already exists
+    customer = db.execute(
+        select(StripeCustomer).where(StripeCustomer.user_id == user_id)
+    ).scalar_one_or_none()
+
+    if customer:
+        return customer
+
+    # Get user profile to get email
+    user = db.execute(select(Profile).where(Profile.id == user_id)).scalar_one_or_none()
+
+    if not user:
+        logger.error(f"User {user_id} not found when creating Stripe customer")
+        return None
+
+    try:
+        # Create Stripe customer
+        stripe_customer = await create_stripe_customer(user.email, str(user_id))
+
+        # Save to database
+        new_customer = StripeCustomer(
+            user_id=user_id,
+            stripe_customer_id=stripe_customer.id,
+            email=user.email,
+        )
+        db.add(new_customer)
+        db.commit()
+        db.refresh(new_customer)
+
+        # Invalidate user caches
+        invalidate_user_caches(str(user_id))
+
+        logger.info(f"Created Stripe customer for user {user_id}")
+        return new_customer
+    except Exception as e:
+        logger.error(f"Failed to create Stripe customer for user {user_id}: {e}")
+        return None
+
+
 async def apply_referral_rewards(
     referral: Referral,
     db: Session,
@@ -268,16 +313,13 @@ async def apply_referral_rewards(
     stripe.api_key = settings.STRIPE_SECRET_KEY
 
     try:
-        # Get Stripe customers for both users
-        referrer_customer = db.execute(
-            select(StripeCustomer).where(StripeCustomer.user_id == referral.referrer_id)
-        ).scalar_one_or_none()
+        # Get or create Stripe customers for both users
+        referee_customer = await get_or_create_stripe_customer(referral.referee_id, db)
+        referrer_customer = await get_or_create_stripe_customer(
+            referral.referrer_id, db
+        )
 
-        referee_customer = db.execute(
-            select(StripeCustomer).where(StripeCustomer.user_id == referral.referee_id)
-        ).scalar_one_or_none()
-
-        # Create coupon for referee (if they have a Stripe customer)
+        # Create coupon for referee
         if referee_customer and not referral.referee_rewarded:
             try:
                 coupon_id = await create_referral_coupon()
@@ -295,7 +337,7 @@ async def apply_referral_rewards(
             except stripe.StripeError as e:
                 logger.error(f"Failed to apply referee reward: {e}")
 
-        # Create coupon for referrer (if they have a Stripe customer)
+        # Create coupon for referrer
         if referrer_customer and not referral.referrer_rewarded:
             try:
                 coupon_id = await create_referral_coupon()

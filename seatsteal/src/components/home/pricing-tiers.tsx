@@ -46,7 +46,7 @@ export function PricingTiers() {
         ? `$${plusFeatures.annualPrice}`
         : `$${plusFeatures.monthlyPrice}`,
       period: isAnnual ? "/year" : "/month",
-      savings: isAnnual ? "Save $2" : null,
+      savings: isAnnual ? "Save $3" : null,
       features: [
         `Monitor ${plusFeatures.maxSubscriptions} sections`,
         `Checks every ${plusFeatures.checkFrequency} minutes`,
@@ -62,7 +62,7 @@ export function PricingTiers() {
         ? `$${proFeatures.annualPrice}`
         : `$${proFeatures.monthlyPrice}`,
       period: isAnnual ? "/year" : "/month",
-      savings: isAnnual ? "Save $8" : null,
+      savings: isAnnual ? "Save $12" : null,
       features: [
         `Monitor ${proFeatures.maxSubscriptions} sections`,
         `Checks every minute`,
@@ -133,38 +133,36 @@ export function PricingTiers() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Billing Toggle */}
-      <div className="flex justify-center items-center gap-3">
-        <span
-          className={`text-sm ${billingInterval === "monthly" ? "font-medium" : "text-muted-foreground"}`}
-        >
-          Monthly
-        </span>
-        <button
-          onClick={() =>
-            setBillingInterval(isAnnual ? "monthly" : "annual")
-          }
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            isAnnual ? "bg-primary" : "bg-muted"
-          }`}
-        >
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex items-center gap-3">
           <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-              isAnnual ? "translate-x-6" : "translate-x-1"
-            }`}
-          />
-        </button>
-        <span
-          className={`text-sm ${billingInterval === "annual" ? "font-medium" : "text-muted-foreground"}`}
-        >
-          Annual
-        </span>
-        {isAnnual && (
-          <span className="text-xs text-green-600 font-medium">
-            Save up to 17%
+            className={`text-sm ${billingInterval === "monthly" ? "font-medium" : "text-muted-foreground"}`}
+          >
+            Monthly
           </span>
-        )}
+          <button
+            onClick={() => setBillingInterval(isAnnual ? "monthly" : "annual")}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              isAnnual ? "bg-primary" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                isAnnual ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+          <span
+            className={`text-sm ${billingInterval === "annual" ? "font-medium" : "text-muted-foreground"}`}
+          >
+            Annual
+          </span>
+        </div>
+        <span className="text-sm text-green-600 font-medium">
+          Save 25% with an annual plan!
+        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -196,36 +194,36 @@ export function PricingTiers() {
                 </span>
               </div>
             </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
-            <ul className="space-y-2 flex-1">
-              {tier.features.map((feature) => (
-                <li key={feature} className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
-                  <span className="text-sm">{feature}</span>
-                </li>
-              ))}
-            </ul>
-            <Button
-              className="w-full mt-4"
-              variant={tier.popular ? "default" : "outline"}
-              onClick={() => handleSubscribe(tier.id)}
-              disabled={loading === tier.id}
-            >
-              {loading === tier.id ? (
-                <>
-                  <Spinner className="size-4 mr-2" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  {tier.cta}
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
+            <CardContent className="flex-1 flex flex-col">
+              <ul className="space-y-2 flex-1">
+                {tier.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
+                    <span className="text-sm">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button
+                className="w-full mt-4"
+                variant={tier.popular ? "default" : "outline"}
+                onClick={() => handleSubscribe(tier.id)}
+                disabled={loading === tier.id}
+              >
+                {loading === tier.id ? (
+                  <>
+                    <Spinner className="size-4 mr-2" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    {tier.cta}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );

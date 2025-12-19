@@ -36,7 +36,7 @@ export function getSubscriptionFeatures(
         checkFrequency: 5, // 5 minutes
         maxSubscriptions: 5,
         monthlyPrice: 1,
-        annualPrice: 10, // ~17% savings vs $12/year
+        annualPrice: 9, // 25% savings vs $12/year
         watcherCountAccess: false,
         priorityNotifications: false,
       };
@@ -46,7 +46,7 @@ export function getSubscriptionFeatures(
         checkFrequency: 1, // 1 minute
         maxSubscriptions: 20,
         monthlyPrice: 4,
-        annualPrice: 40, // ~17% savings vs $48/year
+        annualPrice: 36, // 25% savings vs $48/year
         watcherCountAccess: true,
         priorityNotifications: true,
       };
