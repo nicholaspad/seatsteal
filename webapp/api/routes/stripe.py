@@ -11,6 +11,7 @@ from db.session import get_db
 from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
 from models.user import Profile
+from models.referral import Referral
 from api.middleware.auth import require_auth
 from utils.stripe_utils import (
     create_stripe_customer,
@@ -32,6 +33,7 @@ class CheckoutSessionRequest(BaseModel):
     """Request schema for creating checkout session"""
 
     tier: Literal["plus", "pro"]
+    interval: Literal["monthly", "annual"] = "monthly"
 
 
 @router.post("/create-checkout-session")
@@ -49,12 +51,12 @@ async def create_stripe_checkout_session(
                 detail="Stripe is not configured. STRIPE_SECRET_KEY is missing.",
             )
 
-        # Get price ID for tier and validate
-        price_id = get_price_id_for_tier(request.tier)
+        # Get price ID for tier and billing interval, and validate
+        price_id = get_price_id_for_tier(request.tier, request.interval)
         if not price_id:
             raise HTTPException(
                 status_code=500,
-                detail=f"Stripe price ID for tier '{request.tier}' is not configured.",
+                detail=f"Stripe price ID for tier '{request.tier}' ({request.interval}) is not configured.",
             )
 
         # Get or create Stripe customer
@@ -239,6 +241,7 @@ async def stripe_webhooks(
                     )
                     existing = existing_sub.scalar_one_or_none()
 
+                    is_new_subscription = False
                     if existing:
                         # Update existing subscription
                         existing.status = subscription["status"]
@@ -255,11 +258,35 @@ async def stripe_webhooks(
                             tier=tier,
                         )
                         db.add(stripe_subscription)
+                        is_new_subscription = True
 
                     db.commit()
 
                     # Invalidate user caches (profile and tier) after subscription change
                     invalidate_user_caches(str(stripe_customer.user_id))
+
+                    # Apply referral rewards for new subscriptions
+                    if is_new_subscription and subscription["status"] == "active":
+                        try:
+                            from api.routes.referrals import apply_referral_rewards
+
+                            # Find pending referral where this user is the referee
+                            referral_result = db.execute(
+                                select(Referral).where(
+                                    Referral.referee_id == stripe_customer.user_id,
+                                    Referral.referee_rewarded == False,
+                                )
+                            )
+                            pending_referral = referral_result.scalar_one_or_none()
+
+                            if pending_referral:
+                                await apply_referral_rewards(pending_referral, db)
+                                logger.info(
+                                    f"Applied referral rewards for user {stripe_customer.user_id}"
+                                )
+                        except Exception as e:
+                            # Don't fail the webhook if referral rewards fail
+                            logger.error(f"Failed to apply referral rewards: {e}")
 
         elif event.type == "customer.subscription.deleted":
             subscription = event.data.object

@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  ArrowUpRight,
   BellOff,
   BookOpen,
   Users,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CollegeBadge } from "@/components/college/CollegeBadge";
+import { ReferralCard } from "@/components/referral/ReferralCard";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -371,7 +373,19 @@ const UserDashboard = memo(function UserDashboard({
                 >
                   {userTier}
                 </Badge>
-                {
+                {userTier === "free" ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto py-1 px-2 text-xs text-primary hover:text-primary/80"
+                    asChild
+                  >
+                    <Link to="/#plans">
+                      Upgrade
+                      <ArrowUpRight className="h-3 w-3 ml-1" />
+                    </Link>
+                  </Button>
+                ) : (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -391,7 +405,7 @@ const UserDashboard = memo(function UserDashboard({
                       </span>
                     )}
                   </Button>
-                }
+                )}
               </div>
 
               <Button variant="outline" className="w-full" asChild>
@@ -445,6 +459,9 @@ const UserDashboard = memo(function UserDashboard({
               </div>
             </CardContent>
           </Card>
+
+          {/* Referral Card */}
+          <ReferralCard />
         </div>
 
         {/* Main Content */}
