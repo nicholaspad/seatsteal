@@ -325,7 +325,7 @@ export function TerminalClient() {
             className="w-full"
           >
             <Play className="h-5 w-5 mr-2" />
-            Run ./manage.sh
+            Manage
           </Button>
 
           {/* Control buttons */}
@@ -353,7 +353,7 @@ export function TerminalClient() {
 
           {/* Number buttons */}
           <div className="flex gap-1">
-            {["0", "1", "2"].map((num) => (
+            {["0", "1", "2", "3", "4", "5", "6"].map((num) => (
               <Button
                 key={num}
                 variant="outline"
