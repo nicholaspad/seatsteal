@@ -6,6 +6,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { logError } from "@/lib/logger";
+import { fetchWithToasts } from "@/lib/api";
 
 export default function AuthCallback() {
   const history = useHistory();
@@ -55,6 +56,23 @@ export default function AuthCallback() {
         // Check if URL contains admin redirect hint
         const urlParams = new URLSearchParams(window.location.search);
         const isAdminRedirect = urlParams.get("admin") === "true";
+
+        // Apply referral code if one was stored
+        const storedReferralCode = localStorage.getItem("referral_code");
+        if (storedReferralCode) {
+          try {
+            await fetchWithToasts("/api/referrals/apply", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ referral_code: storedReferralCode }),
+            });
+            localStorage.removeItem("referral_code");
+          } catch (err) {
+            // Don't block auth on referral error, just log it
+            logError("Failed to apply referral code", err);
+            localStorage.removeItem("referral_code");
+          }
+        }
 
         // Redirect based on user type or admin flag
         if (isAdminRedirect) {

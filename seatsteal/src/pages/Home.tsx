@@ -33,6 +33,15 @@ export default function Home() {
     getColleges().then(setColleges);
   }, []);
 
+  // Capture referral code from URL and store in localStorage
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const refCode = params.get("ref");
+    if (refCode) {
+      localStorage.setItem("referral_code", refCode.toUpperCase());
+    }
+  }, [location.search]);
+
   // Auto-scroll to plans section when #plans hash is present
   useEffect(() => {
     if (location.hash === "#plans") {

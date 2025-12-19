@@ -1,11 +1,13 @@
 // Subscription tier constants that can be safely imported in client components
 export type SubscriptionTier = "free" | "plus" | "pro";
+export type BillingInterval = "monthly" | "annual";
 
 export interface SubscriptionFeatures {
   analyticsAccess: boolean;
   checkFrequency: number; // minutes between checks
   maxSubscriptions: number;
   monthlyPrice: number; // price in dollars
+  annualPrice: number; // annual price in dollars (with discount)
   // Pro-exclusive features
   watcherCountAccess: boolean; // Can see how many users are watching each section
   priorityNotifications: boolean; // Gets notified before Plus users
@@ -24,6 +26,7 @@ export function getSubscriptionFeatures(
         checkFrequency: 30, // 30 minutes
         maxSubscriptions: 1,
         monthlyPrice: 0,
+        annualPrice: 0,
         watcherCountAccess: false,
         priorityNotifications: false,
       };
@@ -33,6 +36,7 @@ export function getSubscriptionFeatures(
         checkFrequency: 5, // 5 minutes
         maxSubscriptions: 5,
         monthlyPrice: 1,
+        annualPrice: 9, // 25% savings vs $12/year
         watcherCountAccess: false,
         priorityNotifications: false,
       };
@@ -42,6 +46,7 @@ export function getSubscriptionFeatures(
         checkFrequency: 1, // 1 minute
         maxSubscriptions: 20,
         monthlyPrice: 4,
+        annualPrice: 36, // 25% savings vs $48/year
         watcherCountAccess: true,
         priorityNotifications: true,
       };

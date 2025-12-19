@@ -68,10 +68,16 @@ class Settings(BaseSettings):
     """Stripe webhook signing secret"""
 
     STRIPE_PLUS_PRICE_ID: str = ""
-    """Stripe price ID for Plus tier subscription"""
+    """Stripe price ID for Plus tier monthly subscription"""
 
     STRIPE_PRO_PRICE_ID: str = ""
-    """Stripe price ID for Pro tier subscription"""
+    """Stripe price ID for Pro tier monthly subscription"""
+
+    STRIPE_PLUS_ANNUAL_PRICE_ID: str = ""
+    """Stripe price ID for Plus tier annual subscription"""
+
+    STRIPE_PRO_ANNUAL_PRICE_ID: str = ""
+    """Stripe price ID for Pro tier annual subscription"""
 
     # Twilio SMS
     TWILIO_ACCOUNT_SID: str = ""

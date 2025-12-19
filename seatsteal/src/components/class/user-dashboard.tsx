@@ -19,9 +19,11 @@ import {
   Settings,
   Calendar,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CollegeBadge } from "@/components/college/CollegeBadge";
+import { ReferralCard } from "@/components/referral/ReferralCard";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -371,7 +373,18 @@ const UserDashboard = memo(function UserDashboard({
                 >
                   {userTier}
                 </Badge>
-                {
+                {userTier === "free" ? (
+                  <Button
+                    size="sm"
+                    className="h-auto py-1 px-2 text-xs bg-green-600 hover:bg-green-700 text-white"
+                    asChild
+                  >
+                    <Link to="/#plans">
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      Upgrade
+                    </Link>
+                  </Button>
+                ) : (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -391,7 +404,7 @@ const UserDashboard = memo(function UserDashboard({
                       </span>
                     )}
                   </Button>
-                }
+                )}
               </div>
 
               <Button variant="outline" className="w-full" asChild>
@@ -451,16 +464,6 @@ const UserDashboard = memo(function UserDashboard({
         <div className="lg:col-span-3 space-y-6">
           {/* Header */}
           {showHeader && (
-            // <div className="flex items-center justify-between">
-            //   <div className="text-center space-y-2">
-            //     <h1 className="text-2xl font-bold">{title}</h1>
-            //     <p className="text-muted-foreground">
-            //       Showing {paginatedSubscriptions.length} of{" "}
-            //       {filteredAndSortedSubscriptions.length} subscriptions
-            //     </p>
-            //   </div>
-            // </div>
-
             <div className="text-center space-y-2">
               <h1 className="text-2xl font-bold">{title}</h1>
               <p className="text-muted-foreground">
@@ -469,6 +472,9 @@ const UserDashboard = memo(function UserDashboard({
               </p>
             </div>
           )}
+
+          {/* Referral Card */}
+          <ReferralCard />
 
           {/* Weekly Notifications Trend */}
           <Card>

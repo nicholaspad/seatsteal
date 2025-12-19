@@ -22,32 +22,45 @@ else:
 
 if not settings.STRIPE_PLUS_PRICE_ID:
     logger.warning(
-        "STRIPE_PLUS_PRICE_ID is not configured. Plus tier subscriptions will fail."
+        "STRIPE_PLUS_PRICE_ID is not configured. Plus tier monthly subscriptions will fail."
     )
 
 if not settings.STRIPE_PRO_PRICE_ID:
     logger.warning(
-        "STRIPE_PRO_PRICE_ID is not configured. Pro tier subscriptions will fail."
+        "STRIPE_PRO_PRICE_ID is not configured. Pro tier monthly subscriptions will fail."
     )
 
 StripePriceTier = Literal["plus", "pro"]
+StripeBillingInterval = Literal["monthly", "annual"]
 
 
-def get_price_id_for_tier(tier: StripePriceTier) -> str:
-    """Get Stripe price ID for a subscription tier"""
+def get_price_id_for_tier(
+    tier: StripePriceTier, interval: StripeBillingInterval = "monthly"
+) -> str:
+    """Get Stripe price ID for a subscription tier and billing interval"""
     if tier == "plus":
+        if interval == "annual" and settings.STRIPE_PLUS_ANNUAL_PRICE_ID:
+            return settings.STRIPE_PLUS_ANNUAL_PRICE_ID
         return settings.STRIPE_PLUS_PRICE_ID
     elif tier == "pro":
+        if interval == "annual" and settings.STRIPE_PRO_ANNUAL_PRICE_ID:
+            return settings.STRIPE_PRO_ANNUAL_PRICE_ID
         return settings.STRIPE_PRO_PRICE_ID
     else:
         raise ValueError(f"Invalid tier: {tier}")
 
 
 def get_tier_from_price_id(price_id: str) -> Optional[StripePriceTier]:
-    """Get subscription tier from Stripe price ID"""
-    if price_id == settings.STRIPE_PLUS_PRICE_ID:
+    """Get subscription tier from Stripe price ID (works for both monthly and annual)"""
+    if price_id in (
+        settings.STRIPE_PLUS_PRICE_ID,
+        settings.STRIPE_PLUS_ANNUAL_PRICE_ID,
+    ):
         return "plus"
-    elif price_id == settings.STRIPE_PRO_PRICE_ID:
+    elif price_id in (
+        settings.STRIPE_PRO_PRICE_ID,
+        settings.STRIPE_PRO_ANNUAL_PRICE_ID,
+    ):
         return "pro"
     return None
 
