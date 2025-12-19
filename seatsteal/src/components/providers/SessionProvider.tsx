@@ -46,10 +46,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const initialLoadCompleteRef = useRef(false);
 
   // Function to fetch user's profile from backend
-  // silent = true means don't show loading state (used for background refreshes)
-  const fetchUserProfile = async (silent = false) => {
+  const fetchUserProfile = async () => {
     try {
-      if (!silent) setProfileLoading(true);
+      setProfileLoading(true);
       const response = await fetchWithToasts("/api/user/settings");
 
       if (response.ok) {
@@ -71,15 +70,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Function to fetch user's subscription tier
-  // silent = true means don't show loading state (used for background refreshes)
-  const fetchSubscriptionTier = async (userId: string, silent = false) => {
+  const fetchSubscriptionTier = async (userId: string) => {
     if (!userId) {
       setTierLoading(false);
       return;
     }
 
     try {
-      if (!silent) setTierLoading(true);
+      setTierLoading(true);
       const response = await fetchWithToasts("/api/user/subscription-tier");
 
       if (response.ok) {
@@ -101,10 +99,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Function to fetch user's subscription status (count, limit, tier)
-  // silent = true means don't show loading state (used for background refreshes)
-  const fetchSubscriptionStatus = async (silent = false) => {
+  const fetchSubscriptionStatus = async () => {
     try {
-      if (!silent) setSubscriptionStatusLoading(true);
+      setSubscriptionStatusLoading(true);
       const response = await fetchWithToasts("/api/subscriptions/status");
 
       if (response.ok) {
@@ -199,12 +196,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Use silent mode for background refreshes after initial load to avoid
-        // flashing loading skeletons when returning to the tab.
-        // Both TOKEN_REFRESHED and SIGNED_IN can fire on tab visibility change.
-        const isSilentRefresh =
-          (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") &&
-          initialLoadCompleteRef.current;
+        // Skip refetching if initial load is complete - both TOKEN_REFRESHED and
+        // SIGNED_IN can fire on tab visibility change, and we don't want to
+        // flash loading skeletons or refetch data that's already loaded.
+        const skipRefetch = initialLoadCompleteRef.current;
 
         // Use session data directly if available to avoid redundant getUser() call
         if (session?.user) {
@@ -215,9 +210,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           );
           setLoading(false);
 
-          // For silent refreshes (TOKEN_REFRESHED after initial load), skip refetching
-          // profile/tier/subscription data since it was already loaded
-          if (!isSilentRefresh) {
+          if (!skipRefetch) {
             // Fetch profile, tier, and subscription status in parallel for better performance
             Promise.all([
               fetchUserProfile(),
@@ -256,9 +249,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             // re-renders and effect dependencies
             setUser((prevUser) => (prevUser?.id === user.id ? prevUser : user));
 
-            // For silent refreshes (TOKEN_REFRESHED after initial load), skip refetching
-            // profile/tier/subscription data since it was already loaded
-            if (!isSilentRefresh) {
+            if (!skipRefetch) {
               // Fetch profile, tier, and subscription status in parallel for better performance
               Promise.all([
                 fetchUserProfile(),
