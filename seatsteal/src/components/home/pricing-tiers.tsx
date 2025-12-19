@@ -178,20 +178,20 @@ export function PricingTiers() {
                 </span>
               </div>
             )}
-            {tier.savings && (
-              <div className="absolute -top-3 right-4">
-                <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium">
-                  {tier.savings}
-                </span>
-              </div>
-            )}
             <CardHeader className="text-center">
               <CardTitle>{tier.name}</CardTitle>
-              <div className="text-3xl font-bold">
-                {tier.price}
-                <span className="text-lg font-normal text-muted-foreground">
-                  {tier.period}
-                </span>
+              <div className="flex items-center justify-center gap-2">
+                <div className="text-3xl font-bold">
+                  {tier.price}
+                  <span className="text-lg font-normal text-muted-foreground">
+                    {tier.period}
+                  </span>
+                </div>
+                {tier.savings && (
+                  <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium">
+                    {tier.savings}
+                  </span>
+                )}
               </div>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">

@@ -13,13 +13,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  ArrowUpRight,
   BellOff,
   BookOpen,
   Users,
   Settings,
   Calendar,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CollegeBadge } from "@/components/college/CollegeBadge";
@@ -375,14 +375,13 @@ const UserDashboard = memo(function UserDashboard({
                 </Badge>
                 {userTier === "free" ? (
                   <Button
-                    variant="ghost"
                     size="sm"
-                    className="h-auto py-1 px-2 text-xs text-primary hover:text-primary/80"
+                    className="h-auto py-1 px-2 text-xs bg-green-600 hover:bg-green-700 text-white"
                     asChild
                   >
                     <Link to="/#plans">
+                      <Sparkles className="h-3 w-3 mr-1" />
                       Upgrade
-                      <ArrowUpRight className="h-3 w-3 ml-1" />
                     </Link>
                   </Button>
                 ) : (
