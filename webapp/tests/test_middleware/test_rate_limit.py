@@ -238,12 +238,14 @@ class TestCheckRateLimit:
 
         current_time = time.time()
 
-        # Mock Redis returning no tokens
+        # Mock Redis returning no tokens and very recent timestamp (no replenishment)
         def mock_get(key):
             if "tokens" in key:
                 return "0"
             if "timestamp" in key:
-                return str(current_time - 1)  # 1 second ago
+                return str(
+                    current_time - 0.1
+                )  # 0.1 seconds ago (not enough to replenish)
             return None
 
         mock_redis.get.side_effect = mock_get
@@ -313,13 +315,16 @@ class TestRateLimitDecorator:
         mock_request.headers.get.return_value = None
         mock_request.client.host = "192.168.1.1"
 
+        async def mock_check():
+            return (
+                True,
+                {"remaining": 9, "reset_time": int(time.time() + 60), "retry_after": 0},
+            )
+
         with patch.object(
             rate_limiter,
             "check_rate_limit",
-            return_value=(
-                True,
-                {"remaining": 9, "reset_time": int(time.time() + 60), "retry_after": 0},
-            ),
+            side_effect=lambda *args, **kwargs: mock_check(),
         ):
             response = await test_endpoint(mock_request)
             assert response["message"] == "success"
@@ -335,17 +340,20 @@ class TestRateLimitDecorator:
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
 
-        with patch.object(
-            rate_limiter,
-            "check_rate_limit",
-            return_value=(
+        async def mock_check():
+            return (
                 False,
                 {
                     "remaining": 0,
                     "reset_time": int(time.time() + 30),
                     "retry_after": 30,
                 },
-            ),
+            )
+
+        with patch.object(
+            rate_limiter,
+            "check_rate_limit",
+            side_effect=lambda *args, **kwargs: mock_check(),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await test_endpoint(mock_request)
@@ -411,13 +419,17 @@ class TestRateLimitDecorator:
         mock_request.url.path = "/api/test"
 
         reset_time = int(time.time() + 60)
+
+        async def mock_check():
+            return (
+                True,
+                {"remaining": 9, "reset_time": reset_time, "retry_after": 0},
+            )
+
         with patch.object(
             rate_limiter,
             "check_rate_limit",
-            return_value=(
-                True,
-                {"remaining": 9, "reset_time": reset_time, "retry_after": 0},
-            ),
+            side_effect=lambda *args, **kwargs: mock_check(),
         ):
             response = await test_endpoint(mock_request)
             assert response.headers["X-RateLimit-Limit"] == "10"
@@ -440,17 +452,20 @@ class TestRateLimitMiddleware:
         async def call_next(request):
             return mock_response
 
-        with patch.object(
-            rate_limiter,
-            "check_rate_limit",
-            return_value=(
+        async def mock_check():
+            return (
                 True,
                 {
                     "remaining": 999,
                     "reset_time": int(time.time() + 60),
                     "retry_after": 0,
                 },
-            ),
+            )
+
+        with patch.object(
+            rate_limiter,
+            "check_rate_limit",
+            side_effect=lambda *args, **kwargs: mock_check(),
         ):
             response = await rate_limit_middleware(mock_request, call_next)
 
@@ -468,13 +483,17 @@ class TestRateLimitMiddleware:
             return MagicMock()
 
         reset_time = int(time.time() + 30)
+
+        async def mock_check():
+            return (
+                False,
+                {"remaining": 0, "reset_time": reset_time, "retry_after": 30},
+            )
+
         with patch.object(
             rate_limiter,
             "check_rate_limit",
-            return_value=(
-                False,
-                {"remaining": 0, "reset_time": reset_time, "retry_after": 30},
-            ),
+            side_effect=lambda *args, **kwargs: mock_check(),
         ):
             response = await rate_limit_middleware(mock_request, call_next)
 
