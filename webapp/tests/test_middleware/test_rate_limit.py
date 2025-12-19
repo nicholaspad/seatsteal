@@ -319,7 +319,10 @@ class TestRateLimitDecorator:
                 {"remaining": 9, "reset_time": int(time.time() + 60), "retry_after": 0},
             )
 
-        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
+        with patch(
+            "api.middleware.rate_limit.rate_limiter.check_rate_limit",
+            new=mock_check_rate_limit,
+        ):
 
             @rate_limit(max_requests=10, window_seconds=60)
             async def test_endpoint(request: Request):
@@ -347,7 +350,10 @@ class TestRateLimitDecorator:
                 },
             )
 
-        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
+        with patch(
+            "api.middleware.rate_limit.rate_limiter.check_rate_limit",
+            new=mock_check_rate_limit,
+        ):
 
             @rate_limit(max_requests=10, window_seconds=60)
             async def test_endpoint(request: Request):
@@ -420,7 +426,10 @@ class TestRateLimitDecorator:
                 {"remaining": 9, "reset_time": reset_time, "retry_after": 0},
             )
 
-        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
+        with patch(
+            "api.middleware.rate_limit.rate_limiter.check_rate_limit",
+            new=mock_check_rate_limit,
+        ):
 
             @rate_limit(max_requests=10, window_seconds=60)
             async def test_endpoint(request: Request):
@@ -459,7 +468,10 @@ class TestRateLimitMiddleware:
                 },
             )
 
-        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
+        with patch(
+            "api.middleware.rate_limit.rate_limiter.check_rate_limit",
+            new=mock_check_rate_limit,
+        ):
             response = await rate_limit_middleware(mock_request, call_next)
 
             assert response == mock_response
@@ -483,7 +495,10 @@ class TestRateLimitMiddleware:
                 {"remaining": 0, "reset_time": reset_time, "retry_after": 30},
             )
 
-        with patch.object(rate_limiter, "check_rate_limit", new=mock_check_rate_limit):
+        with patch(
+            "api.middleware.rate_limit.rate_limiter.check_rate_limit",
+            new=mock_check_rate_limit,
+        ):
             response = await rate_limit_middleware(mock_request, call_next)
 
             assert response.status_code == 429
