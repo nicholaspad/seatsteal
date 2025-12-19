@@ -58,6 +58,21 @@ describe("Dashboard Page", () => {
             json: () => Promise.resolve(mockTrendsResponse),
           } as Response);
         }
+        if (url.includes("/api/referrals")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  referralCode: "ABC123",
+                  referralUrl: "https://seatsteal.app/?ref=ABC123",
+                  totalReferrals: 0,
+                  successfulReferrals: 0,
+                },
+              }),
+          } as Response);
+        }
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ success: true }),
@@ -84,10 +99,27 @@ describe("Dashboard Page", () => {
 
   describe("Tier Display", () => {
     beforeEach(() => {
-      mockFetchWithToasts.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: true, data: [] }),
-      } as Response);
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/referrals")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  referralCode: "ABC123",
+                  referralUrl: "https://seatsteal.app/?ref=ABC123",
+                  totalReferrals: 0,
+                  successfulReferrals: 0,
+                },
+              }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: [] }),
+        } as Response);
+      });
     });
 
     it("renders with free tier", async () => {
@@ -132,6 +164,21 @@ describe("Dashboard Page", () => {
           return Promise.resolve({
             ok: true,
             json: () => Promise.resolve(mockTrendsResponse),
+          } as Response);
+        }
+        if (url.includes("/api/referrals")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  referralCode: "ABC123",
+                  referralUrl: "https://seatsteal.app/?ref=ABC123",
+                  totalReferrals: 0,
+                  successfulReferrals: 0,
+                },
+              }),
           } as Response);
         }
         return Promise.resolve({
@@ -372,7 +419,7 @@ describe("Dashboard Page", () => {
       });
 
       it("shows custom toast with pricing link when no Stripe customer exists", async () => {
-        renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+        renderAuthenticated(<Dashboard />, { subscriptionTier: "plus" });
 
         // Wait for dashboard to render
         await waitFor(() => {
@@ -414,7 +461,7 @@ describe("Dashboard Page", () => {
       });
 
       it("shows generic error toast for 404 without NO_STRIPE_CUSTOMER code", async () => {
-        renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+        renderAuthenticated(<Dashboard />, { subscriptionTier: "plus" });
 
         await waitFor(() => {
           expect(screen.getByText("Manage")).toBeInTheDocument();
@@ -443,7 +490,7 @@ describe("Dashboard Page", () => {
       });
 
       it("shows generic error for 404 with detail.code that is not NO_STRIPE_CUSTOMER", async () => {
-        renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+        renderAuthenticated(<Dashboard />, { subscriptionTier: "plus" });
 
         await waitFor(() => {
           expect(screen.getByText("Manage")).toBeInTheDocument();
@@ -475,7 +522,7 @@ describe("Dashboard Page", () => {
       });
 
       it("handles JSON parse error gracefully", async () => {
-        renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+        renderAuthenticated(<Dashboard />, { subscriptionTier: "plus" });
 
         await waitFor(() => {
           expect(screen.getByText("Manage")).toBeInTheDocument();
@@ -501,7 +548,7 @@ describe("Dashboard Page", () => {
       });
 
       it("shows generic error for non-404 errors", async () => {
-        renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+        renderAuthenticated(<Dashboard />, { subscriptionTier: "plus" });
 
         await waitFor(() => {
           expect(screen.getByText("Manage")).toBeInTheDocument();
