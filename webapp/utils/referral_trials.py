@@ -18,7 +18,8 @@ from utils.stripe_utils import (
     extend_subscription_trial,
     get_price_id_for_tier,
 )
-from utils.premium import get_user_subscription_tier, invalidate_user_caches
+from utils.premium import get_user_subscription_tier
+from utils.cache import invalidate_user_caches
 from utils.database import get_stripe_customer
 
 logger = logging.getLogger(__name__)

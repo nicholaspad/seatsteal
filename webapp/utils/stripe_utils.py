@@ -125,8 +125,8 @@ def verify_webhook_signature(payload: bytes, sig_header: str) -> stripe.Event:
 async def create_trial_subscription(
     customer_id: str,
     tier: StripePriceTier,
-    trial_days: int = 7,
     user_id: str,
+    trial_days: int = 7,
     metadata: dict = None,
 ) -> stripe.Subscription:
     """Create a subscription with trial period that auto-cancels without payment
@@ -134,8 +134,8 @@ async def create_trial_subscription(
     Args:
         customer_id: Stripe customer ID
         tier: Subscription tier (plus or pro)
-        trial_days: Number of days for trial (default 7)
         user_id: User ID for metadata
+        trial_days: Number of days for trial (default 7)
         metadata: Additional metadata to attach
 
     Returns:
