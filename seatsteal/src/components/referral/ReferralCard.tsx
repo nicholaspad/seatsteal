@@ -80,7 +80,7 @@ export function ReferralCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          You both get 1 week of Pro free
+          You both get 100% off your first month (monthly plans only)
         </p>
 
         <div className="flex gap-2">

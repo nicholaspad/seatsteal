@@ -13,7 +13,7 @@ Add annual plans with 25% discount:
 - Pro: $36/year (vs $48/year monthly)
 
 ### 3. Referral Program (Growth) ✅ Implemented
-Give both referrer and referee 1 week of Pro free via Stripe coupon.
+Give both referrer and referee 100% off their first month (monthly plans only) via Stripe coupon.
 
 ### 4. Promo/Coupon Codes (Profitability)
 Enable Stripe coupon codes for welcome discounts, seasonal promos, and partner promotions.
@@ -67,23 +67,29 @@ Show "X students watching" on course pages to create FOMO.
 ### 1. Upgrade CTAs - No setup required
 The upgrade button appears automatically for free users on the dashboard.
 
-### 2. Annual Billing - Stripe Setup Required
+### 2. Annual Billing & Referral Program - Stripe Product Restructure Required
 
-You need to create annual price products in Stripe and add the price IDs to your environment:
+**IMPORTANT:** The referral program requires separate Stripe products for monthly vs annual plans to restrict coupons to monthly-only subscriptions.
+
+#### Create 4 Separate Products in Stripe:
 
 1. Go to [Stripe Dashboard → Products](https://dashboard.stripe.com/products)
-2. For each tier (Plus, Pro), add a new price:
-   - **Plus Annual**: $9/year recurring
-   - **Pro Annual**: $36/year recurring
-3. Copy the price IDs (start with `price_`)
+2. Create the following products (each with ONE price):
+   - **Product:** "Plus - Monthly" → **Price:** $1/month recurring
+   - **Product:** "Plus - Annual" → **Price:** $9/year recurring
+   - **Product:** "Pro - Monthly" → **Price:** $4/month recurring
+   - **Product:** "Pro - Annual" → **Price:** $36/year recurring
+3. Copy each price ID (starts with `price_`)
 4. Add to your `.env` file:
    ```
-   STRIPE_PLUS_ANNUAL_PRICE_ID=price_xxxxx
-   STRIPE_PRO_ANNUAL_PRICE_ID=price_xxxxx
+   STRIPE_PLUS_PRICE_ID=price_xxxxx              # From "Plus - Monthly" product
+   STRIPE_PLUS_ANNUAL_PRICE_ID=price_xxxxx       # From "Plus - Annual" product
+   STRIPE_PRO_PRICE_ID=price_xxxxx               # From "Pro - Monthly" product
+   STRIPE_PRO_ANNUAL_PRICE_ID=price_xxxxx        # From "Pro - Annual" product
    ```
 5. Redeploy the backend
 
-**Note:** If annual price IDs are not set, the pricing page will still work but will fall back to monthly billing.
+**Why separate products?** Stripe's `applies_to` parameter restricts coupons by product ID, not price ID. By having separate monthly/annual products, referral coupons can be restricted to only monthly subscriptions, preventing users from applying them to annual plans.
 
 ### 3. Referral Program - Database Migration + Stripe Setup
 
@@ -98,12 +104,13 @@ alembic upgrade head
 1. Users get a unique referral code on their dashboard
 2. They share their referral link: `https://seatsteal.app/?ref=ABCD1234`
 3. New users who sign up via the link get the code stored
-4. When the referee subscribes, both get 1 week of Pro free via Stripe coupon
+4. When the referee subscribes to a **monthly plan**, both get 100% off their first month
 
 #### Stripe Coupon Behavior
 The referral system automatically creates Stripe coupons when rewards are applied:
-- Creates a 100% off coupon for the next billing cycle
-- Applied to the customer's Stripe account
+- Creates a 100% off coupon restricted to monthly products only (via `applies_to`)
+- Applied to the customer's Stripe account for the next billing cycle
+- **Security:** Coupon cannot be used on annual plans, even if user extracts the coupon ID
 - No manual Stripe coupon setup needed - coupons are created programmatically
 
 ---

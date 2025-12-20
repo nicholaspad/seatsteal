@@ -22,9 +22,8 @@ from loguru import logger
 
 router = APIRouter(prefix="/api/referrals", tags=["referrals"])
 
-# Referral reward: 1 week of Pro free
-REFERRAL_REWARD_DESCRIPTION = "1 week Pro free - Referral reward"
-REFERRAL_TRIAL_DAYS = 7
+# Referral reward: 100% off first month (monthly subscriptions only)
+REFERRAL_REWARD_DESCRIPTION = "100% off first month - Referral reward"
 
 
 def generate_referral_code(length: int = 8) -> str:
@@ -197,7 +196,7 @@ async def apply_referral_code(
             "success": True,
             "data": ApplyReferralResponse(
                 success=True,
-                message="Referral code applied! You'll both get 1 week of Pro free when you subscribe.",
+                message="Referral code applied! You'll both get 100% off your first month when you subscribe to a monthly plan.",
             ),
         }
 
@@ -237,7 +236,7 @@ async def validate_referral_code(
 
 
 async def create_referral_coupon() -> str:
-    """Create a Stripe coupon for referral reward (1 week Pro free)"""
+    """Create a Stripe coupon for referral reward (100% off first month, monthly plans only)"""
     if not settings.STRIPE_SECRET_KEY:
         logger.warning("Stripe not configured, skipping coupon creation")
         return ""
@@ -245,12 +244,39 @@ async def create_referral_coupon() -> str:
     stripe.api_key = settings.STRIPE_SECRET_KEY
 
     try:
-        # Create a coupon for 100% off for 7 days
+        # Get product IDs from monthly price IDs
+        monthly_product_ids = []
+
+        if settings.STRIPE_PLUS_PRICE_ID:
+            try:
+                plus_price = stripe.Price.retrieve(settings.STRIPE_PLUS_PRICE_ID)
+                monthly_product_ids.append(plus_price.product)
+            except stripe.StripeError as e:
+                logger.warning(f"Failed to retrieve Plus monthly price: {e}")
+
+        if settings.STRIPE_PRO_PRICE_ID:
+            try:
+                pro_price = stripe.Price.retrieve(settings.STRIPE_PRO_PRICE_ID)
+                monthly_product_ids.append(pro_price.product)
+            except stripe.StripeError as e:
+                logger.warning(f"Failed to retrieve Pro monthly price: {e}")
+
+        if not monthly_product_ids:
+            logger.error("No monthly product IDs found for referral coupon")
+            return ""
+
+        # Create a coupon restricted to monthly products only
         coupon = stripe.Coupon.create(
             percent_off=100,
             duration="once",
             name=REFERRAL_REWARD_DESCRIPTION,
+            applies_to={
+                "products": monthly_product_ids
+            },  # 🔒 Only applies to monthly products
             metadata={"type": "referral_reward"},
+        )
+        logger.info(
+            f"Created referral coupon {coupon.id} for products: {monthly_product_ids}"
         )
         return coupon.id
     except stripe.StripeError as e:
