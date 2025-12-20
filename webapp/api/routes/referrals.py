@@ -152,10 +152,9 @@ async def apply_referral_code(
                 detail="You cannot use your own referral code",
             )
 
-        # Check if this user already used THIS specific code
+        # Check if user has EVER claimed a referral code (prevents trial abuse)
         existing_redemption = db.execute(
             select(ReferralRedemption).where(
-                ReferralRedemption.referral_id == referral.id,
                 ReferralRedemption.referee_id == user.id,
             )
         ).scalar_one_or_none()
@@ -163,7 +162,7 @@ async def apply_referral_code(
         if existing_redemption:
             raise HTTPException(
                 status_code=400,
-                detail="You have already used this referral code",
+                detail="You have already claimed a referral code",
             )
 
         # Create redemption record

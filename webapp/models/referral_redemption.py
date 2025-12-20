@@ -17,9 +17,9 @@ from models.base import Base
 class ReferralRedemption(Base):
     """Tracks each time a referral code is used
 
-    Each referral code can be used by multiple people, but each person
-    can only use a specific referral code once. When a code is redeemed,
-    both the referrer and referee receive 7-day Pro trials.
+    Each person can only claim ONE referral code total (from any user).
+    This prevents trial abuse by claiming multiple codes from different users.
+    When a code is redeemed, both the referrer and referee receive 7-day Pro trials.
     """
 
     __tablename__ = "referral_redemptions"
@@ -41,7 +41,7 @@ class ReferralRedemption(Base):
     # Relationships
     referral = relationship("Referral", back_populates="redemptions")
 
-    # Constraints
+    # Constraints: Each user can only claim one referral code total
     __table_args__ = (
-        UniqueConstraint("referral_id", "referee_id", name="uq_referral_referee"),
+        UniqueConstraint("referee_id", name="uq_referee_single_redemption"),
     )
