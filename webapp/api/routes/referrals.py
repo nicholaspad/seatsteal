@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/referrals", tags=["referrals"])
 
 # Referral reward: 100% off first month (monthly subscriptions only)
 REFERRAL_REWARD_DESCRIPTION = "100% off first month - Referral reward"
+MAX_REFERRALS_PER_USER = 5  # Maximum successful referrals per user
 
 
 def generate_referral_code(length: int = 8) -> str:
@@ -170,6 +171,30 @@ async def apply_referral_code(
                 status_code=400,
                 detail="You have already used a referral code",
             )
+
+        # Fraud detection: Check for potential self-referral
+        referrer = db.execute(
+            select(Profile).where(Profile.id == referral.referrer_id)
+        ).scalar_one_or_none()
+
+        if referrer and referrer.email and user.email:
+            # Extract email domains
+            referrer_domain = referrer.email.split("@")[-1].lower()
+            referee_domain = user.email.split("@")[-1].lower()
+
+            # Flag suspicious activity if same email domain (potential self-referral)
+            if referrer_domain == referee_domain and referrer_domain not in [
+                "gmail.com",
+                "yahoo.com",
+                "outlook.com",
+                "hotmail.com",
+                "icloud.com",
+            ]:
+                logger.warning(
+                    f"Potential self-referral detected: referrer={referral.referrer_id} ({referrer.email}), "
+                    f"referee={user.id} ({user.email}) - same domain: {referrer_domain}"
+                )
+                # Still allow it, but log for manual review
 
         # Mark the referral as used
         referral.referee_id = user.id
@@ -363,22 +388,36 @@ async def apply_referral_rewards(
             except stripe.StripeError as e:
                 logger.error(f"Failed to apply referee reward: {e}")
 
-        # Create coupon for referrer
+        # Create coupon for referrer (check max referrals limit)
         if referrer_customer and not referral.referrer_rewarded:
-            try:
-                coupon_id = await create_referral_coupon()
-                if coupon_id:
-                    stripe.Customer.modify(
-                        referrer_customer.stripe_customer_id,
-                        coupon=coupon_id,
-                    )
-                    referral.referrer_coupon_id = coupon_id
-                    referral.referrer_rewarded = True
-                    logger.info(
-                        f"Applied referral reward to referrer {referral.referrer_id}"
-                    )
-            except stripe.StripeError as e:
-                logger.error(f"Failed to apply referrer reward: {e}")
+            # Check how many successful referrals they already have
+            successful_referrals_count = db.execute(
+                select(func.count(Referral.id)).where(
+                    Referral.referrer_id == referral.referrer_id,
+                    Referral.referrer_rewarded == True,
+                )
+            ).scalar()
+
+            if successful_referrals_count >= MAX_REFERRALS_PER_USER:
+                logger.warning(
+                    f"Referrer {referral.referrer_id} has reached max referrals limit ({MAX_REFERRALS_PER_USER})"
+                )
+                # Don't reward referrer, but still reward referee
+            else:
+                try:
+                    coupon_id = await create_referral_coupon()
+                    if coupon_id:
+                        stripe.Customer.modify(
+                            referrer_customer.stripe_customer_id,
+                            coupon=coupon_id,
+                        )
+                        referral.referrer_coupon_id = coupon_id
+                        referral.referrer_rewarded = True
+                        logger.info(
+                            f"Applied referral reward to referrer {referral.referrer_id} ({successful_referrals_count + 1}/{MAX_REFERRALS_PER_USER})"
+                        )
+                except stripe.StripeError as e:
+                    logger.error(f"Failed to apply referrer reward: {e}")
 
         db.commit()
 

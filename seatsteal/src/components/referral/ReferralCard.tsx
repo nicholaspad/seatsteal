@@ -103,15 +103,15 @@ export function ReferralCard() {
           </Button>
         </div>
 
-        {referralData.successfulReferrals > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Users className="h-3 w-3" />
-            <span>
-              {referralData.successfulReferrals} successful referral
-              {referralData.successfulReferrals !== 1 ? "s" : ""}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Users className="h-3 w-3" />
+          <span>{referralData.successfulReferrals}/5 successful referrals</span>
+        </div>
+
+        <p className="text-xs text-muted-foreground italic border-t pt-2">
+          Max 5 referrals per user. Misuse may result in closure of all
+          applicable accounts.
+        </p>
       </CardContent>
     </Card>
   );
