@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { FAQSection } from "@/components/home/faq-section";
 import { PricingTiers } from "@/components/home/pricing-tiers";
+import { ReferralAlert } from "@/components/referral/ReferralAlert";
 import type { College } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -62,6 +63,7 @@ export default function Home() {
   return (
     <IonPage>
       <IonContent>
+        <ReferralAlert />
         <div className="space-y-20 bg-black text-foreground">
           {/* Hero Section */}
           <section className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black">

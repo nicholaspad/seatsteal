@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Gift, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 
 interface ReferralData {
-  referralCode: string;
-  referralUrl: string;
-  totalReferrals: number;
-  successfulReferrals: number;
+  referral_code: string;
+  referral_url: string;
+  total_referrals: number;
+  successful_referrals: number;
 }
 
 export function ReferralCard() {
@@ -43,24 +43,13 @@ export function ReferralCard() {
   const copyToClipboard = async () => {
     if (!referralData) return;
 
-    try {
-      await navigator.clipboard.writeText(referralData.referralCode);
-      setCopied(true);
-      toast.success("Code copied!");
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      toast.error("Failed to copy code");
-    }
-  };
-
-  const copyMessage = async () => {
-    if (!referralData) return;
-
-    const message = `I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referralUrl}`;
+    const message = `I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referral_url}`;
 
     try {
       await navigator.clipboard.writeText(message);
+      setCopied(true);
       toast.success("Message copied!");
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       toast.error("Failed to copy message");
     }
@@ -92,30 +81,23 @@ export function ReferralCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div>
-          <p className="text-xs text-muted-foreground">
-            You'll both get one free week of Pro! Your friend must sign up for
-            an account. Misuse of referrals will result in deletion of all
-            applicable accounts.
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            {referralData.successfulReferrals === 0
-              ? "No successful referrals yet."
-              : `${referralData.successfulReferrals} successful referral${referralData.successfulReferrals !== 1 ? "s" : ""}!`}
-          </p>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          You'll both get one free week of Pro! Your friend must sign up for an
+          account.
+        </p>
 
         <div className="flex gap-2">
-          <Input
-            value={referralData.referralCode}
+          <Textarea
+            value={`I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referral_url}`}
             readOnly
-            className="text-sm font-mono h-8"
+            className="text-xs resize-none text-white"
+            rows={3}
           />
           <Button
             variant="outline"
             size="sm"
             onClick={copyToClipboard}
-            className="h-8 px-2"
+            className="px-2 self-start"
           >
             {copied ? (
               <Check className="h-4 w-4 text-green-600" />
@@ -125,15 +107,16 @@ export function ReferralCard() {
           </Button>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={copyMessage}
-          className="w-full h-8"
-        >
-          <Copy className="h-4 w-4 mr-2" />
-          Copy message
-        </Button>
+        <p className="text-xs text-muted-foreground">
+          Misuse of referrals will result in deletion of all applicable
+          accounts.
+        </p>
+
+        <p className="text-xs text-muted-foreground">
+          {referralData.successful_referrals === 0
+            ? "No successful referrals yet."
+            : `${referralData.successful_referrals} successful referral${referralData.successful_referrals !== 1 ? "s" : ""}!`}
+        </p>
       </CardContent>
     </Card>
   );
