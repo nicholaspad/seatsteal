@@ -1,24 +1,30 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { useSession } from "@/components/providers/SessionProvider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 
 const DISMISSAL_KEY = "referral-alert-dismissed";
 
 export function ReferralAlert() {
   const [visible, setVisible] = useState(false);
   const location = useLocation();
+  const { user } = useSession();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const refCode = params.get("ref");
     const dismissed = localStorage.getItem(DISMISSAL_KEY);
 
-    if (refCode && !dismissed) {
+    // Only show if user is logged out, has a ref code, and hasn't dismissed
+    if (refCode && !dismissed && !user) {
       setVisible(true);
+    } else if (user) {
+      // Hide if user logs in
+      setVisible(false);
     }
-  }, [location.search]);
+  }, [location.search, user]);
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISSAL_KEY, "true");
@@ -32,7 +38,6 @@ export function ReferralAlert() {
   return (
     <div className="fixed top-16 left-0 right-0 z-40 px-4 py-2">
       <Alert className="bg-gradient-to-r from-purple-900/90 to-blue-900/90 border-purple-500/50 backdrop-blur-sm">
-        <Sparkles className="text-yellow-400" />
         <AlertDescription className="flex items-center justify-between gap-2">
           <span className="text-white">
             You've been referred! Sign up to get 7 free days of Pro for you and

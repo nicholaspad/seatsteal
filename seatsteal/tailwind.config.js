@@ -1,10 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
-  content: [
-    "./index.html",
-    "./src/**/*.{ts,tsx,js,jsx}",
-  ],
+  content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   prefix: "",
   theme: {
     container: {
@@ -16,7 +13,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["Geist Sans", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -75,4 +72,4 @@ export default {
     },
   },
   plugins: [require("tailwindcss-animate")],
-}
+};
