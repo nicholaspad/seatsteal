@@ -172,30 +172,6 @@ async def apply_referral_code(
                 detail="You have already used a referral code",
             )
 
-        # Fraud detection: Check for potential self-referral
-        referrer = db.execute(
-            select(Profile).where(Profile.id == referral.referrer_id)
-        ).scalar_one_or_none()
-
-        if referrer and referrer.email and user.email:
-            # Extract email domains
-            referrer_domain = referrer.email.split("@")[-1].lower()
-            referee_domain = user.email.split("@")[-1].lower()
-
-            # Flag suspicious activity if same email domain (potential self-referral)
-            if referrer_domain == referee_domain and referrer_domain not in [
-                "gmail.com",
-                "yahoo.com",
-                "outlook.com",
-                "hotmail.com",
-                "icloud.com",
-            ]:
-                logger.warning(
-                    f"Potential self-referral detected: referrer={referral.referrer_id} ({referrer.email}), "
-                    f"referee={user.id} ({user.email}) - same domain: {referrer_domain}"
-                )
-                # Still allow it, but log for manual review
-
         # Mark the referral as used
         referral.referee_id = user.id
         referral.used_at = db.execute(select(func.now())).scalar()
