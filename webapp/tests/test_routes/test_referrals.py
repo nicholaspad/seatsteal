@@ -265,6 +265,222 @@ class TestApplyReferralCode:
         )
         assert response.status_code == 401
 
+    @pytest.mark.unit
+    async def test_apply_rollback_on_referee_trial_failure(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Test that database rolls back when referee trial creation fails."""
+        # Create referral code
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock referee trial creation to fail
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial:
+            mock_referee_trial.return_value = None  # Failure
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        # Should return 500 error
+        assert response.status_code == 500
+        assert "Failed to create your trial" in response.json()["detail"]
+
+        # Verify NO redemption was created (database rollback)
+        redemption = (
+            test_db.query(ReferralRedemption).filter_by(referee_id=test_user.id).first()
+        )
+        assert redemption is None
+
+    @pytest.mark.unit
+    async def test_apply_rollback_on_referrer_trial_failure(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Test that database rolls back when referrer trial creation fails."""
+        # Create referral code
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock referee trial succeeds, but referrer trial fails
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial, patch(
+            "api.routes.referrals.create_referrer_trial"
+        ) as mock_referrer_trial:
+            mock_referee_trial.return_value = "sub_referee_123"  # Success
+            mock_referrer_trial.return_value = None  # Failure
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        # Should return 500 error
+        assert response.status_code == 500
+        assert "Failed to create referrer trial" in response.json()["detail"]
+
+        # Verify NO redemption was created (database rollback)
+        redemption = (
+            test_db.query(ReferralRedemption).filter_by(referee_id=test_user.id).first()
+        )
+        assert redemption is None
+
+    @pytest.mark.unit
+    async def test_apply_rollback_on_both_trials_fail(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Test that database rolls back when both trial creations fail."""
+        # Create referral code
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock both trial creations to fail
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial, patch(
+            "api.routes.referrals.create_referrer_trial"
+        ) as mock_referrer_trial:
+            mock_referee_trial.return_value = None  # Failure
+            mock_referrer_trial.return_value = None  # Failure
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        # Should return 500 error
+        assert response.status_code == 500
+
+        # Verify NO redemption was created (database rollback)
+        redemption = (
+            test_db.query(ReferralRedemption).filter_by(referee_id=test_user.id).first()
+        )
+        assert redemption is None
+
+    @pytest.mark.unit
+    async def test_apply_success_both_trials_succeed(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Test successful application when both trials succeed."""
+        # Create referral code
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock both trial creations to succeed
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial, patch(
+            "api.routes.referrals.create_referrer_trial"
+        ) as mock_referrer_trial, patch(
+            "api.routes.referrals.invalidate_user_caches"
+        ) as mock_invalidate:
+            mock_referee_trial.return_value = "sub_referee_123"  # Success
+            mock_referrer_trial.return_value = "sub_referrer_123"  # Success
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        # Should return 200 success
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+        # Verify redemption WAS created and committed
+        redemption = (
+            test_db.query(ReferralRedemption).filter_by(referee_id=test_user.id).first()
+        )
+        assert redemption is not None
+        assert redemption.referral_id == referral.id
+
+        # Verify both trial subscription IDs were stored
+        # Note: The IDs are stored in the redemption record by the trial creation functions,
+        # but in this test we're mocking those functions, so we can't verify the IDs here.
+        # The actual storage is tested in test_utils/test_referral_trials.py
+
+    @pytest.mark.unit
+    async def test_apply_invalidates_caches_for_both_users(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Test that caches are invalidated for both referee and referrer."""
+        # Create referral code
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock trial creations and spy on cache invalidation
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial, patch(
+            "api.routes.referrals.create_referrer_trial"
+        ) as mock_referrer_trial, patch(
+            "api.routes.referrals.invalidate_user_caches"
+        ) as mock_invalidate:
+            mock_referee_trial.return_value = "sub_referee_123"
+            mock_referrer_trial.return_value = "sub_referrer_123"
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        assert response.status_code == 200
+
+        # Verify cache invalidation was called exactly twice
+        assert mock_invalidate.call_count == 2
+
+        # Verify it was called with correct user IDs
+        call_args = [call[0][0] for call in mock_invalidate.call_args_list]
+        assert str(test_user.id) in call_args  # Referee
+        assert str(second_user.id) in call_args  # Referrer
+
 
 class TestValidateReferralCode:
     """Tests for GET /api/referrals/validate/{code} endpoint."""

@@ -30,6 +30,9 @@ async def create_referee_trial(
 ) -> Optional[str]:
     """Create a 7-day Pro trial subscription for the referee (user who used the code)
 
+    If referee has no subscription, creates a new Pro trial.
+    If they have an active subscription, extends it by 7 days.
+
     Args:
         user_id: UUID of the referee
         redemption: ReferralRedemption record being processed
@@ -45,22 +48,46 @@ async def create_referee_trial(
             logger.error(f"Failed to get Stripe customer for referee {user_id}")
             return None
 
-        # Create Pro trial subscription
-        subscription = await create_trial_subscription(
-            customer_id=stripe_customer.stripe_customer_id,
-            tier="pro",
-            trial_days=7,
-            user_id=str(user_id),
-            metadata={"redemption_id": redemption.id, "role": "referee"},
+        # Check if referee has an active or trialing subscription
+        subscriptions = stripe.Subscription.list(
+            customer=stripe_customer.stripe_customer_id,
+            limit=10,
         )
+
+        # Filter for active or trialing subscriptions
+        active_or_trialing = [
+            sub for sub in subscriptions.data if sub.status in ["active", "trialing"]
+        ]
+
+        if not active_or_trialing:
+            # No subscription - create new Pro trial
+            subscription = await create_trial_subscription(
+                customer_id=stripe_customer.stripe_customer_id,
+                tier="pro",
+                trial_days=7,
+                user_id=str(user_id),
+                metadata={"redemption_id": redemption.id, "role": "referee"},
+            )
+
+            logger.info(
+                f"Created referee trial subscription {subscription.id} for user {user_id}"
+            )
+        else:
+            # Has subscription - extend trial by 7 days on current subscription
+            existing_subscription = active_or_trialing[0]
+
+            subscription = await extend_subscription_trial(
+                existing_subscription.id, additional_days=7
+            )
+
+            logger.info(
+                f"Extended trial for referee subscription {subscription.id} by 7 days"
+            )
 
         # Store subscription ID and trial end date
         redemption.referee_trial_subscription_id = subscription.id
         redemption.referee_trial_end = datetime.fromtimestamp(subscription.trial_end)
 
-        logger.info(
-            f"Created referee trial subscription {subscription.id} for user {user_id}"
-        )
         return subscription.id
 
     except Exception as e:
@@ -97,14 +124,18 @@ async def create_referrer_trial(
             logger.error(f"Failed to get Stripe customer for referrer {referrer_id}")
             return None
 
-        # Check if referrer has an active subscription
+        # Check if referrer has an active or trialing subscription
         subscriptions = stripe.Subscription.list(
             customer=stripe_customer.stripe_customer_id,
-            status="active",
-            limit=1,
+            limit=10,
         )
 
-        if current_tier == "free" or not subscriptions.data:
+        # Filter for active or trialing subscriptions
+        active_or_trialing = [
+            sub for sub in subscriptions.data if sub.status in ["active", "trialing"]
+        ]
+
+        if current_tier == "free" or not active_or_trialing:
             # Referrer is on free tier - create new Pro trial
             subscription = await create_trial_subscription(
                 customer_id=stripe_customer.stripe_customer_id,
@@ -124,23 +155,11 @@ async def create_referrer_trial(
             )
 
         else:
-            # Referrer has active subscription - extend trial by 7 days
-            existing_subscription = subscriptions.data[0]
+            # Referrer has active or trialing subscription - extend trial by 7 days
+            # DO NOT upgrade tier - just extend their current subscription
+            existing_subscription = active_or_trialing[0]
 
-            # Upgrade to Pro tier if not already Pro
-            pro_price_id = get_price_id_for_tier("pro", "monthly")
-            if existing_subscription.items.data[0].price.id != pro_price_id:
-                stripe.Subscription.modify(
-                    existing_subscription.id,
-                    items=[
-                        {
-                            "id": existing_subscription.items.data[0].id,
-                            "price": pro_price_id,
-                        }
-                    ],
-                )
-
-            # Extend trial
+            # Extend trial on current subscription
             subscription = await extend_subscription_trial(
                 existing_subscription.id, additional_days=7
             )

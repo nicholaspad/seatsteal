@@ -179,6 +179,21 @@ async def apply_referral_code(
             referral.referrer_id, redemption, db
         )
 
+        # Verify both trials were created successfully
+        if not referee_sub_id:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create your trial. Please try again or contact support.",
+            )
+
+        if not referrer_sub_id:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create referrer trial. Please try again or contact support.",
+            )
+
         db.commit()
 
         # Invalidate tier caches for both users
