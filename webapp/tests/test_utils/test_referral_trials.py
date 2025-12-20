@@ -59,6 +59,7 @@ def test_stripe_customer(test_db: Session, test_user: Profile) -> StripeCustomer
 class TestCreateRefereeTrial:
     """Tests for create_referee_trial function."""
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_trial_no_subscription_success(
         self,
@@ -99,6 +100,7 @@ class TestCreateRefereeTrial:
             assert call_kwargs["tier"] == "pro"
             assert call_kwargs["trial_days"] == 7
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_extend_trial_active_plus_subscription(
         self,
@@ -140,6 +142,7 @@ class TestCreateRefereeTrial:
             # Verify extend was called (NOT create)
             mock_extend.assert_called_once_with("sub_plus_123", additional_days=7)
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_extend_trial_active_pro_subscription(
         self,
@@ -174,6 +177,7 @@ class TestCreateRefereeTrial:
             assert result == "sub_pro_123"
             mock_extend.assert_called_once_with("sub_pro_123", additional_days=7)
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_extend_trial_trialing_plus_subscription(
         self,
@@ -209,6 +213,7 @@ class TestCreateRefereeTrial:
             assert result == "sub_trial_plus_123"
             mock_extend.assert_called_once_with("sub_trial_plus_123", additional_days=7)
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_extend_trial_trialing_pro_subscription(
         self,
@@ -242,6 +247,7 @@ class TestCreateRefereeTrial:
             assert result == "sub_trial_pro_123"
             mock_extend.assert_called_once_with("sub_trial_pro_123", additional_days=7)
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_stripe_customer_creation_fails(
         self,
@@ -259,6 +265,7 @@ class TestCreateRefereeTrial:
             assert result is None
             assert test_redemption.referee_trial_subscription_id is None
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_trial_creation_fails(
         self,
@@ -284,6 +291,7 @@ class TestCreateRefereeTrial:
             # Should return None and not raise exception
             assert result is None
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_trial_extension_fails(
         self,
@@ -312,6 +320,7 @@ class TestCreateRefereeTrial:
 
             assert result is None
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_multiple_active_subscriptions_uses_first(
         self,
@@ -354,6 +363,7 @@ class TestCreateRefereeTrial:
 class TestCreateReferrerTrial:
     """Tests for create_referrer_trial function."""
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_trial_free_tier_success(
         self,
@@ -398,6 +408,7 @@ class TestCreateReferrerTrial:
             assert call_kwargs["tier"] == "pro"
             assert call_kwargs["trial_days"] == 7
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_extend_trial_active_plus_subscription(
         self,
@@ -437,6 +448,7 @@ class TestCreateReferrerTrial:
             mock_extend.assert_called_once_with("sub_plus_123", additional_days=7)
             mock_invalidate.assert_called_once()
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_extend_trial_active_pro_subscription(
         self,
@@ -474,6 +486,7 @@ class TestCreateReferrerTrial:
             assert test_redemption.referrer_previous_tier == "pro"
             mock_extend.assert_called_once_with("sub_pro_123", additional_days=7)
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_extend_trial_trialing_plus_subscription(
         self,
@@ -512,6 +525,7 @@ class TestCreateReferrerTrial:
             mock_extend.assert_called_once_with("sub_trial_plus_123", additional_days=7)
             mock_invalidate.assert_called_once()
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_extend_trial_trialing_pro_subscription(
         self,
@@ -548,6 +562,7 @@ class TestCreateReferrerTrial:
             assert result == "sub_trial_pro_123"
             mock_extend.assert_called_once_with("sub_trial_pro_123", additional_days=7)
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_free_tier_no_subscription_creates_trial(
         self,
@@ -580,6 +595,7 @@ class TestCreateReferrerTrial:
             assert result == "sub_trial_123"
             mock_create.assert_called_once()
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_stripe_customer_creation_fails(
         self,
@@ -599,6 +615,7 @@ class TestCreateReferrerTrial:
             assert result is None
             assert test_redemption.referrer_trial_subscription_id is None
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_trial_creation_fails(
         self,
@@ -625,6 +642,7 @@ class TestCreateReferrerTrial:
 
             assert result is None
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_trial_extension_fails(
         self,
@@ -655,6 +673,7 @@ class TestCreateReferrerTrial:
 
             assert result is None
 
+    @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_stores_previous_tier_correctly(
         self,
