@@ -145,13 +145,13 @@ export function PricingTiers() {
           <button
             onClick={() => setBillingInterval(isAnnual ? "monthly" : "annual")}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              isAnnual ? "bg-primary" : "bg-muted"
+              isAnnual ? "bg-white border border-primary" : "bg-muted border border-transparent"
             }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                isAnnual ? "translate-x-6" : "translate-x-1"
-              }`}
+              className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+                isAnnual ? "bg-primary" : "bg-white"
+              } ${isAnnual ? "translate-x-6" : "translate-x-1"}`}
             />
           </button>
           <span
