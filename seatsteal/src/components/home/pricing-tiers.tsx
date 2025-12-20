@@ -188,7 +188,7 @@ export function PricingTiers() {
                   </span>
                 </div>
                 {tier.savings && (
-                  <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium">
+                  <span className="flex items-center bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium">
                     {tier.savings}
                   </span>
                 )}
