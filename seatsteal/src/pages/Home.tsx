@@ -149,7 +149,7 @@ export default function Home() {
           {/* Pricing */}
           <section id="plans" className="bg-muted/30 py-16">
             <div className="container mx-auto px-4">
-              <div className="text-center space-y-4 mb-12">
+              <div className="text-center space-y-4 mb-4">
                 <h2 className="text-3xl md:text-4xl font-bold">Plans</h2>
               </div>
               <PricingTiers />
@@ -158,7 +158,7 @@ export default function Home() {
 
           {/* FAQ */}
           <section className="container mx-auto px-4 pb-16">
-            <div className="text-center space-y-4 mb-12">
+            <div className="text-center space-y-4 mb-4">
               <h2 className="text-3xl md:text-4xl font-bold">FAQs</h2>
             </div>
             <FAQSection colleges={colleges} />
