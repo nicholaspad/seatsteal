@@ -96,6 +96,8 @@ const UserDashboard = memo(function UserDashboard({
     useState<SubscriptionWithDetails | null>(null);
   const [unsubscribing, setUnsubscribing] = useState(false);
   const [managingSubscription, setManagingSubscription] = useState(false);
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(true);
+  const [loadingTrends, setLoadingTrends] = useState(true);
 
   const fetchSubscriptions = useCallback(async () => {
     if (!user) {
@@ -104,6 +106,7 @@ const UserDashboard = memo(function UserDashboard({
 
     try {
       setError(null);
+      setLoadingSubscriptions(true);
 
       const response = await fetchWithToasts("/api/subscriptions");
       if (!response.ok) {
@@ -123,6 +126,8 @@ const UserDashboard = memo(function UserDashboard({
       setError(
         err instanceof Error ? err.message : "Failed to load subscriptions",
       );
+    } finally {
+      setLoadingSubscriptions(false);
     }
   }, [user]);
 
@@ -130,6 +135,7 @@ const UserDashboard = memo(function UserDashboard({
     if (!user) return;
 
     try {
+      setLoadingTrends(true);
       const response = await fetchWithToasts("/api/notifications/trends");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -145,6 +151,8 @@ const UserDashboard = memo(function UserDashboard({
       }
       // Set empty array on error - backend always returns 7 days of data
       setWeeklyTrend([]);
+    } finally {
+      setLoadingTrends(false);
     }
   }, [user]);
 
@@ -469,10 +477,14 @@ const UserDashboard = memo(function UserDashboard({
           {showHeader && (
             <div className="text-center space-y-2">
               <h1 className="text-2xl font-bold">{title}</h1>
-              <p className="text-muted-foreground">
-                Showing {paginatedSubscriptions.length} of{" "}
-                {filteredAndSortedSubscriptions.length} subscriptions
-              </p>
+              {loadingSubscriptions ? (
+                <div className="h-5 bg-muted rounded w-48 mx-auto animate-pulse" />
+              ) : (
+                <p className="text-muted-foreground">
+                  Showing {paginatedSubscriptions.length} of{" "}
+                  {filteredAndSortedSubscriptions.length} subscriptions
+                </p>
+              )}
             </div>
           )}
 
@@ -485,73 +497,118 @@ const UserDashboard = memo(function UserDashboard({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end justify-between h-32 gap-2 relative">
-                {weeklyTrend.map((day) => {
-                  const label = formatTrendLabel(day.date);
-                  return (
-                    <div
-                      key={day.date}
-                      className="flex flex-col items-center flex-1 relative"
-                    >
+              {loadingTrends ? (
+                <div className="space-y-4">
+                  <div className="flex items-end justify-between h-32 gap-2">
+                    {[...Array(7)].map((_, i) => (
                       <div
-                        className="flex flex-col items-center justify-end h-24 w-full cursor-pointer"
-                        onMouseEnter={() => setHoveredTrendDay(day.date)}
-                        onMouseLeave={() => setHoveredTrendDay(null)}
+                        key={i}
+                        className="flex flex-col items-center flex-1 space-y-2"
                       >
-                        <div
-                          className="bg-primary/80 rounded-t w-full transition-all hover:bg-primary"
-                          style={{
-                            height: `${day.notifications > 0 ? Math.max((day.notifications / 4) * 100, 10) : 0}%`,
-                          }}
-                        />
+                        <div className="w-full h-16 bg-muted rounded-t animate-pulse" />
+                        <div className="h-3 w-8 bg-muted rounded animate-pulse" />
+                        <div className="h-3 w-4 bg-muted rounded animate-pulse" />
                       </div>
-                      <span className="text-xs text-muted-foreground mt-2">
-                        {label}
-                      </span>
-                      <span className="text-xs font-medium">
-                        {day.notifications}
-                      </span>
-
-                      {/* Tooltip */}
-                      {hoveredTrendDay === day.date &&
-                        day.notifications > 0 && (
-                          <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground p-2 rounded-md shadow-lg border z-10 min-w-max">
-                            <div className="text-xs font-medium mb-1">
-                              {day.notifications} notification
-                              {day.notifications !== 1 ? "s" : ""}
-                            </div>
-                            <div className="text-xs text-muted-foreground space-y-1">
-                              {day.courses.map((course, index) => (
-                                <div key={index}>{course}</div>
-                              ))}
-                            </div>
+                    ))}
+                  </div>
+                  <div className="h-4 bg-muted rounded w-48 mx-auto animate-pulse" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-end justify-between h-32 gap-2 relative">
+                    {weeklyTrend.map((day) => {
+                      const label = formatTrendLabel(day.date);
+                      return (
+                        <div
+                          key={day.date}
+                          className="flex flex-col items-center flex-1 relative"
+                        >
+                          <div
+                            className="flex flex-col items-center justify-end h-24 w-full cursor-pointer"
+                            onMouseEnter={() => setHoveredTrendDay(day.date)}
+                            onMouseLeave={() => setHoveredTrendDay(null)}
+                          >
+                            <div
+                              className="bg-primary/80 rounded-t w-full transition-all hover:bg-primary"
+                              style={{
+                                height: `${day.notifications > 0 ? Math.max((day.notifications / 4) * 100, 10) : 0}%`,
+                              }}
+                            />
                           </div>
-                        )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="text-center mt-4">
-                {weeklyTrend.reduce((sum, day) => sum + day.notifications, 0) >
-                0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Total recent notifications:{" "}
+                          <span className="text-xs text-muted-foreground mt-2">
+                            {label}
+                          </span>
+                          <span className="text-xs font-medium">
+                            {day.notifications}
+                          </span>
+
+                          {/* Tooltip */}
+                          {hoveredTrendDay === day.date &&
+                            day.notifications > 0 && (
+                              <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground p-2 rounded-md shadow-lg border z-10 min-w-max">
+                                <div className="text-xs font-medium mb-1">
+                                  {day.notifications} notification
+                                  {day.notifications !== 1 ? "s" : ""}
+                                </div>
+                                <div className="text-xs text-muted-foreground space-y-1">
+                                  {day.courses.map((course, index) => (
+                                    <div key={index}>{course}</div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-center mt-4">
                     {weeklyTrend.reduce(
                       (sum, day) => sum + day.notifications,
                       0,
+                    ) > 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Total recent notifications:{" "}
+                        {weeklyTrend.reduce(
+                          (sum, day) => sum + day.notifications,
+                          0,
+                        )}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No recent notifications.
+                      </p>
                     )}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No recent notifications.
-                  </p>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
           {/* Subscriptions List */}
-          {paginatedSubscriptions.length === 0 ? (
+          {loadingSubscriptions ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="pt-6">
+                    <div className="space-y-4 animate-pulse">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2 flex-1">
+                          <div className="h-6 bg-muted rounded w-32" />
+                          <div className="h-4 bg-muted rounded w-48" />
+                        </div>
+                        <div className="h-6 bg-muted rounded w-20" />
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="h-4 bg-muted rounded w-24" />
+                        <div className="h-4 bg-muted rounded w-32" />
+                      </div>
+                      <div className="h-9 bg-muted rounded w-28" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : paginatedSubscriptions.length === 0 ? (
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center py-12">

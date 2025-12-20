@@ -81,19 +81,11 @@ export function ReferralCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          You'll both get one free week of Pro! Your friend must sign up for an
-          account.{" "}
-          {referralData.successful_referrals === 0
-            ? "No successful referrals yet."
-            : `${referralData.successful_referrals} successful referral${referralData.successful_referrals !== 1 ? "s" : ""}!`}
-        </p>
-
         <div className="flex gap-2">
           <Textarea
             value={`I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referral_url}`}
             readOnly
-            className="text-[11px] resize-none text-white"
+            className="!text-[11px] resize-none text-white"
             rows={3}
           />
           <Button
@@ -109,6 +101,14 @@ export function ReferralCard() {
             )}
           </Button>
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          You'll both get one free week of Pro! Your friend must sign up for an
+          account.{" "}
+          {referralData.successful_referrals === 0
+            ? "No successful referrals yet."
+            : `${referralData.successful_referrals} successful referral${referralData.successful_referrals !== 1 ? "s" : ""}!`}
+        </p>
 
         <p className="text-xs text-muted-foreground">
           Misuse of referrals will result in deletion of all applicable
