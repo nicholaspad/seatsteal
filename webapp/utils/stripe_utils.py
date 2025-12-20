@@ -120,3 +120,68 @@ def verify_webhook_signature(payload: bytes, sig_header: str) -> stripe.Event:
     except stripe.SignatureVerificationError as e:
         # Invalid signature
         raise ValueError(f"Invalid signature: {str(e)}")
+
+
+async def create_trial_subscription(
+    customer_id: str,
+    tier: StripePriceTier,
+    trial_days: int = 7,
+    user_id: str,
+    metadata: dict = None,
+) -> stripe.Subscription:
+    """Create a subscription with trial period that auto-cancels without payment
+
+    Args:
+        customer_id: Stripe customer ID
+        tier: Subscription tier (plus or pro)
+        trial_days: Number of days for trial (default 7)
+        user_id: User ID for metadata
+        metadata: Additional metadata to attach
+
+    Returns:
+        Stripe Subscription object
+    """
+    price_id = get_price_id_for_tier(tier, "monthly")
+
+    subscription_metadata = {"user_id": user_id, "source": "referral_trial"}
+    if metadata:
+        subscription_metadata.update(metadata)
+
+    return stripe.Subscription.create(
+        customer=customer_id,
+        items=[{"price": price_id}],
+        trial_period_days=trial_days,
+        trial_settings={"end_behavior": {"missing_payment_method": "cancel"}},
+        metadata=subscription_metadata,
+    )
+
+
+async def extend_subscription_trial(
+    subscription_id: str,
+    additional_days: int = 7,
+) -> stripe.Subscription:
+    """Extend an existing subscription's trial by additional days
+
+    Args:
+        subscription_id: Stripe subscription ID
+        additional_days: Number of days to add (default 7)
+
+    Returns:
+        Updated Stripe Subscription object
+    """
+    import datetime
+
+    subscription = stripe.Subscription.retrieve(subscription_id)
+
+    # Calculate new trial_end (current trial + additional days)
+    if subscription.trial_end:
+        current_trial = datetime.datetime.fromtimestamp(subscription.trial_end)
+    else:
+        current_trial = datetime.datetime.now()
+
+    new_trial_end = current_trial + datetime.timedelta(days=additional_days)
+
+    return stripe.Subscription.modify(
+        subscription_id,
+        trial_end=int(new_trial_end.timestamp()),
+    )

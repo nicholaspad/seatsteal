@@ -5,12 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  CornerDownLeft,
-  Play,
-  RefreshCw,
-  Square,
-} from "lucide-react";
+import { CornerDownLeft, Play, RefreshCw, Square } from "lucide-react";
 import { config } from "@/lib/config";
 import { supabase } from "@/lib/supabase";
 

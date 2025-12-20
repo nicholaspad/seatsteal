@@ -51,9 +51,9 @@ describe("Security Utilities", () => {
       });
 
       it("returns false for subdomain spoofing attempts", () => {
-        expect(
-          isValidStripeUrl("https://checkout.stripe.com.evil.com"),
-        ).toBe(false);
+        expect(isValidStripeUrl("https://checkout.stripe.com.evil.com")).toBe(
+          false,
+        );
       });
 
       it("returns false for malformed URLs", () => {
@@ -75,9 +75,9 @@ describe("Security Utilities", () => {
       });
 
       it("returns false for data: protocol", () => {
-        expect(isValidStripeUrl("data:text/html,<script>alert(1)</script>")).toBe(
-          false,
-        );
+        expect(
+          isValidStripeUrl("data:text/html,<script>alert(1)</script>"),
+        ).toBe(false);
       });
 
       it("returns false for relative URLs", () => {
@@ -143,7 +143,9 @@ describe("Security Utilities", () => {
       it("returns correct message for rate_limited", () => {
         const result = getErrorMessage("rate_limited");
         expect(result.title).toBe("Too Many Requests");
-        expect(result.message).toBe("Please wait a moment before trying again.");
+        expect(result.message).toBe(
+          "Please wait a moment before trying again.",
+        );
       });
     });
 

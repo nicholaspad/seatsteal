@@ -11,6 +11,7 @@ import stripe
 
 from db.session import get_db
 from models.referral import Referral
+from models.referral_redemption import ReferralRedemption
 from models.user import Profile
 from models.stripe_customer import StripeCustomer
 from api.middleware.auth import require_auth
@@ -18,12 +19,12 @@ from config import settings
 from utils.errors import log_and_raise_500
 from utils.stripe_utils import create_stripe_customer
 from utils.cache import invalidate_user_caches
+from utils.referral_trials import create_referee_trial, create_referrer_trial
 from loguru import logger
 
 router = APIRouter(prefix="/api/referrals", tags=["referrals"])
 
 # Referral reward: 1 week of Pro free
-REFERRAL_REWARD_DESCRIPTION = "1 week Pro free - Referral reward"
 REFERRAL_TRIAL_DAYS = 7
 
 
@@ -66,13 +67,8 @@ async def get_my_referral(
 ):
     """Get or create the user's referral code and stats"""
     try:
-        # Check if user already has a referral code
-        result = db.execute(
-            select(Referral).where(
-                Referral.referrer_id == user.id,
-                Referral.referee_id.is_(None),  # Unused referral codes
-            )
-        )
+        # Find user's referral code (one per user)
+        result = db.execute(select(Referral).where(Referral.referrer_id == user.id))
         existing_referral = result.scalar_one_or_none()
 
         if not existing_referral:
@@ -94,25 +90,24 @@ async def get_my_referral(
             db.commit()
             db.refresh(new_referral)
             referral_code = code
+            referral_id = new_referral.id
         else:
             referral_code = existing_referral.referral_code
+            referral_id = existing_referral.id
 
-        # Get referral stats
-        total_result = db.execute(
-            select(Referral).where(
-                Referral.referrer_id == user.id,
-                Referral.referee_id.isnot(None),
+        # Count redemptions
+        total_redemptions = db.execute(
+            select(func.count(ReferralRedemption.id)).where(
+                ReferralRedemption.referral_id == referral_id
             )
-        )
-        total_referrals = len(total_result.scalars().all())
+        ).scalar()
 
-        successful_result = db.execute(
-            select(Referral).where(
-                Referral.referrer_id == user.id,
-                Referral.referrer_rewarded == True,
+        successful_redemptions = db.execute(
+            select(func.count(ReferralRedemption.id)).where(
+                ReferralRedemption.referral_id == referral_id,
+                ReferralRedemption.referee_trial_subscription_id.isnot(None),
             )
-        )
-        successful_referrals = len(successful_result.scalars().all())
+        ).scalar()
 
         referral_url = f"{settings.effective_frontend_url}/?ref={referral_code}"
 
@@ -121,8 +116,8 @@ async def get_my_referral(
             "data": ReferralResponse(
                 referral_code=referral_code,
                 referral_url=referral_url,
-                total_referrals=total_referrals,
-                successful_referrals=successful_referrals,
+                total_referrals=total_redemptions or 0,
+                successful_referrals=successful_redemptions or 0,
             ),
         }
 
@@ -136,23 +131,18 @@ async def apply_referral_code(
     user: Profile = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
-    """Apply a referral code to get 1 week of Pro free"""
+    """Apply a referral code to get 7-day Pro trial for both users immediately"""
     try:
         code = request.referral_code.upper().strip()
 
-        # Find the referral
-        result = db.execute(
-            select(Referral).where(
-                Referral.referral_code == code,
-                Referral.referee_id.is_(None),  # Not yet used
-            )
-        )
+        # Find the referral code (codes are reusable)
+        result = db.execute(select(Referral).where(Referral.referral_code == code))
         referral = result.scalar_one_or_none()
 
         if not referral:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid or already used referral code",
+                detail="Invalid referral code",
             )
 
         # Check user isn't referring themselves
@@ -162,42 +152,45 @@ async def apply_referral_code(
                 detail="You cannot use your own referral code",
             )
 
-        # Check if user has already used a referral code
-        existing_referee = db.execute(
-            select(Referral).where(Referral.referee_id == user.id)
-        )
-        if existing_referee.scalar_one_or_none():
+        # Check if this user already used THIS specific code
+        existing_redemption = db.execute(
+            select(ReferralRedemption).where(
+                ReferralRedemption.referral_id == referral.id,
+                ReferralRedemption.referee_id == user.id,
+            )
+        ).scalar_one_or_none()
+
+        if existing_redemption:
             raise HTTPException(
                 status_code=400,
-                detail="You have already used a referral code",
+                detail="You have already used this referral code",
             )
 
-        # Mark the referral as used
-        referral.referee_id = user.id
-        referral.used_at = db.execute(select(func.now())).scalar()
-
-        # Create a new unused referral code for the referrer
-        while True:
-            new_code = generate_referral_code()
-            check = db.execute(
-                select(Referral).where(Referral.referral_code == new_code)
-            )
-            if not check.scalar_one_or_none():
-                break
-
-        new_referral = Referral(
-            referrer_id=referral.referrer_id,
-            referral_code=new_code,
+        # Create redemption record
+        redemption = ReferralRedemption(
+            referral_id=referral.id,
+            referee_id=user.id,
         )
-        db.add(new_referral)
+        db.add(redemption)
+        db.flush()  # Get redemption.id
+
+        # Create trials for both users immediately
+        referee_sub_id = await create_referee_trial(user.id, redemption, db)
+        referrer_sub_id = await create_referrer_trial(
+            referral.referrer_id, redemption, db
+        )
 
         db.commit()
+
+        # Invalidate tier caches for both users
+        invalidate_user_caches(str(user.id))
+        invalidate_user_caches(str(referral.referrer_id))
 
         return {
             "success": True,
             "data": ApplyReferralResponse(
                 success=True,
-                message="Referral code applied! You'll both get 1 week of Pro free when you subscribe.",
+                message="🎉 Your referral has been applied. You and your referrer have received 7 days of Pro access!",
             ),
         }
 
@@ -216,12 +209,7 @@ async def validate_referral_code(
     try:
         code = code.upper().strip()
 
-        result = db.execute(
-            select(Referral).where(
-                Referral.referral_code == code,
-                Referral.referee_id.is_(None),
-            )
-        )
+        result = db.execute(select(Referral).where(Referral.referral_code == code))
         referral = result.scalar_one_or_none()
 
         return {
@@ -234,127 +222,3 @@ async def validate_referral_code(
 
     except Exception as e:
         log_and_raise_500("Failed to validate referral code", e)
-
-
-async def create_referral_coupon() -> str:
-    """Create a Stripe coupon for referral reward (1 week Pro free)"""
-    if not settings.STRIPE_SECRET_KEY:
-        logger.warning("Stripe not configured, skipping coupon creation")
-        return ""
-
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-
-    try:
-        # Create a coupon for 100% off for 7 days
-        coupon = stripe.Coupon.create(
-            percent_off=100,
-            duration="once",
-            name=REFERRAL_REWARD_DESCRIPTION,
-            metadata={"type": "referral_reward"},
-        )
-        return coupon.id
-    except stripe.StripeError as e:
-        logger.error(f"Failed to create referral coupon: {e}")
-        return ""
-
-
-async def get_or_create_stripe_customer(
-    user_id, db: Session
-) -> Optional[StripeCustomer]:
-    """Get or create a Stripe customer for a user"""
-    # Check if customer already exists
-    customer = db.execute(
-        select(StripeCustomer).where(StripeCustomer.user_id == user_id)
-    ).scalar_one_or_none()
-
-    if customer:
-        return customer
-
-    # Get user profile to get email
-    user = db.execute(select(Profile).where(Profile.id == user_id)).scalar_one_or_none()
-
-    if not user:
-        logger.error(f"User {user_id} not found when creating Stripe customer")
-        return None
-
-    try:
-        # Create Stripe customer
-        stripe_customer = await create_stripe_customer(user.email, str(user_id))
-
-        # Save to database
-        new_customer = StripeCustomer(
-            user_id=user_id,
-            stripe_customer_id=stripe_customer.id,
-            email=user.email,
-        )
-        db.add(new_customer)
-        db.commit()
-        db.refresh(new_customer)
-
-        # Invalidate user caches
-        invalidate_user_caches(str(user_id))
-
-        logger.info(f"Created Stripe customer for user {user_id}")
-        return new_customer
-    except Exception as e:
-        logger.error(f"Failed to create Stripe customer for user {user_id}: {e}")
-        return None
-
-
-async def apply_referral_rewards(
-    referral: Referral,
-    db: Session,
-) -> None:
-    """Apply rewards to both referrer and referee after successful subscription"""
-    if not settings.STRIPE_SECRET_KEY:
-        logger.warning("Stripe not configured, skipping referral rewards")
-        return
-
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-
-    try:
-        # Get or create Stripe customers for both users
-        referee_customer = await get_or_create_stripe_customer(referral.referee_id, db)
-        referrer_customer = await get_or_create_stripe_customer(
-            referral.referrer_id, db
-        )
-
-        # Create coupon for referee
-        if referee_customer and not referral.referee_rewarded:
-            try:
-                coupon_id = await create_referral_coupon()
-                if coupon_id:
-                    # Apply coupon to customer for next invoice
-                    stripe.Customer.modify(
-                        referee_customer.stripe_customer_id,
-                        coupon=coupon_id,
-                    )
-                    referral.referee_coupon_id = coupon_id
-                    referral.referee_rewarded = True
-                    logger.info(
-                        f"Applied referral reward to referee {referral.referee_id}"
-                    )
-            except stripe.StripeError as e:
-                logger.error(f"Failed to apply referee reward: {e}")
-
-        # Create coupon for referrer
-        if referrer_customer and not referral.referrer_rewarded:
-            try:
-                coupon_id = await create_referral_coupon()
-                if coupon_id:
-                    stripe.Customer.modify(
-                        referrer_customer.stripe_customer_id,
-                        coupon=coupon_id,
-                    )
-                    referral.referrer_coupon_id = coupon_id
-                    referral.referrer_rewarded = True
-                    logger.info(
-                        f"Applied referral reward to referrer {referral.referrer_id}"
-                    )
-            except stripe.StripeError as e:
-                logger.error(f"Failed to apply referrer reward: {e}")
-
-        db.commit()
-
-    except Exception as e:
-        logger.error(f"Failed to apply referral rewards: {e}")

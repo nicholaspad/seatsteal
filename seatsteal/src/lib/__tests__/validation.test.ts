@@ -104,9 +104,7 @@ describe("Validation Schemas", () => {
         expect(EduEmailSchema.parse("student@university.edu")).toBe(
           "student@university.edu",
         );
-        expect(EduEmailSchema.parse("john@school.edu")).toBe(
-          "john@school.edu",
-        );
+        expect(EduEmailSchema.parse("john@school.edu")).toBe("john@school.edu");
       });
 
       it("accepts .edu emails with numbers", () => {
@@ -241,9 +239,7 @@ describe("Validation Schemas", () => {
     });
 
     it("rejects missing classId", () => {
-      expect(() =>
-        SubscriptionRequestSchema.parse({ collegeId: 1 }),
-      ).toThrow();
+      expect(() => SubscriptionRequestSchema.parse({ collegeId: 1 })).toThrow();
     });
 
     it("rejects missing collegeId", () => {
@@ -306,9 +302,7 @@ describe("Validation Schemas", () => {
     });
 
     it("rejects invalid role", () => {
-      expect(() =>
-        UserUpdateSchema.parse({ role: "superadmin" }),
-      ).toThrow();
+      expect(() => UserUpdateSchema.parse({ role: "superadmin" })).toThrow();
     });
 
     it("rejects invalid collegeId", () => {
@@ -393,9 +387,7 @@ describe("Validation Schemas", () => {
 
       it("rejects search longer than 100 characters", () => {
         const longSearch = "a".repeat(101);
-        expect(() =>
-          PaginationSchema.parse({ search: longSearch }),
-        ).toThrow();
+        expect(() => PaginationSchema.parse({ search: longSearch })).toThrow();
       });
 
       it("accepts search up to 100 characters", () => {
@@ -483,9 +475,7 @@ describe("Validation Schemas", () => {
 
       it("rejects search longer than 100 characters", () => {
         const longSearch = "a".repeat(101);
-        expect(() =>
-          CourseQuerySchema.parse({ search: longSearch }),
-        ).toThrow();
+        expect(() => CourseQuerySchema.parse({ search: longSearch })).toThrow();
       });
 
       it("rejects invalid collegeId", () => {

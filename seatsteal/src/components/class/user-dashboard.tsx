@@ -416,6 +416,9 @@ const UserDashboard = memo(function UserDashboard({
             </CardContent>
           </Card>
 
+          {/* Referral Card */}
+          <ReferralCard />
+
           {/* Filters */}
           <Card>
             <CardContent className="pt-0 space-y-4">
@@ -472,9 +475,6 @@ const UserDashboard = memo(function UserDashboard({
               </p>
             </div>
           )}
-
-          {/* Referral Card */}
-          <ReferralCard />
 
           {/* Weekly Notifications Trend */}
           <Card>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Gift, Copy, Check, Users } from "lucide-react";
+import { Gift, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 
@@ -44,12 +44,25 @@ export function ReferralCard() {
     if (!referralData) return;
 
     try {
-      await navigator.clipboard.writeText(referralData.referralUrl);
+      await navigator.clipboard.writeText(referralData.referralCode);
       setCopied(true);
-      toast.success("Link copied!");
+      toast.success("Code copied!");
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast.error("Failed to copy link");
+      toast.error("Failed to copy code");
+    }
+  };
+
+  const copyMessage = async () => {
+    if (!referralData) return;
+
+    const message = `I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referralUrl}`;
+
+    try {
+      await navigator.clipboard.writeText(message);
+      toast.success("Message copied!");
+    } catch (err) {
+      toast.error("Failed to copy message");
     }
   };
 
@@ -75,13 +88,22 @@ export function ReferralCard() {
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <Gift className="h-4 w-4" />
-          Refer a Friend
+          Refer Friends
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          You both get 1 week of Pro free
-        </p>
+        <div>
+          <p className="text-xs text-muted-foreground">
+            You'll both get one free week of Pro! Your friend must sign up for
+            an account. Misuse of referrals will result in deletion of all
+            applicable accounts.
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            {referralData.successfulReferrals === 0
+              ? "No successful referrals yet."
+              : `${referralData.successfulReferrals} successful referral${referralData.successfulReferrals !== 1 ? "s" : ""}!`}
+          </p>
+        </div>
 
         <div className="flex gap-2">
           <Input
@@ -103,15 +125,15 @@ export function ReferralCard() {
           </Button>
         </div>
 
-        {referralData.successfulReferrals > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Users className="h-3 w-3" />
-            <span>
-              {referralData.successfulReferrals} successful referral
-              {referralData.successfulReferrals !== 1 ? "s" : ""}
-            </span>
-          </div>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={copyMessage}
+          className="w-full h-8"
+        >
+          <Copy className="h-4 w-4 mr-2" />
+          Copy message
+        </Button>
       </CardContent>
     </Card>
   );

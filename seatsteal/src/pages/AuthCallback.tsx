@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { logError } from "@/lib/logger";
 import { fetchWithToasts } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function AuthCallback() {
   const history = useHistory();
@@ -61,11 +62,18 @@ export default function AuthCallback() {
         const storedReferralCode = localStorage.getItem("referral_code");
         if (storedReferralCode) {
           try {
-            await fetchWithToasts("/api/referrals/apply", {
+            const response = await fetchWithToasts("/api/referrals/apply", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ referral_code: storedReferralCode }),
             });
+
+            if (response.ok) {
+              toast.success(
+                "🎉 Your referral has been applied. You and your referrer have received 7 days of Pro access!",
+              );
+            }
+
             localStorage.removeItem("referral_code");
           } catch (err) {
             // Don't block auth on referral error, just log it
