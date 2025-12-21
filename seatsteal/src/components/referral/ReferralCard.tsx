@@ -107,7 +107,7 @@ export function ReferralCard() {
           active, 7 free days will be added.{" "}
           {referralData.successful_referrals === 0
             ? "No successful referrals yet."
-            : `${referralData.successful_referrals} successful referral${referralData.successful_referrals !== 1 ? "s" : ""}!`}
+            : `You have ${referralData.successful_referrals} successful referral${referralData.successful_referrals !== 1 ? "s" : ""}!`}
         </p>
 
         <p className="text-xs text-muted-foreground">
