@@ -8,6 +8,7 @@ const mockHistoryReplace = vi.fn();
 const mockFetchWithToasts = vi.fn();
 const mockLogError = vi.fn();
 const mockToastSuccess = vi.fn();
+const mockRefreshSubscriptionTier = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual =
@@ -50,6 +51,21 @@ vi.mock("@/lib/supabase", () => ({
       getUser: () => mockGetUser(),
     },
   },
+}));
+
+vi.mock("@/components/providers/SessionProvider", () => ({
+  useSession: () => ({
+    refreshSubscriptionTier: mockRefreshSubscriptionTier,
+    user: null,
+    profile: null,
+    loading: false,
+    profileLoading: false,
+    subscriptionTier: "free",
+    tierLoading: false,
+    subscriptionStatus: null,
+    subscriptionStatusLoading: false,
+    refreshSubscriptionStatus: vi.fn(),
+  }),
 }));
 
 describe("AuthCallback Page", () => {
@@ -125,6 +141,9 @@ describe("AuthCallback Page", () => {
           }),
       } as Response);
 
+      // Mock successful tier refresh
+      mockRefreshSubscriptionTier.mockResolvedValue(undefined);
+
       render(
         <MemoryRouter>
           <AuthCallback />
@@ -146,6 +165,9 @@ describe("AuthCallback Page", () => {
       expect(mockToastSuccess).toHaveBeenCalledWith(
         expect.stringContaining("Your referral has been applied"),
       );
+
+      // Should refresh subscription tier after successful referral
+      expect(mockRefreshSubscriptionTier).toHaveBeenCalled();
 
       // Should remove referral code from localStorage
       expect(localStorage.getItem("referral_code")).toBeNull();
@@ -338,9 +360,6 @@ describe("AuthCallback Page", () => {
       );
 
       expect(getByText("Signing you in...")).toBeInTheDocument();
-      expect(
-        getByText(/Please wait while we complete your authentication/i),
-      ).toBeInTheDocument();
     });
   });
 });

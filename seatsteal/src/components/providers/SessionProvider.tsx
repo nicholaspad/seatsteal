@@ -23,6 +23,7 @@ interface SessionContextType {
   subscriptionStatus: SubscriptionStatus | null;
   subscriptionStatusLoading: boolean;
   refreshSubscriptionStatus: () => Promise<void>;
+  refreshSubscriptionTier: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -70,8 +71,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Function to fetch user's subscription tier
-  const fetchSubscriptionTier = async (userId: string) => {
-    if (!userId) {
+  const fetchSubscriptionTier = async (userId?: string) => {
+    const effectiveUserId = userId || user?.id;
+    if (!effectiveUserId) {
       setTierLoading(false);
       return;
     }
@@ -289,6 +291,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         subscriptionStatus,
         subscriptionStatusLoading,
         refreshSubscriptionStatus: fetchSubscriptionStatus,
+        refreshSubscriptionTier: fetchSubscriptionTier,
       }}
     >
       {children}

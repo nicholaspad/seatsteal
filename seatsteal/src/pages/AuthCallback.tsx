@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { logError } from "@/lib/logger";
 import { fetchWithToasts } from "@/lib/api";
 import { toast } from "sonner";
+import { useSession } from "@/components/providers/SessionProvider";
 
 export default function AuthCallback() {
   const history = useHistory();
+  const { refreshSubscriptionTier } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
 
@@ -72,6 +74,8 @@ export default function AuthCallback() {
 
             if (response.ok) {
               toast.success("🎉 Your referral has been applied!");
+              // Refetch the user's tier so they see "pro" immediately on dashboard
+              await refreshSubscriptionTier();
             }
 
             localStorage.removeItem("referral_code");
@@ -98,7 +102,7 @@ export default function AuthCallback() {
     };
 
     handleAuthCallback();
-  }, [history]);
+  }, [history, refreshSubscriptionTier]);
 
   if (isProcessing) {
     return (
