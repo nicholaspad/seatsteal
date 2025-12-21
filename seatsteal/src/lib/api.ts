@@ -16,7 +16,13 @@ function isTokenValid(): boolean {
   );
 }
 
-function updateCachedSession(session: { access_token?: string | null; expires_at?: number | null; expires_in?: number | null } | null) {
+function updateCachedSession(
+  session: {
+    access_token?: string | null;
+    expires_at?: number | null;
+    expires_in?: number | null;
+  } | null,
+) {
   cachedAccessToken = session?.access_token ?? undefined;
 
   if (session?.expires_at) {

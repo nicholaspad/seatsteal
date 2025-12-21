@@ -106,6 +106,9 @@ export default function AuthCallback() {
         <div className="text-center space-y-4">
           <Spinner className="size-12 mx-auto" />
           <h2 className="text-xl font-semibold mt-1">Signing you in...</h2>
+          <p className="text-muted-foreground">
+            Please wait while we complete your authentication.
+          </p>
         </div>
       </div>
     );
