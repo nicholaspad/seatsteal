@@ -95,14 +95,34 @@ class TestGetClientKey:
         """Test client key generation using X-Forwarded-For header."""
         limiter = RateLimiter()
         limiter.redis_client = None
+        limiter.trusted_proxies = {"10.0.0.1"}
 
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
         mock_request.headers.get.return_value = "192.168.1.1, 10.0.0.1"
+        mock_request.client = MagicMock()
+        mock_request.client.host = "10.0.0.1"
 
         key = limiter._get_client_key(mock_request)
 
         assert key == "seatsteal:ratelimit:ip:192.168.1.1:/api/test"
+
+    @pytest.mark.unit
+    def test_client_key_with_untrusted_forwarded_ip(self):
+        """Untrusted X-Forwarded-For headers should be ignored."""
+        limiter = RateLimiter()
+        limiter.redis_client = None
+        limiter.trusted_proxies = {"10.0.0.1"}
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.url.path = "/api/test"
+        mock_request.headers.get.return_value = "192.168.1.1, 10.0.0.1"
+        mock_request.client = MagicMock()
+        mock_request.client.host = "198.51.100.10"
+
+        key = limiter._get_client_key(mock_request)
+
+        assert key == "seatsteal:ratelimit:ip:198.51.100.10:/api/test"
 
     @pytest.mark.unit
     def test_client_key_with_direct_ip(self):
@@ -113,6 +133,7 @@ class TestGetClientKey:
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/courses"
         mock_request.headers.get.return_value = None
+        mock_request.client = MagicMock()
         mock_request.client.host = "203.0.113.42"
 
         key = limiter._get_client_key(mock_request)
@@ -185,6 +206,7 @@ class TestCheckRateLimit:
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
         mock_request.headers.get.return_value = None
+        mock_request.client = MagicMock()
         mock_request.client.host = "192.168.1.1"
 
         is_allowed, info = await limiter.check_rate_limit(
@@ -219,6 +241,7 @@ class TestCheckRateLimit:
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
         mock_request.headers.get.return_value = None
+        mock_request.client = MagicMock()
         mock_request.client.host = "192.168.1.1"
 
         is_allowed, info = await limiter.check_rate_limit(
@@ -254,6 +277,7 @@ class TestCheckRateLimit:
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
         mock_request.headers.get.return_value = None
+        mock_request.client = MagicMock()
         mock_request.client.host = "192.168.1.1"
 
         is_allowed, info = await limiter.check_rate_limit(
@@ -287,6 +311,7 @@ class TestCheckRateLimit:
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
         mock_request.headers.get.return_value = None
+        mock_request.client = MagicMock()
         mock_request.client.host = "192.168.1.1"
 
         # With 100 requests per 60 seconds and 30 seconds passed, should replenish ~50 tokens
@@ -309,6 +334,7 @@ class TestRateLimitDecorator:
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/api/test"
         mock_request.headers.get.return_value = None
+        mock_request.client = MagicMock()
         mock_request.client.host = "192.168.1.1"
 
         async def mock_check_rate_limit(

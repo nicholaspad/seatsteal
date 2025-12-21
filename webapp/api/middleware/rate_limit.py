@@ -1,9 +1,10 @@
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 import redis
-from typing import Optional, Callable
+from typing import Optional, Callable, Iterable
 import time
 from functools import wraps
+from ipaddress import ip_address
 import hashlib
 from loguru import logger
 
@@ -16,9 +17,17 @@ class RateLimiter:
     Redis-based rate limiting middleware for FastAPI.
 
     Implements token bucket algorithm for rate limiting API requests.
+
+    Deployment note: When running behind load balancers or ingress proxies,
+    populate settings.TRUSTED_PROXIES with the proxy IPs so X-Forwarded-For
+    values from those hops can be safely used. Requests from untrusted peers
+    will fall back to the connection's peer IP to keep per-IP enforcement
+    reliable.
     """
 
-    def __init__(self, redis_url: Optional[str] = None):
+    def __init__(
+        self, redis_url: Optional[str] = None, trusted_proxies: Optional[Iterable[str]] = None
+    ):
         """
         Initialize rate limiter.
 
@@ -29,6 +38,7 @@ class RateLimiter:
             redis_url: Redis connection URL (uses settings.REDIS_URL if not provided)
         """
         self.key_prefix = "seatsteal:ratelimit:"
+        self.trusted_proxies = set(trusted_proxies or getattr(settings, "TRUSTED_PROXIES", []))
 
         # Try to use shared CacheClient connection pool first
         self.redis_client = CacheClient.get_client()
@@ -62,13 +72,7 @@ class RateLimiter:
         if identifier:
             key_base = identifier
         else:
-            # Use IP address as default identifier
-            # Check for forwarded IPs (behind proxy)
-            forwarded = request.headers.get("X-Forwarded-For")
-            if forwarded:
-                client_ip = forwarded.split(",")[0].strip()
-            else:
-                client_ip = request.client.host if request.client else "unknown"
+            client_ip = self._get_client_ip(request)
 
             key_base = f"ip:{client_ip}"
 
@@ -77,6 +81,46 @@ class RateLimiter:
         key = f"{self.key_prefix}{key_base}:{route}"
 
         return key
+
+    def _get_client_ip(self, request: Request) -> str:
+        """
+        Resolve the client IP from the ASGI scope or trusted proxy headers.
+
+        The IP from the incoming connection is always preferred. The
+        X-Forwarded-For header is only honored when the immediate peer IP is in
+        the configured trusted proxy list. This prevents untrusted clients from
+        spoofing their address while still supporting deployments behind
+        load balancers or ingress proxies.
+        """
+
+        peer_ip = request.client.host if request.client else None
+
+        if peer_ip in self.trusted_proxies:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                forwarded_ips: list[str] = [
+                    ip.strip() for ip in forwarded.split(",") if ip.strip()
+                ]
+
+                for ip in forwarded_ips:
+                    try:
+                        ip_address(ip)
+                    except ValueError:
+                        logger.warning(
+                            "Ignoring invalid X-Forwarded-For entry: {}", ip
+                        )
+                        continue
+
+                    return ip
+
+        if peer_ip:
+            try:
+                ip_address(peer_ip)
+                return peer_ip
+            except ValueError:
+                logger.warning("Invalid peer IP in ASGI scope: {}", peer_ip)
+
+        return "unknown"
 
     def _get_bucket_key(self, base_key: str) -> tuple[str, str]:
         """
