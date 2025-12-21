@@ -78,9 +78,13 @@ class TestCreateRefereeTrial:
         mock_trial_sub.id = "sub_trial_123"
         mock_trial_sub.trial_end = int((datetime.now() + timedelta(days=7)).timestamp())
 
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.create_trial_subscription", new_callable=AsyncMock) as mock_create:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.create_trial_subscription", new_callable=AsyncMock
+        ) as mock_create:
 
             mock_get_customer.return_value = test_stripe_customer
             mock_list.return_value = mock_sub_list
@@ -123,11 +127,17 @@ class TestCreateRefereeTrial:
         # Mock extended subscription
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_plus_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend:
 
             mock_get_customer.return_value = test_stripe_customer
             mock_list.return_value = mock_sub_list
@@ -162,11 +172,17 @@ class TestCreateRefereeTrial:
 
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_pro_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend:
 
             mock_get_customer.return_value = test_stripe_customer
             mock_list.return_value = mock_sub_list
@@ -197,11 +213,17 @@ class TestCreateRefereeTrial:
 
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_trial_plus_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend:
 
             mock_get_customer.return_value = test_stripe_customer
             mock_list.return_value = mock_sub_list
@@ -232,11 +254,17 @@ class TestCreateRefereeTrial:
 
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_trial_pro_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend:
 
             mock_get_customer.return_value = test_stripe_customer
             mock_list.return_value = mock_sub_list
@@ -256,7 +284,9 @@ class TestCreateRefereeTrial:
         test_redemption: ReferralRedemption,
     ):
         """Test graceful handling when Stripe customer creation fails."""
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer:
             mock_get_customer.return_value = None
 
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
@@ -278,9 +308,13 @@ class TestCreateRefereeTrial:
         mock_sub_list = MagicMock()
         mock_sub_list.data = []
 
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.create_trial_subscription", new_callable=AsyncMock) as mock_create:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.create_trial_subscription", new_callable=AsyncMock
+        ) as mock_create:
 
             mock_get_customer.return_value = test_stripe_customer
             mock_list.return_value = mock_sub_list
@@ -308,9 +342,13 @@ class TestCreateRefereeTrial:
         mock_sub_list = MagicMock()
         mock_sub_list.data = [mock_sub]
 
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend:
 
             mock_get_customer.return_value = test_stripe_customer
             mock_list.return_value = mock_sub_list
@@ -343,11 +381,17 @@ class TestCreateRefereeTrial:
 
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_first_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend:
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend:
 
             mock_get_customer.return_value = test_stripe_customer
             mock_list.return_value = mock_sub_list
@@ -380,11 +424,17 @@ class TestCreateReferrerTrial:
         mock_trial_sub.id = "sub_referrer_trial_123"
         mock_trial_sub.trial_end = int((datetime.now() + timedelta(days=7)).timestamp())
 
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.create_trial_subscription", new_callable=AsyncMock) as mock_create, \
-             patch("utils.referral_trials.invalidate_user_caches") as mock_invalidate:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.create_trial_subscription", new_callable=AsyncMock
+        ) as mock_create, patch(
+            "utils.referral_trials.invalidate_user_caches"
+        ) as mock_invalidate:
 
             mock_get_tier.return_value = "free"
             mock_get_customer.return_value = test_stripe_customer
@@ -395,7 +445,10 @@ class TestCreateReferrerTrial:
 
             # Assertions
             assert result == "sub_referrer_trial_123"
-            assert test_redemption.referrer_trial_subscription_id == "sub_referrer_trial_123"
+            assert (
+                test_redemption.referrer_trial_subscription_id
+                == "sub_referrer_trial_123"
+            )
             assert test_redemption.referrer_previous_tier == "free"
             assert test_redemption.referrer_trial_end is not None
 
@@ -427,13 +480,21 @@ class TestCreateReferrerTrial:
 
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_plus_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend, \
-             patch("utils.referral_trials.invalidate_user_caches") as mock_invalidate:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend, patch(
+            "utils.referral_trials.invalidate_user_caches"
+        ) as mock_invalidate:
 
             mock_get_tier.return_value = "plus"
             mock_get_customer.return_value = test_stripe_customer
@@ -467,13 +528,21 @@ class TestCreateReferrerTrial:
 
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_pro_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend, \
-             patch("utils.referral_trials.invalidate_user_caches") as mock_invalidate:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend, patch(
+            "utils.referral_trials.invalidate_user_caches"
+        ) as mock_invalidate:
 
             mock_get_tier.return_value = "pro"
             mock_get_customer.return_value = test_stripe_customer
@@ -505,13 +574,21 @@ class TestCreateReferrerTrial:
 
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_trial_plus_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend, \
-             patch("utils.referral_trials.invalidate_user_caches") as mock_invalidate:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend, patch(
+            "utils.referral_trials.invalidate_user_caches"
+        ) as mock_invalidate:
 
             mock_get_tier.return_value = "plus"
             mock_get_customer.return_value = test_stripe_customer
@@ -544,13 +621,21 @@ class TestCreateReferrerTrial:
 
         mock_extended_sub = MagicMock()
         mock_extended_sub.id = "sub_trial_pro_123"
-        mock_extended_sub.trial_end = int((datetime.now() + timedelta(days=14)).timestamp())
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
 
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend, \
-             patch("utils.referral_trials.invalidate_user_caches") as mock_invalidate:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend, patch(
+            "utils.referral_trials.invalidate_user_caches"
+        ) as mock_invalidate:
 
             mock_get_tier.return_value = "pro"
             mock_get_customer.return_value = test_stripe_customer
@@ -579,11 +664,17 @@ class TestCreateReferrerTrial:
         mock_trial_sub.id = "sub_trial_123"
         mock_trial_sub.trial_end = int((datetime.now() + timedelta(days=7)).timestamp())
 
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.create_trial_subscription", new_callable=AsyncMock) as mock_create, \
-             patch("utils.referral_trials.invalidate_user_caches") as mock_invalidate:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.create_trial_subscription", new_callable=AsyncMock
+        ) as mock_create, patch(
+            "utils.referral_trials.invalidate_user_caches"
+        ) as mock_invalidate:
 
             mock_get_tier.return_value = "free"
             mock_get_customer.return_value = test_stripe_customer
@@ -604,8 +695,11 @@ class TestCreateReferrerTrial:
         test_redemption: ReferralRedemption,
     ):
         """Test graceful handling when Stripe customer creation fails."""
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer:
 
             mock_get_tier.return_value = "free"
             mock_get_customer.return_value = None
@@ -628,10 +722,15 @@ class TestCreateReferrerTrial:
         mock_sub_list = MagicMock()
         mock_sub_list.data = []
 
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.create_trial_subscription", new_callable=AsyncMock) as mock_create:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.create_trial_subscription", new_callable=AsyncMock
+        ) as mock_create:
 
             mock_get_tier.return_value = "free"
             mock_get_customer.return_value = test_stripe_customer
@@ -659,10 +758,15 @@ class TestCreateReferrerTrial:
         mock_sub_list = MagicMock()
         mock_sub_list.data = [mock_sub]
 
-        with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-             patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-             patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-             patch("utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock) as mock_extend:
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend:
 
             mock_get_tier.return_value = "plus"
             mock_get_customer.return_value = test_stripe_customer
@@ -695,11 +799,18 @@ class TestCreateReferrerTrial:
             # Reset redemption
             test_redemption.referrer_previous_tier = None
 
-            with patch("utils.referral_trials.get_user_subscription_tier", new_callable=AsyncMock) as mock_get_tier, \
-                 patch("utils.referral_trials.get_stripe_customer", new_callable=AsyncMock) as mock_get_customer, \
-                 patch("utils.referral_trials.stripe.Subscription.list") as mock_list, \
-                 patch("utils.referral_trials.create_trial_subscription", new_callable=AsyncMock) as mock_create, \
-                 patch("utils.referral_trials.invalidate_user_caches") as mock_invalidate:
+            with patch(
+                "utils.referral_trials.get_user_subscription_tier"
+            ) as mock_get_tier, patch(
+                "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+            ) as mock_get_customer, patch(
+                "utils.referral_trials.stripe.Subscription.list"
+            ) as mock_list, patch(
+                "utils.referral_trials.create_trial_subscription",
+                new_callable=AsyncMock,
+            ) as mock_create, patch(
+                "utils.referral_trials.invalidate_user_caches"
+            ) as mock_invalidate:
 
                 mock_get_tier.return_value = tier
                 mock_get_customer.return_value = test_stripe_customer

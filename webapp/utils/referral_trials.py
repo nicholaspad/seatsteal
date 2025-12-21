@@ -115,7 +115,7 @@ async def create_referrer_trial(
     """
     try:
         # Get referrer's current tier
-        current_tier = await get_user_subscription_tier(referrer_id, db)
+        current_tier = get_user_subscription_tier(referrer_id, db)
         redemption.referrer_previous_tier = current_tier
 
         # Get or create Stripe customer
