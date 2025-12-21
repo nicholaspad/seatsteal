@@ -36,12 +36,7 @@ export function TerminalClient() {
       .replace("https://", "wss://")
       .replace("http://", "ws://");
 
-    let wsUrl = `${wsBaseUrl}/api/admin/terminal?token=${encodeURIComponent(session.access_token)}`;
-
-    // Add Vercel bypass secret if present and using main API
-    if (!config.terminal.serverUrl && config.api.vercelBypassSecret) {
-      wsUrl += `&x-vercel-protection-bypass=${config.api.vercelBypassSecret}`;
-    }
+    const wsUrl = `${wsBaseUrl}/api/admin/terminal?token=${encodeURIComponent(session.access_token)}`;
 
     return wsUrl;
   }, []);
