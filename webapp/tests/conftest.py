@@ -18,8 +18,11 @@ from pathlib import Path
 
 # Set environment variables for testing BEFORE any imports
 os.environ["VITE_SUPABASE_URL"] = "https://test.supabase.co"
-os.environ["VITE_SUPABASE_ANON_KEY"] = "test_anon_key"
-os.environ["SUPABASE_SERVICE_ROLE_KEY"] = "test_key"
+# Supabase keys need to resemble JWTs to avoid client-side validation errors in tests.
+os.environ["VITE_SUPABASE_ANON_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.anon"
+os.environ["SUPABASE_SERVICE_ROLE_KEY"] = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.service"
+)
 os.environ["DATABASE_URL"] = "postgresql://test:test@localhost:5432/seatsteal_test"
 os.environ["FRONTEND_URL"] = "http://localhost:3000"
 os.environ["STRIPE_SECRET_KEY"] = "sk_test_123"
