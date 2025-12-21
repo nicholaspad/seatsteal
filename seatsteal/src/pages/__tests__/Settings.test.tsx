@@ -87,6 +87,43 @@ describe("Settings Page", () => {
       });
     });
 
+    it("shows placeholder when no college is selected", async () => {
+      const settingsWithoutCollege = {
+        ...mockSettingsResponse,
+        data: {
+          ...mockSettingsResponse.data,
+          collegeId: 0,
+          collegeName: "",
+        },
+      };
+
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/colleges")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCollegesResponse),
+          } as Response);
+        }
+        if (url.includes("/api/user/settings")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(settingsWithoutCollege),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true }),
+        } as Response);
+      });
+
+      renderAuthenticated(<Settings />);
+
+      await waitFor(() => {
+        const collegeTrigger = screen.getByLabelText(/College\/University/i);
+        expect(collegeTrigger).toHaveTextContent("Select");
+      });
+    });
+
     it("displays Account Settings title", async () => {
       renderAuthenticated(<Settings />);
 

@@ -368,11 +368,15 @@ export default function Settings() {
                     College/University
                   </Label>
                   <Select
-                    value={settings.collegeId.toString()}
+                    value={
+                      settings.collegeId
+                        ? settings.collegeId.toString()
+                        : undefined
+                    }
                     onValueChange={handleCollegeChange}
                   >
                     <SelectTrigger id="college">
-                      <SelectValue placeholder="Select your college" />
+                      <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent>
                       {colleges.map((college) => (
