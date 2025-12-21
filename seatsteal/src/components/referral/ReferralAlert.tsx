@@ -10,21 +10,25 @@ const DISMISSAL_KEY = "referral-alert-dismissed";
 export function ReferralAlert() {
   const [visible, setVisible] = useState(false);
   const location = useLocation();
-  const { user } = useSession();
+  const { user, loading } = useSession();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const refCode = params.get("ref");
     const dismissed = localStorage.getItem(DISMISSAL_KEY);
 
-    // Only show if user is logged out, has a ref code, and hasn't dismissed
-    if (refCode && !dismissed && !user) {
+    // Only show if:
+    // 1. Not loading (auth state is determined)
+    // 2. User is logged out
+    // 3. Has a ref code
+    // 4. Hasn't been dismissed
+    if (!loading && !user && refCode && !dismissed) {
       setVisible(true);
-    } else if (user) {
-      // Hide if user logs in
+    } else {
+      // Hide if loading, user is logged in, or conditions not met
       setVisible(false);
     }
-  }, [location.search, user]);
+  }, [location.search, user, loading]);
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISSAL_KEY, "true");
