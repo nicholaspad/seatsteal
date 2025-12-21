@@ -71,9 +71,7 @@ export default function AuthCallback() {
             });
 
             if (response.ok) {
-              toast.success(
-                "🎉 Your referral has been applied. You and your referrer have received 7 days of Pro access!",
-              );
+              toast.success("🎉 Your referral has been applied!");
             }
 
             localStorage.removeItem("referral_code");
@@ -107,10 +105,7 @@ export default function AuthCallback() {
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <div className="text-center space-y-4">
           <Spinner className="size-12 mx-auto" />
-          <h2 className="text-xl font-semibold">Signing you in...</h2>
-          <p className="text-muted-foreground">
-            Please wait while we complete your authentication.
-          </p>
+          <h2 className="text-xl font-semibold mt-1">Signing you in...</h2>
         </div>
       </div>
     );

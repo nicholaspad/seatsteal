@@ -103,8 +103,8 @@ export function ReferralCard() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          You'll both get a free week of Pro! If a
-          subscription is already active, 7 free days will be added.{" "}
+          You'll both get a free week of Pro! If a subscription is already
+          active, 7 free days will be added.{" "}
           {referralData.successful_referrals === 0
             ? "No successful referrals yet."
             : `${referralData.successful_referrals} successful referral${referralData.successful_referrals !== 1 ? "s" : ""}!`}
