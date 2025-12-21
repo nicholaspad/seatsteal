@@ -14,6 +14,8 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
 
+  console.log("AuthCallback");
+
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
