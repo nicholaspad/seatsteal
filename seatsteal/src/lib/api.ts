@@ -18,7 +18,6 @@ export class ServerErrorWithToast extends Error {
  * - Relative URLs starting with /api/ → prepend base URL
  * - Absolute URLs (http://, https://) → return as-is
  * - Other URLs → return as-is
- * Also appends Vercel bypass secret as query param for preview deployments.
  */
 function resolveApiUrl(url: string): string {
   let resolvedUrl: string;
@@ -27,18 +26,13 @@ function resolveApiUrl(url: string): string {
   if (url.startsWith("http://") || url.startsWith("https://")) {
     resolvedUrl = url;
   } else if (url.startsWith("/api/")) {
-    // If relative API path, prepend base URL
-    resolvedUrl = `${config.api.baseUrl}${url}`;
+    // If relative API path and a base URL is configured, prepend it.
+    // Otherwise rely on same-origin routing (e.g., Vercel middleware/proxy).
+    const trimmedBaseUrl = config.api.baseUrl.replace(/\/$/, "");
+    resolvedUrl = trimmedBaseUrl ? `${trimmedBaseUrl}${url}` : url;
   } else {
     // Otherwise return as-is
     resolvedUrl = url;
-  }
-
-  // Append Vercel bypass secret as query param for preview deployments
-  // Using query param instead of header to avoid CORS preflight issues
-  if (config.api.vercelBypassSecret) {
-    const separator = resolvedUrl.includes("?") ? "&" : "?";
-    resolvedUrl = `${resolvedUrl}${separator}x-vercel-protection-bypass=${config.api.vercelBypassSecret}`;
   }
 
   return resolvedUrl;
