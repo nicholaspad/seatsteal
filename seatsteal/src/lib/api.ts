@@ -2,6 +2,71 @@ import { config } from "./config";
 import { supabase } from "./supabase";
 import { toast } from "sonner";
 
+const TOKEN_EXPIRY_BUFFER_MS = 5_000;
+
+let cachedAccessToken: string | undefined;
+let cachedExpiryMs = 0;
+let refreshPromise: Promise<string | undefined> | null = null;
+
+function isTokenValid(): boolean {
+  return (
+    Boolean(cachedAccessToken) &&
+    cachedExpiryMs > 0 &&
+    Date.now() < cachedExpiryMs - TOKEN_EXPIRY_BUFFER_MS
+  );
+}
+
+function updateCachedSession(
+  session: {
+    access_token?: string | null;
+    expires_at?: number | null;
+    expires_in?: number | null;
+  } | null,
+) {
+  cachedAccessToken = session?.access_token ?? undefined;
+
+  if (session?.expires_at) {
+    cachedExpiryMs = session.expires_at * 1000;
+    return;
+  }
+
+  if (session?.expires_in) {
+    cachedExpiryMs = Date.now() + session.expires_in * 1000;
+    return;
+  }
+
+  cachedExpiryMs = 0;
+}
+
+supabase.auth.onAuthStateChange((_, session) => {
+  if (!session) {
+    updateCachedSession(null);
+    return;
+  }
+
+  updateCachedSession(session);
+});
+
+async function getAccessToken(): Promise<string | undefined> {
+  if (isTokenValid()) {
+    return cachedAccessToken;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        updateCachedSession(session);
+        return cachedAccessToken;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
 /**
  * Custom error class for server errors that have already shown a toast.
  * Callers can check for this error type to avoid showing duplicate toasts.
@@ -57,16 +122,14 @@ export async function fetchWithToasts(
 ): Promise<Response> {
   const resolvedUrl = resolveApiUrl(url);
 
-  // Get auth token from Supabase session
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // Get auth token from cached Supabase session
+  const accessToken = await getAccessToken();
 
   // Merge headers with auth token
   const headers: HeadersInit = {
     ...options?.headers,
-    ...(session?.access_token && {
-      Authorization: `Bearer ${session.access_token}`,
+    ...(accessToken && {
+      Authorization: `Bearer ${accessToken}`,
     }),
   };
 
@@ -119,14 +182,12 @@ export async function fetchWithRateLimitSilent(
 
 class ApiClient {
   private async getHeaders(): Promise<HeadersInit> {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const accessToken = await getAccessToken();
 
     return {
       "Content-Type": "application/json",
-      ...(session?.access_token && {
-        Authorization: `Bearer ${session.access_token}`,
+      ...(accessToken && {
+        Authorization: `Bearer ${accessToken}`,
       }),
     };
   }
