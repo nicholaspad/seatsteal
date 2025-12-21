@@ -10,13 +10,14 @@ import {
 
 // Mock the API module
 const mockFetchWithToasts = vi.fn();
+const mockUseSearchParams = vi.fn(() => new URLSearchParams());
 vi.mock("@/lib/api", () => ({
   fetchWithToasts: (...args: unknown[]) => mockFetchWithToasts(...args),
   ServerErrorWithToast: class ServerErrorWithToast extends Error {},
 }));
 
 vi.mock("@/hooks/use-search-params", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockUseSearchParams(),
 }));
 
 describe("Courses Page", () => {
@@ -26,6 +27,7 @@ describe("Courses Page", () => {
 
   describe("Logged Out User", () => {
     beforeEach(() => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams());
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/courses")) {
           return Promise.resolve({
@@ -96,6 +98,7 @@ describe("Courses Page", () => {
 
   describe("Logged In User", () => {
     beforeEach(() => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams());
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/courses")) {
           return Promise.resolve({
@@ -151,8 +154,40 @@ describe("Courses Page", () => {
     });
   });
 
+  describe("College filter", () => {
+    it("defaults to All colleges when the search param is undefined", async () => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams("college=undefined"));
+
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCoursesResponse),
+          } as Response);
+        }
+        if (url.includes("/api/colleges")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCollegesResponse),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: [] }),
+        } as Response);
+      });
+
+      renderAuthenticated(<Courses />);
+
+      await waitFor(() => {
+        expect(screen.getByText("All colleges")).toBeInTheDocument();
+      });
+    });
+  });
+
   describe("Pagination", () => {
     it("shows page number buttons when totalPages > 1 for authenticated users", async () => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams());
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/courses")) {
           return Promise.resolve({
@@ -181,6 +216,7 @@ describe("Courses Page", () => {
     });
 
     it("does not show page number buttons when only one page", async () => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams());
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/courses")) {
           return Promise.resolve({
@@ -213,6 +249,7 @@ describe("Courses Page", () => {
 
   describe("Error Handling", () => {
     it("displays error message when API fails", async () => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams());
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/courses")) {
           return Promise.resolve({
@@ -244,6 +281,7 @@ describe("Courses Page", () => {
 
   describe("Empty State", () => {
     it("shows empty state when no courses found", async () => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams());
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/courses")) {
           return Promise.resolve({
@@ -280,6 +318,7 @@ describe("Courses Page", () => {
 
   describe("Edge Cases", () => {
     it("handles courses with empty classes array gracefully", async () => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams());
       const courseWithEmptyClasses = {
         id: 1,
         courseCode: "CS101",
@@ -327,6 +366,7 @@ describe("Courses Page", () => {
     });
 
     it("shows Try Again button in error state", async () => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams());
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/courses")) {
           return Promise.resolve({
