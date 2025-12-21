@@ -108,6 +108,23 @@ class TestGetClientKey:
         assert key == "seatsteal:ratelimit:ip:192.168.1.1:/api/test"
 
     @pytest.mark.unit
+    def test_client_key_with_multiple_trusted_proxies(self):
+        """Use rightmost non-trusted hop when trusted proxies append addresses."""
+        limiter = RateLimiter()
+        limiter.redis_client = None
+        limiter.trusted_proxies = {"10.0.0.1", "203.0.113.10"}
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.url.path = "/api/test"
+        mock_request.headers.get.return_value = "198.51.100.99, 203.0.113.10, 10.0.0.1"
+        mock_request.client = MagicMock()
+        mock_request.client.host = "10.0.0.1"
+
+        key = limiter._get_client_key(mock_request)
+
+        assert key == "seatsteal:ratelimit:ip:198.51.100.99:/api/test"
+
+    @pytest.mark.unit
     def test_client_key_with_untrusted_forwarded_ip(self):
         """Untrusted X-Forwarded-For headers should be ignored."""
         limiter = RateLimiter()

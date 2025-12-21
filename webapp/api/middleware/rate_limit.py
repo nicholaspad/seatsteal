@@ -110,14 +110,22 @@ class RateLimiter:
                     ip.strip() for ip in forwarded.split(",") if ip.strip()
                 ]
 
+                validated_forwarded: list[str] = []
                 for ip in forwarded_ips:
                     try:
                         ip_address(ip)
+                        validated_forwarded.append(ip)
                     except ValueError:
                         logger.warning("Ignoring invalid X-Forwarded-For entry: {}", ip)
-                        continue
 
-                    return ip
+                while (
+                    validated_forwarded
+                    and validated_forwarded[-1] in self.trusted_proxies
+                ):
+                    validated_forwarded.pop()
+
+                if validated_forwarded:
+                    return validated_forwarded[-1]
 
         if peer_ip:
             try:
