@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef } from "react";
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { fetchWithToasts } from "@/lib/api";
 import type { User } from "@supabase/supabase-js";
@@ -71,7 +71,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Function to fetch user's subscription tier
-  const fetchSubscriptionTier = async (userId?: string) => {
+  const fetchSubscriptionTier = useCallback(async (userId?: string) => {
     const effectiveUserId = userId || user?.id;
     if (!effectiveUserId) {
       setTierLoading(false);
@@ -98,10 +98,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setTierLoading(false);
     }
-  };
+  }, [user]);
 
   // Function to fetch user's subscription status (count, limit, tier)
-  const fetchSubscriptionStatus = async () => {
+  const fetchSubscriptionStatus = useCallback(async () => {
     try {
       setSubscriptionStatusLoading(true);
       const response = await fetchWithToasts("/api/subscriptions/status");
@@ -122,7 +122,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setSubscriptionStatusLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     // Get initial user with secure validation
