@@ -125,6 +125,25 @@ class TestGetClientKey:
         assert key == "seatsteal:ratelimit:ip:198.51.100.10:/api/test"
 
     @pytest.mark.unit
+    def test_client_key_with_empty_trusted_proxies_override(self):
+        """Explicit empty trusted proxies should disable forwarded header trust."""
+        with patch("api.middleware.rate_limit.settings") as mock_settings:
+            mock_settings.TRUSTED_PROXIES = ["10.0.0.1"]
+            limiter = RateLimiter(trusted_proxies=[])
+
+        limiter.redis_client = None
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.url.path = "/api/test"
+        mock_request.headers.get.return_value = "192.0.2.5"
+        mock_request.client = MagicMock()
+        mock_request.client.host = "10.0.0.1"
+
+        key = limiter._get_client_key(mock_request)
+
+        assert key == "seatsteal:ratelimit:ip:10.0.0.1:/api/test"
+
+    @pytest.mark.unit
     def test_client_key_with_direct_ip(self):
         """Test client key generation using direct client IP."""
         limiter = RateLimiter()

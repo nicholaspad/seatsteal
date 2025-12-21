@@ -26,7 +26,9 @@ class RateLimiter:
     """
 
     def __init__(
-        self, redis_url: Optional[str] = None, trusted_proxies: Optional[Iterable[str]] = None
+        self,
+        redis_url: Optional[str] = None,
+        trusted_proxies: Optional[Iterable[str]] = None,
     ):
         """
         Initialize rate limiter.
@@ -38,7 +40,13 @@ class RateLimiter:
             redis_url: Redis connection URL (uses settings.REDIS_URL if not provided)
         """
         self.key_prefix = "seatsteal:ratelimit:"
-        self.trusted_proxies = set(trusted_proxies or getattr(settings, "TRUSTED_PROXIES", []))
+
+        if trusted_proxies is None:
+            proxies = getattr(settings, "TRUSTED_PROXIES", [])
+        else:
+            proxies = trusted_proxies
+
+        self.trusted_proxies = set(proxies)
 
         # Try to use shared CacheClient connection pool first
         self.redis_client = CacheClient.get_client()
@@ -106,9 +114,7 @@ class RateLimiter:
                     try:
                         ip_address(ip)
                     except ValueError:
-                        logger.warning(
-                            "Ignoring invalid X-Forwarded-For entry: {}", ip
-                        )
+                        logger.warning("Ignoring invalid X-Forwarded-For entry: {}", ip)
                         continue
 
                     return ip
