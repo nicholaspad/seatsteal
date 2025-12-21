@@ -89,6 +89,15 @@ class Settings(BaseSettings):
     TWILIO_FROM_NUMBER: str = ""
     """Twilio phone number to send SMS from (E.164 format, e.g., +15551234567)"""
 
+    TRUSTED_PROXIES: list[str] = []
+    """
+    List of proxy IPs that are allowed to forward client information.
+
+    Only requests arriving from these proxies will have their X-Forwarded-For
+    header trusted for deriving the original client IP (e.g., when behind
+    load balancers).
+    """
+
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),
         case_sensitive=True,

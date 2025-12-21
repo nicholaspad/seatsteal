@@ -284,9 +284,7 @@ class TestApplyReferralCode:
         test_db.refresh(referral)
 
         # Mock referee trial creation to fail
-        with patch(
-            "api.routes.referrals.create_referee_trial"
-        ) as mock_referee_trial:
+        with patch("api.routes.referrals.create_referee_trial") as mock_referee_trial:
             mock_referee_trial.return_value = None  # Failure
 
             response = await authenticated_client.post(
