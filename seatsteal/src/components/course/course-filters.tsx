@@ -52,7 +52,10 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
     }
   };
 
-  const selectedCollege = initialValues.college || "all";
+  const selectedCollege = getNormalizedCollegeValue(
+    initialValues.college,
+    colleges,
+  );
 
   const handleFilterChange = (key: string, value: string) => {
     const current = new URLSearchParams(searchParams.toString());
@@ -157,4 +160,23 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
       </CardContent>
     </Card>
   );
+}
+
+function getNormalizedCollegeValue(
+  collegeValue: string | undefined,
+  colleges: College[],
+): string {
+  if (!collegeValue || collegeValue === "undefined") {
+    return "all";
+  }
+
+  if (collegeValue === "all") {
+    return collegeValue;
+  }
+
+  const hasMatchingCollege = colleges.some(
+    (college) => college.id.toString() === collegeValue,
+  );
+
+  return hasMatchingCollege ? collegeValue : "all";
 }
