@@ -52,6 +52,8 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
     }
   };
 
+  const selectedCollege = initialValues.college || "all";
+
   const handleFilterChange = (key: string, value: string) => {
     const current = new URLSearchParams(searchParams.toString());
 
@@ -94,16 +96,16 @@ export function CourseFilters({ initialValues }: CourseFiltersProps) {
             ) : (
               <Select
                 name="college"
-                defaultValue={initialValues.college || "all"}
+                value={selectedCollege}
                 onValueChange={(value: string) =>
                   handleFilterChange("college", value)
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="All Colleges" />
+                  <SelectValue placeholder="All colleges" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Colleges</SelectItem>
+                  <SelectItem value="all">All colleges</SelectItem>
                   {colleges.map((college) => (
                     <SelectItem key={college.id} value={college.id.toString()}>
                       {college.name}
