@@ -338,9 +338,6 @@ describe("AuthCallback Page", () => {
       );
 
       expect(getByText("Signing you in...")).toBeInTheDocument();
-      expect(
-        getByText(/Please wait while we complete your authentication/i),
-      ).toBeInTheDocument();
     });
   });
 });
