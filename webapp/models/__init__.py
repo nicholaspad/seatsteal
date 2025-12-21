@@ -15,6 +15,7 @@ from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
 from models.query_performance_metric import QueryPerformanceMetric
 from models.referral import Referral
+from models.referral_redemption import ReferralRedemption
 
 __all__ = [
     "Base",
@@ -32,4 +33,5 @@ __all__ = [
     "StripeSubscription",
     "QueryPerformanceMetric",
     "Referral",
+    "ReferralRedemption",
 ]

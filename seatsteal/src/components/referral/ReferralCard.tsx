@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Gift, Copy, Check, Users } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Gift, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 
 interface ReferralData {
-  referralCode: string;
-  referralUrl: string;
-  totalReferrals: number;
-  successfulReferrals: number;
+  referral_code: string;
+  referral_url: string;
+  total_referrals: number;
+  successful_referrals: number;
 }
 
 export function ReferralCard() {
@@ -43,13 +43,15 @@ export function ReferralCard() {
   const copyToClipboard = async () => {
     if (!referralData) return;
 
+    const message = `I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referral_url}`;
+
     try {
-      await navigator.clipboard.writeText(referralData.referralUrl);
+      await navigator.clipboard.writeText(message);
       setCopied(true);
-      toast.success("Link copied!");
+      toast.success("Message copied!");
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast.error("Failed to copy link");
+      toast.error("Failed to copy message");
     }
   };
 
@@ -75,25 +77,22 @@ export function ReferralCard() {
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <Gift className="h-4 w-4" />
-          Refer a Friend
+          Refer Friends
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          You both get 1 week of Pro free
-        </p>
-
         <div className="flex gap-2">
-          <Input
-            value={referralData.referralCode}
+          <Textarea
+            value={`I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referral_url}`}
             readOnly
-            className="text-sm font-mono h-8"
+            className="!text-[11px] resize-none text-white"
+            rows={3}
           />
           <Button
             variant="outline"
             size="sm"
             onClick={copyToClipboard}
-            className="h-8 px-2"
+            className="px-2 self-start"
           >
             {copied ? (
               <Check className="h-4 w-4 text-green-600" />
@@ -103,15 +102,18 @@ export function ReferralCard() {
           </Button>
         </div>
 
-        {referralData.successfulReferrals > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Users className="h-3 w-3" />
-            <span>
-              {referralData.successfulReferrals} successful referral
-              {referralData.successfulReferrals !== 1 ? "s" : ""}
-            </span>
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground">
+          You'll both get a free week of Pro! If a
+          subscription is already active, 7 free days will be added.{" "}
+          {referralData.successful_referrals === 0
+            ? "No successful referrals yet."
+            : `${referralData.successful_referrals} successful referral${referralData.successful_referrals !== 1 ? "s" : ""}!`}
+        </p>
+
+        <p className="text-xs text-muted-foreground">
+          Misuse of referrals will result in deletion of all applicable
+          accounts.
+        </p>
       </CardContent>
     </Card>
   );

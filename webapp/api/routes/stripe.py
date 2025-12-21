@@ -265,29 +265,6 @@ async def stripe_webhooks(
                     # Invalidate user caches (profile and tier) after subscription change
                     invalidate_user_caches(str(stripe_customer.user_id))
 
-                    # Apply referral rewards for new subscriptions
-                    if is_new_subscription and subscription["status"] == "active":
-                        try:
-                            from api.routes.referrals import apply_referral_rewards
-
-                            # Find pending referral where this user is the referee
-                            referral_result = db.execute(
-                                select(Referral).where(
-                                    Referral.referee_id == stripe_customer.user_id,
-                                    Referral.referee_rewarded == False,
-                                )
-                            )
-                            pending_referral = referral_result.scalar_one_or_none()
-
-                            if pending_referral:
-                                await apply_referral_rewards(pending_referral, db)
-                                logger.info(
-                                    f"Applied referral rewards for user {stripe_customer.user_id}"
-                                )
-                        except Exception as e:
-                            # Don't fail the webhook if referral rewards fail
-                            logger.error(f"Failed to apply referral rewards: {e}")
-
         elif event.type == "customer.subscription.deleted":
             subscription = event.data.object
 
