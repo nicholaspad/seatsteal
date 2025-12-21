@@ -4,11 +4,17 @@ const mockFetch = vi.fn();
 
 const setupSupabaseMock = (
   getSessionMock: ReturnType<typeof vi.fn>,
+  onAuthStateChangeMock?: ReturnType<typeof vi.fn>,
 ) => {
   vi.doMock("../supabase", () => ({
     supabase: {
       auth: {
         getSession: getSessionMock,
+        onAuthStateChange:
+          onAuthStateChangeMock ??
+          vi.fn(() => ({
+            data: { subscription: { unsubscribe: vi.fn() } },
+          })),
       },
     },
   }));
@@ -104,5 +110,51 @@ describe("fetchWithToasts", () => {
     expect(mockFetch.mock.calls[2]?.[1]?.headers).toMatchObject({
       Authorization: "Bearer token-new",
     });
+  });
+
+  it("clears cached tokens when the user signs out", async () => {
+    const authStateListeners: Array<
+      (event: string, session: { access_token?: string | null } | null) => void
+    > = [];
+
+    const getSessionMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          session: {
+            access_token: "token-abc",
+            expires_at: Math.floor(Date.now() / 1000) + 120,
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { session: null },
+        error: null,
+      });
+
+    const onAuthStateChangeMock = vi.fn((callback) => {
+      authStateListeners.push(callback);
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+
+    setupSupabaseMock(getSessionMock, onAuthStateChangeMock);
+    const { fetchWithToasts } = await import("../api");
+
+    mockFetch.mockResolvedValue(new Response(null, { status: 200 }));
+
+    await fetchWithToasts("/api/with-token");
+
+    authStateListeners.forEach((listener) => listener("SIGNED_OUT", null));
+
+    await fetchWithToasts("/api/after-logout");
+
+    expect(getSessionMock).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[0]?.[1]?.headers).toMatchObject({
+      Authorization: "Bearer token-abc",
+    });
+    expect(mockFetch.mock.calls[1]?.[1]?.headers).not.toHaveProperty(
+      "Authorization",
+    );
   });
 });

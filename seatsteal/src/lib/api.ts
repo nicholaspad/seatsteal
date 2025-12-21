@@ -38,6 +38,15 @@ function updateCachedSession(
   cachedExpiryMs = 0;
 }
 
+supabase.auth.onAuthStateChange((_, session) => {
+  if (!session) {
+    updateCachedSession(null);
+    return;
+  }
+
+  updateCachedSession(session);
+});
+
 async function getAccessToken(): Promise<string | undefined> {
   if (isTokenValid()) {
     return cachedAccessToken;
