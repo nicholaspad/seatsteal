@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useHistory } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { AlertCircle } from "lucide-react";
@@ -13,6 +13,7 @@ import { useSession } from "@/components/providers/SessionProvider";
 export default function AuthCallback() {
   const history = useHistory();
   const { refreshSubscriptionTier } = useSession();
+  const referralAppliedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
 
@@ -64,7 +65,8 @@ export default function AuthCallback() {
 
         // Apply referral code if one was stored
         const storedReferralCode = localStorage.getItem("referral_code");
-        if (storedReferralCode) {
+        if (storedReferralCode && !referralAppliedRef.current) {
+          referralAppliedRef.current = true;
           try {
             const response = await fetchWithToasts("/api/referrals/apply", {
               method: "POST",
@@ -83,6 +85,8 @@ export default function AuthCallback() {
             // Don't block auth on referral error, just log it
             logError("Failed to apply referral code", err);
             localStorage.removeItem("referral_code");
+          } finally {
+            referralAppliedRef.current = false;
           }
         }
 
