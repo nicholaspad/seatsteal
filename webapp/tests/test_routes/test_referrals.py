@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, AsyncMock, patch
 from uuid import uuid4
 
 from models.user import Profile
@@ -510,7 +510,7 @@ class TestApplyReferralCode:
 
             # Set up mock email service instance
             mock_email_service = MagicMock()
-            mock_email_service.send_referral_success_email = MagicMock(
+            mock_email_service.send_referral_success_email = AsyncMock(
                 return_value=True
             )
             mock_email_service_class.return_value = mock_email_service
@@ -573,8 +573,8 @@ class TestApplyReferralCode:
 
             # Set up mock email service to raise exception
             mock_email_service = MagicMock()
-            mock_email_service.send_referral_success_email.side_effect = Exception(
-                "Email service down"
+            mock_email_service.send_referral_success_email = AsyncMock(
+                side_effect=Exception("Email service down")
             )
             mock_email_service_class.return_value = mock_email_service
 
@@ -628,7 +628,7 @@ class TestApplyReferralCode:
 
             # Set up mock email service instance
             mock_email_service = MagicMock()
-            mock_email_service.send_referral_success_email = MagicMock(
+            mock_email_service.send_referral_success_email = AsyncMock(
                 return_value=True
             )
             mock_email_service_class.return_value = mock_email_service
