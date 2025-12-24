@@ -330,6 +330,94 @@ SeatSteal
             logger.error(f"Failed to send confirmation to {to_email}: {e}")
             return False
 
+    async def send_referral_success_email(
+        self,
+        to_email: str,
+        other_user_email: str,
+        is_referrer: bool,
+        tier_name: str,
+    ) -> bool:
+        """
+        Send referral success notification email.
+
+        Args:
+            to_email: Recipient email address
+            other_user_email: Email of the other user in the referral
+            is_referrer: True if recipient is the referrer, False if referee
+            tier_name: Tier granted (e.g., 'Pro' or 'Plus')
+
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        if not self.is_enabled:
+            logger.warning(
+                f"Cannot send referral email to {to_email}: email service not configured"
+            )
+            return False
+
+        try:
+            template = self.jinja_env.get_template("referral_success.html")
+
+            if is_referrer:
+                message = f"You've successfully referred"
+            else:
+                message = f"You've been successfully referred by"
+
+            html_body = template.render(
+                message=message,
+                other_user_email=other_user_email,
+                tier_name=tier_name,
+                courses_url=f"{settings.effective_frontend_url}/courses",
+                app_name="SeatSteal",
+            )
+
+            subject = f"🎉 Referral Success - {tier_name} Access Granted!"
+
+            # Plain text fallback
+            if is_referrer:
+                text_body = f"""
+Congratulations! You've successfully referred {other_user_email}.
+
+You've been granted 7 free days of {tier_name}. Good luck!
+
+- SeatSteal Team
+
+View courses: {settings.effective_frontend_url}/courses
+"""
+            else:
+                text_body = f"""
+Congratulations! You've been successfully referred by {other_user_email}.
+
+You've been granted 7 free days of {tier_name}. Good luck!
+
+- SeatSteal Team
+
+View courses: {settings.effective_frontend_url}/courses
+"""
+
+            response = self.ses_client.send_email(
+                Source=self.from_email,
+                Destination={"ToAddresses": [to_email]},
+                Message={
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"},
+                    },
+                },
+            )
+
+            message_id = response["MessageId"]
+            logger.info(f"Sent referral success email to {to_email}: {message_id}")
+            return True
+
+        except ClientError as e:
+            logger.error(f"Failed to send referral email to {to_email}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error sending referral email to {to_email}: {e}")
+            return False
+
     def verify_email_address(self, email: str) -> bool:
         """
         Verify an email address with AWS SES (required for sandbox mode).

@@ -20,6 +20,8 @@ from utils.errors import log_and_raise_500
 from utils.stripe_utils import create_stripe_customer
 from utils.cache import invalidate_user_caches
 from utils.referral_trials import create_referee_trial, create_referrer_trial
+from utils.premium import get_user_subscription_tier
+from notifications.email_service import EmailService
 from loguru import logger
 
 router = APIRouter(prefix="/api/referrals", tags=["referrals"])
@@ -165,6 +167,9 @@ async def apply_referral_code(
                 detail="You have already claimed a referral code",
             )
 
+        # Get current tiers before applying referral (for email notifications)
+        referee_previous_tier = get_user_subscription_tier(user.id, db)
+
         # Create redemption record
         redemption = ReferralRedemption(
             referral_id=referral.id,
@@ -199,6 +204,47 @@ async def apply_referral_code(
         # Invalidate tier caches for both users
         invalidate_user_caches(str(user.id))
         invalidate_user_caches(str(referral.referrer_id))
+
+        # Send success emails to both users
+        try:
+            # Get referrer profile for email
+            referrer_result = db.execute(
+                select(Profile).where(Profile.id == referral.referrer_id)
+            )
+            referrer = referrer_result.scalar_one_or_none()
+
+            if referrer and user.email and referrer.email:
+                email_service = EmailService()
+
+                # Determine tier names for emails
+                # Default to "Pro", but use "Plus" if user was on Plus tier
+                referee_tier_name = "Plus" if referee_previous_tier == "plus" else "Pro"
+                referrer_tier_name = (
+                    "Plus" if redemption.referrer_previous_tier == "plus" else "Pro"
+                )
+
+                # Send email to referee (user who applied the code)
+                await email_service.send_referral_success_email(
+                    to_email=user.email,
+                    other_user_email=referrer.email,
+                    is_referrer=False,
+                    tier_name=referee_tier_name,
+                )
+
+                # Send email to referrer (user who owns the code)
+                await email_service.send_referral_success_email(
+                    to_email=referrer.email,
+                    other_user_email=user.email,
+                    is_referrer=True,
+                    tier_name=referrer_tier_name,
+                )
+
+                logger.info(
+                    f"Sent referral success emails to {user.email} and {referrer.email}"
+                )
+        except Exception as e:
+            # Log error but don't fail the request - referral was already successful
+            logger.error(f"Failed to send referral success emails: {e}", exc_info=True)
 
         return {
             "success": True,
