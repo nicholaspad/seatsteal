@@ -1,1 +1,4 @@
 .vercel
+
+# Test coverage reports
+coverage
