@@ -577,14 +577,14 @@ class TestReferralRedemptionModel:
         redemption = ReferralRedemption(
             referral_id=referral.id,
             referee_id=referee.id,
-            trial_days_granted=14,
         )
         test_db.add(redemption)
         test_db.commit()
         test_db.refresh(redemption)
 
         assert redemption.id is not None
-        assert redemption.trial_days_granted == 14
+        assert redemption.referral_id == referral.id
+        assert redemption.referee_id == referee.id
 
     @pytest.mark.unit
     def test_referral_redemption_unique_referee(
@@ -606,12 +606,10 @@ class TestReferralRedemptionModel:
         redemption1 = ReferralRedemption(
             referral_id=referral.id,
             referee_id=referee.id,
-            trial_days_granted=14,
         )
         redemption2 = ReferralRedemption(
             referral_id=referral.id,
             referee_id=referee.id,
-            trial_days_granted=14,
         )
 
         test_db.add(redemption1)

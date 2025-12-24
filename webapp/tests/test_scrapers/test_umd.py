@@ -93,7 +93,7 @@ class TestUmdScraper:
             "scraper.scrapers.umd.get_term_code_from_db", return_value="202408"
         ):
             scraper = UmdScraper(db_session=mock_umd_db_session)
-            assert scraper.college == "umd"
+            assert scraper.college_short_name == "umd"
 
     @pytest.mark.unit
     def test_init_sets_current_term(self, mock_umd_db_session):

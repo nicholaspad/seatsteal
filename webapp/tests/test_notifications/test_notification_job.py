@@ -328,12 +328,24 @@ class TestSendNotification:
         test_db: Session,
         test_college: College,
         test_user: Profile,
+        test_class: Class,
         mock_email_service,
         mock_sms_service,
     ):
         """Test successful email notification sending."""
+        # Create subscription in database
+        subscription = Subscription(
+            user_id=test_user.id,
+            class_id=test_class.class_id,
+            college_id=test_college.id,
+            is_active=True,
+        )
+        test_db.add(subscription)
+        test_db.commit()
+        test_db.refresh(subscription)
+
         notification = {
-            "subscription_id": 1,
+            "subscription_id": subscription.id,
             "user_id": test_user.id,
             "course_code": "CS 101",
             "course_title": "Intro to CS",
@@ -364,14 +376,26 @@ class TestSendNotification:
         test_db: Session,
         test_college: College,
         test_user: Profile,
+        test_class: Class,
         mock_email_service,
         mock_sms_service,
     ):
         """Test notification sending with SMS enabled."""
         mock_sms_service.is_enabled = True
 
+        # Create subscription in database
+        subscription = Subscription(
+            user_id=test_user.id,
+            class_id=test_class.class_id,
+            college_id=test_college.id,
+            is_active=True,
+        )
+        test_db.add(subscription)
+        test_db.commit()
+        test_db.refresh(subscription)
+
         notification = {
-            "subscription_id": 1,
+            "subscription_id": subscription.id,
             "user_id": test_user.id,
             "course_code": "CS 101",
             "course_title": "Intro to CS",
