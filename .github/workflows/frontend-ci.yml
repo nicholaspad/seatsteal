@@ -54,6 +54,6 @@ jobs:
           if [ -f coverage/coverage-summary.json ]; then
             echo "## Frontend Coverage Summary" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            cat coverage/coverage-summary.json | head -20
+            cat coverage/coverage-summary.json | head -20 >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
