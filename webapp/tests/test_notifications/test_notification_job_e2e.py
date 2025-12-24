@@ -13,6 +13,7 @@ from freezegun import freeze_time
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from unittest.mock import patch, AsyncMock, MagicMock
+from uuid import uuid4
 
 import sys
 from pathlib import Path
@@ -37,7 +38,7 @@ from models.class_model import Class
 def free_user(test_db: Session, test_college: College) -> Profile:
     """Create a free tier user (no Stripe subscription)."""
     user = Profile(
-        id="free-user-id-e2e",
+        id=str(uuid4()),
         email="free@test.edu",
         phone="+11234567890",
         college_id=test_college.id,
@@ -53,7 +54,7 @@ def free_user(test_db: Session, test_college: College) -> Profile:
 def plus_user(test_db: Session, test_college: College) -> Profile:
     """Create a plus tier user with active Stripe subscription."""
     user = Profile(
-        id="plus-user-id-e2e",
+        id=str(uuid4()),
         email="plus@test.edu",
         phone="+11234567891",
         college_id=test_college.id,
@@ -90,7 +91,7 @@ def plus_user(test_db: Session, test_college: College) -> Profile:
 def pro_user(test_db: Session, test_college: College) -> Profile:
     """Create a pro tier user with active Stripe subscription."""
     user = Profile(
-        id="pro-user-id-e2e",
+        id=str(uuid4()),
         email="pro@test.edu",
         phone="+11234567892",
         college_id=test_college.id,
