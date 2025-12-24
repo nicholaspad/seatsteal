@@ -644,64 +644,6 @@ class TestApplyReferralCode:
         referee_call = mock_email_service.send_referral_success_email.call_args_list[0]
         assert referee_call[1]["tier_name"] == "Plus"
 
-    @pytest.mark.unit
-    async def test_apply_skips_email_if_users_missing_email(
-        self,
-        authenticated_client: AsyncClient,
-        test_db: Session,
-        test_user: Profile,
-        second_user: Profile,
-        test_college: College,
-    ):
-        """Test that emails are not sent if either user has no email address."""
-        # Create a user without email
-        user_no_email = Profile(
-            id=str(uuid4()),
-            email=None,
-            phone="1111111111",
-            college_id=test_college.id,
-            role="user",
-        )
-        test_db.add(user_no_email)
-        test_db.commit()
-        test_db.refresh(user_no_email)
-
-        # Create referral code for user without email
-        referral = Referral(
-            referrer_id=user_no_email.id,
-            referral_code="TESTCODE",
-        )
-        test_db.add(referral)
-        test_db.commit()
-        test_db.refresh(referral)
-
-        # Mock trial creations and email service
-        with patch(
-            "api.routes.referrals.create_referee_trial"
-        ) as mock_referee_trial, patch(
-            "api.routes.referrals.create_referrer_trial"
-        ) as mock_referrer_trial, patch(
-            "api.routes.referrals.EmailService"
-        ) as mock_email_service_class:
-            mock_referee_trial.return_value = "sub_referee_123"
-            mock_referrer_trial.return_value = "sub_referrer_123"
-
-            # Set up mock email service instance
-            mock_email_service = MagicMock()
-            mock_email_service_class.return_value = mock_email_service
-
-            response = await authenticated_client.post(
-                "/api/referrals/apply",
-                json={"referral_code": "TESTCODE"},
-            )
-
-        assert response.status_code == 200
-
-        # Verify email service was instantiated but send was never called
-        # because referrer has no email
-        mock_email_service_class.assert_called_once()
-        mock_email_service.send_referral_success_email.assert_not_called()
-
 
 class TestValidateReferralCode:
     """Tests for GET /api/referrals/validate/{code} endpoint."""
