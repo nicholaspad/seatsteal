@@ -10,6 +10,20 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
     css: false,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html", "lcov"],
+      exclude: [
+        "node_modules/",
+        "src/test/",
+        "**/*.test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+        "**/*.spec.{js,mjs,cjs,ts,mts,cts,jsx,tsx}",
+        "**/*.config.{js,ts}",
+        "**/dist/",
+        "**/build/",
+        "**/.{idea,git,cache,output,temp}/",
+      ],
+    },
   },
   resolve: {
     alias: {

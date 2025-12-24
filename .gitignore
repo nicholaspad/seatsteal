@@ -13,6 +13,7 @@ dist-ssr
 .coverage
 htmlcov/
 .pytest_cache/
+coverage/
 *.pem
 .vscode/*
 !.vscode/extensions.json
