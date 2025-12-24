@@ -12,10 +12,6 @@ on:
       - 'seatsteal/**'
       - '.github/workflows/frontend-ci.yml'
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
   test:
     name: Frontend Tests & Build
@@ -57,97 +53,7 @@ jobs:
         run: |
           if [ -f coverage/coverage-summary.json ]; then
             echo "## Frontend Coverage Summary" >> $GITHUB_STEP_SUMMARY
-            node -e "
-              const fs = require('fs');
-              const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
-              const total = coverage.total;
-              console.log(\`Coverage: \${total.lines.pct}%\`);
-              console.log(\`Lines: \${total.lines.covered}/\${total.lines.total}\`);
-              console.log(\`Statements: \${total.statements.covered}/\${total.statements.total}\`);
-              console.log(\`Functions: \${total.functions.covered}/\${total.functions.total}\`);
-              console.log(\`Branches: \${total.branches.covered}/\${total.branches.total}\`);
-            " >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat coverage/coverage-summary.json | head -20 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: Comment PR with coverage
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            
-            // Check if coverage-summary.json exists
-            const coveragePath = path.join(process.env.GITHUB_WORKSPACE, 'seatsteal', 'coverage', 'coverage-summary.json');
-            if (!fs.existsSync(coveragePath)) {
-              console.log('No coverage-summary.json found, skipping PR comment');
-              return;
-            }
-            
-            const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8'));
-            const total = coverage.total;
-            
-            // Build coverage by file table
-            let fileTable = '| File | Lines | Statements | Functions | Branches | Coverage |\\n|------|-------|------------|-----------|----------|----------|\\n';
-            const files = Object.entries(coverage)
-              .filter(([path, _]) => path !== 'total' && !path.includes('test') && !path.includes('.test.') && !path.includes('.spec.'))
-              .sort((a, b) => a[1].lines.pct - b[1].lines.pct)
-              .slice(0, 10); // Show top 10 files with lowest coverage
-            
-            for (const [filePath, fileData] of files) {
-              const fileName = filePath.split('/').pop();
-              const linesPct = fileData.lines.pct.toFixed(1);
-              const stmtsPct = fileData.statements.pct.toFixed(1);
-              const funcsPct = fileData.functions.pct.toFixed(1);
-              const branchesPct = fileData.branches.pct.toFixed(1);
-              const avgPct = ((fileData.lines.pct + fileData.statements.pct + fileData.functions.pct + fileData.branches.pct) / 4).toFixed(1);
-              fileTable += `| \`${fileName}\` | ${linesPct}% | ${stmtsPct}% | ${funcsPct}% | ${branchesPct}% | ${avgPct}% |\\n`;
-            }
-            
-            const body = [
-              '## ⚛️ Frontend Coverage Report',
-              '',
-              `**Overall Coverage: ${total.lines.pct}%**`,
-              '',
-              '| Metric | Covered | Total | Percentage |',
-              '|--------|---------|-------|------------|',
-              `| Lines | ${total.lines.covered} | ${total.lines.total} | ${total.lines.pct}% |`,
-              `| Statements | ${total.statements.covered} | ${total.statements.total} | ${total.statements.pct}% |`,
-              `| Functions | ${total.functions.covered} | ${total.functions.total} | ${total.functions.pct}% |`,
-              `| Branches | ${total.branches.covered} | ${total.branches.total} | ${total.branches.pct}% |`,
-              '',
-              '### Files with Lowest Coverage',
-              fileTable.trim(),
-              '',
-              `📊 Full coverage report available in [workflow artifacts](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
-            ].join('\\n');
-            
-            // Find existing comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            
-            const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes('⚛️ Frontend Coverage Report')
-            );
-            
-            if (botComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: body
-              });
-            } else {
-              // Create new comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: body
-              });
-            }
