@@ -72,6 +72,6 @@
     "globals": "^16.4.0",
     "jsdom": "^27.2.0",
     "typescript-eslint": "^8.44.0",
-    "vitest": "^4.0.15"
+    "vitest": "^4.0.16"
   }
 }
