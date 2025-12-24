@@ -371,7 +371,7 @@ SeatSteal
                 app_name="SeatSteal",
             )
 
-            subject = f"🎉 Referral Success - {tier_name} Access Granted!"
+            subject = f"✨ Referral Success - {tier_name} Access Granted!"
 
             # Plain text fallback
             if is_referrer:

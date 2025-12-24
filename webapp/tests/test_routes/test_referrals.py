@@ -479,6 +479,229 @@ class TestApplyReferralCode:
         assert str(test_user.id) in call_args  # Referee
         assert str(second_user.id) in call_args  # Referrer
 
+    @pytest.mark.unit
+    async def test_apply_sends_referral_emails_to_both_users(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Test that referral success emails are sent to both referee and referrer."""
+        # Create referral code
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock trial creations and email service
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial, patch(
+            "api.routes.referrals.create_referrer_trial"
+        ) as mock_referrer_trial, patch(
+            "api.routes.referrals.EmailService"
+        ) as mock_email_service_class:
+            mock_referee_trial.return_value = "sub_referee_123"
+            mock_referrer_trial.return_value = "sub_referrer_123"
+
+            # Set up mock email service instance
+            mock_email_service = MagicMock()
+            mock_email_service.send_referral_success_email = MagicMock(
+                return_value=True
+            )
+            mock_email_service_class.return_value = mock_email_service
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        assert response.status_code == 200
+
+        # Verify email service was instantiated
+        mock_email_service_class.assert_called_once()
+
+        # Verify send_referral_success_email was called twice (for referee and referrer)
+        assert mock_email_service.send_referral_success_email.call_count == 2
+
+        # Verify referee email was sent with correct parameters
+        referee_call = mock_email_service.send_referral_success_email.call_args_list[0]
+        assert referee_call[1]["to_email"] == test_user.email
+        assert referee_call[1]["other_user_email"] == second_user.email
+        assert referee_call[1]["is_referrer"] is False
+        assert referee_call[1]["tier_name"] == "Pro"  # Default
+
+        # Verify referrer email was sent with correct parameters
+        referrer_call = mock_email_service.send_referral_success_email.call_args_list[1]
+        assert referrer_call[1]["to_email"] == second_user.email
+        assert referrer_call[1]["other_user_email"] == test_user.email
+        assert referrer_call[1]["is_referrer"] is True
+        assert referrer_call[1]["tier_name"] == "Pro"  # Default
+
+    @pytest.mark.unit
+    async def test_apply_email_failure_does_not_break_referral(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Test that email failures don't prevent successful referral application."""
+        # Create referral code
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock trial creations and email service that fails
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial, patch(
+            "api.routes.referrals.create_referrer_trial"
+        ) as mock_referrer_trial, patch(
+            "api.routes.referrals.EmailService"
+        ) as mock_email_service_class:
+            mock_referee_trial.return_value = "sub_referee_123"
+            mock_referrer_trial.return_value = "sub_referrer_123"
+
+            # Set up mock email service to raise exception
+            mock_email_service = MagicMock()
+            mock_email_service.send_referral_success_email.side_effect = Exception(
+                "Email service down"
+            )
+            mock_email_service_class.return_value = mock_email_service
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        # Should still succeed despite email failure
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+        # Verify redemption was still created
+        redemption = (
+            test_db.query(ReferralRedemption).filter_by(referee_id=test_user.id).first()
+        )
+        assert redemption is not None
+        assert redemption.referral_id == referral.id
+
+    @pytest.mark.unit
+    async def test_apply_uses_plus_tier_name_for_plus_users(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Test that Plus tier name is used when user was on Plus tier."""
+        # Create referral code
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock trial creations, tier check, and email service
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial, patch(
+            "api.routes.referrals.create_referrer_trial"
+        ) as mock_referrer_trial, patch(
+            "api.routes.referrals.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "api.routes.referrals.EmailService"
+        ) as mock_email_service_class:
+            mock_referee_trial.return_value = "sub_referee_123"
+            mock_referrer_trial.return_value = "sub_referrer_123"
+            mock_get_tier.return_value = "plus"  # User was on Plus tier
+
+            # Set up mock email service instance
+            mock_email_service = MagicMock()
+            mock_email_service.send_referral_success_email = MagicMock(
+                return_value=True
+            )
+            mock_email_service_class.return_value = mock_email_service
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        assert response.status_code == 200
+
+        # Verify referee email was sent with "Plus" tier name
+        referee_call = mock_email_service.send_referral_success_email.call_args_list[0]
+        assert referee_call[1]["tier_name"] == "Plus"
+
+    @pytest.mark.unit
+    async def test_apply_skips_email_if_users_missing_email(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+        test_college: College,
+    ):
+        """Test that emails are not sent if either user has no email address."""
+        # Create a user without email
+        user_no_email = Profile(
+            id=str(uuid4()),
+            email=None,
+            phone="1111111111",
+            college_id=test_college.id,
+            role="user",
+        )
+        test_db.add(user_no_email)
+        test_db.commit()
+        test_db.refresh(user_no_email)
+
+        # Create referral code for user without email
+        referral = Referral(
+            referrer_id=user_no_email.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.commit()
+        test_db.refresh(referral)
+
+        # Mock trial creations and email service
+        with patch(
+            "api.routes.referrals.create_referee_trial"
+        ) as mock_referee_trial, patch(
+            "api.routes.referrals.create_referrer_trial"
+        ) as mock_referrer_trial, patch(
+            "api.routes.referrals.EmailService"
+        ) as mock_email_service_class:
+            mock_referee_trial.return_value = "sub_referee_123"
+            mock_referrer_trial.return_value = "sub_referrer_123"
+
+            # Set up mock email service instance
+            mock_email_service = MagicMock()
+            mock_email_service_class.return_value = mock_email_service
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        assert response.status_code == 200
+
+        # Verify email service was instantiated but send was never called
+        # because referrer has no email
+        mock_email_service_class.assert_called_once()
+        mock_email_service.send_referral_success_email.assert_not_called()
+
 
 class TestValidateReferralCode:
     """Tests for GET /api/referrals/validate/{code} endpoint."""
