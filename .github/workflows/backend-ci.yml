@@ -12,6 +12,10 @@ on:
       - 'webapp/**'
       - '.github/workflows/backend-ci.yml'
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   test:
     name: Backend Tests
@@ -38,18 +42,96 @@ jobs:
           path: |
             webapp/htmlcov/
             webapp/.coverage
+            webapp/coverage.json
           retention-days: 30
 
       - name: Coverage summary
         if: always()
         run: |
-          if [ -f .coverage ]; then
+          if [ -f coverage.json ]; then
             echo "## Backend Coverage Summary" >> $GITHUB_STEP_SUMMARY
-            echo "Coverage reports generated successfully" >> $GITHUB_STEP_SUMMARY
-            if [ -d htmlcov ]; then
-              echo "HTML coverage report available in artifacts" >> $GITHUB_STEP_SUMMARY
-            fi
+            echo "Coverage: $(python3 -c "import json; data = json.load(open('coverage.json')); print(f\"{data['totals']['percent_covered']:.2f}%\")")" >> $GITHUB_STEP_SUMMARY
+            echo "Statements: $(python3 -c "import json; data = json.load(open('coverage.json')); t = data['totals']; print(f\"{t['covered_lines']}/{t['num_statements']}\")")" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Check if coverage.json exists
+            const coveragePath = path.join(process.env.GITHUB_WORKSPACE, 'webapp', 'coverage.json');
+            if (!fs.existsSync(coveragePath)) {
+              console.log('No coverage.json found, skipping PR comment');
+              return;
+            }
+            
+            const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8'));
+            const total = coverage.totals;
+            const percent = total.percent_covered.toFixed(2);
+            
+            // Build coverage by file table
+            let fileTable = '| File | Statements | Missing | Coverage |\\n|------|------------|---------|----------|\\n';
+            const files = Object.entries(coverage.files)
+              .filter(([path, _]) => !path.includes('test') && !path.includes('__pycache__'))
+              .sort((a, b) => a[1].summary.percent_covered - b[1].summary.percent_covered)
+              .slice(0, 10); // Show top 10 files with lowest coverage
+            
+            for (const [filePath, fileData] of files) {
+              const fileName = filePath.split('/').pop();
+              const fileCoverage = fileData.summary.percent_covered.toFixed(1);
+              const covered = fileData.summary.covered_lines;
+              const totalStmts = fileData.summary.num_statements;
+              const missing = fileData.summary.missing_lines;
+              fileTable += `| \`${fileName}\` | ${covered}/${totalStmts} | ${missing} | ${fileCoverage}% |\\n`;
+            }
+            
+            const body = [
+              '## 🐍 Backend Coverage Report',
+              '',
+              `**Overall Coverage: ${percent}%**`,
+              '',
+              `- **Statements:** ${total.covered_lines}/${total.num_statements}`,
+              `- **Missing Lines:** ${total.missing_lines}`,
+              '',
+              '### Files with Lowest Coverage',
+              fileTable.trim(),
+              '',
+              `📊 Full coverage report available in [workflow artifacts](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+            ].join('\\n');
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🐍 Backend Coverage Report')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
 
       - name: Clean up Docker resources
         if: always()
