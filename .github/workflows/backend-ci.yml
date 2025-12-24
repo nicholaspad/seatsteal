@@ -50,8 +50,8 @@ jobs:
         run: |
           if [ -f coverage.json ]; then
             echo "## Backend Coverage Summary" >> $GITHUB_STEP_SUMMARY
-            echo "Coverage: $(python3 -c "import json; data = json.load(open('coverage.json')); print(f\"{data['totals']['percent_covered']:.2f}%\")")" >> $GITHUB_STEP_SUMMARY
-            echo "Statements: $(python3 -c "import json; data = json.load(open('coverage.json')); t = data['totals']; print(f\"{t['covered_lines']}/{t['num_statements']}\")")" >> $GITHUB_STEP_SUMMARY
+            python3 -c 'import json; data = json.load(open("coverage.json")); print(f"Coverage: {data[\"totals\"][\"percent_covered\"]:.2f}%")' >> $GITHUB_STEP_SUMMARY
+            python3 -c 'import json; data = json.load(open("coverage.json")); t = data["totals"]; print(f"Statements: {t[\"covered_lines\"]}/{t[\"num_statements\"]}")' >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Comment PR with coverage
