@@ -256,12 +256,17 @@ class TestCourseSchemas:
     @pytest.mark.unit
     def test_course_response_valid(self):
         """Test valid CourseResponse."""
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
         data = {
             "id": 1,
             "collegeId": 1,
             "courseCode": "CS 101",
             "title": "Intro to CS",
             "isActive": True,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
         }
         response = CourseResponse(**data)
 
@@ -308,12 +313,17 @@ class TestClassSchemas:
     @pytest.mark.unit
     def test_class_response_valid(self):
         """Test valid ClassResponse."""
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
         data = {
             "classId": 100,
             "courseId": 1,
             "classNumber": "12345",
             "sectionCode": "A1",
             "isActive": True,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
         }
         response = ClassResponse(**data)
 
@@ -328,11 +338,15 @@ class TestCollegeSchemas:
     @pytest.mark.unit
     def test_college_response_valid(self):
         """Test valid CollegeResponse."""
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
         data = {
             "id": 1,
             "name": "Boston University",
             "shortName": "bu",
             "isActive": True,
+            "createdAt": now.isoformat(),
         }
         response = CollegeResponse(**data)
 
@@ -344,11 +358,15 @@ class TestCollegeSchemas:
     @pytest.mark.unit
     def test_college_response_snake_case(self):
         """Test CollegeResponse with snake_case."""
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
         data = {
             "id": 1,
             "name": "Boston University",
             "short_name": "bu",
             "is_active": True,
+            "created_at": now.isoformat(),
         }
         response = CollegeResponse(**data)
 

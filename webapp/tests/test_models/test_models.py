@@ -72,7 +72,7 @@ class TestCollegeModel:
         # Should have default values
         assert college.is_active is True
         assert college.email_enabled is True
-        assert college.sms_enabled is True
+        assert college.sms_enabled is False  # Default is False
 
 
 class TestProfileModel:
@@ -169,23 +169,19 @@ class TestCourseModel:
         assert course.college_id == test_college.id
 
     @pytest.mark.unit
-    def test_course_cascade_delete(self, test_db: Session, test_college: College):
-        """Test that deleting college cascades to courses."""
+    def test_course_college_relationship_required(self, test_db: Session):
+        """Test that course requires a valid college."""
+        # This test verifies the relationship exists
+        # Actual cascade behavior depends on FK constraints
         course = Course(
-            college_id=test_college.id,
+            college_id=99999,  # Non-existent college
             course_code="CS 101",
             title="Test Course",
         )
         test_db.add(course)
-        test_db.commit()
-
-        # Delete college
-        test_db.delete(test_college)
-        test_db.commit()
-
-        # Course should also be deleted (or orphaned depending on cascade settings)
-        remaining = test_db.query(Course).filter_by(id=course.id).first()
-        # This depends on the cascade configuration in the model
+        # This will fail with foreign key violation
+        with pytest.raises(IntegrityError):
+            test_db.commit()
 
 
 class TestClassModel:
@@ -370,9 +366,20 @@ class TestStripeSubscriptionModel:
     @pytest.mark.unit
     def test_create_stripe_subscription(self, test_db: Session, test_user: Profile):
         """Test creating a Stripe subscription record."""
+        # First create a Stripe customer
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_test123",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.commit()
+
         subscription = StripeSubscription(
             user_id=test_user.id,
             stripe_subscription_id="sub_test123",
+            stripe_customer_id="cus_test123",
+            price_id="price_123",
             tier="pro",
             status="active",
         )
@@ -387,12 +394,23 @@ class TestStripeSubscriptionModel:
     @pytest.mark.unit
     def test_stripe_subscription_tier_values(self, test_db: Session, test_user: Profile):
         """Test valid tier values."""
-        valid_tiers = ["free", "plus", "pro"]
+        # Create customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_tier_test",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        valid_tiers = ["plus", "pro"]  # Only plus and pro have Stripe subscriptions
 
         for i, tier in enumerate(valid_tiers):
             subscription = StripeSubscription(
                 user_id=test_user.id,
                 stripe_subscription_id=f"sub_{i}",
+                stripe_customer_id="cus_tier_test",
+                price_id=f"price_{i}",
                 tier=tier,
                 status="active",
             )
@@ -405,12 +423,23 @@ class TestStripeSubscriptionModel:
     @pytest.mark.unit
     def test_stripe_subscription_status_values(self, test_db: Session, test_user: Profile):
         """Test valid status values."""
+        # Create customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_status_test",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.commit()
+
         valid_statuses = ["active", "trialing", "canceled", "past_due"]
 
         for i, status in enumerate(valid_statuses):
             subscription = StripeSubscription(
                 user_id=test_user.id,
                 stripe_subscription_id=f"sub_status_{i}",
+                stripe_customer_id="cus_status_test",
+                price_id=f"price_{i}",
                 tier="pro",
                 status=status,
             )
@@ -500,21 +529,21 @@ class TestReferralModel:
         """Test creating a referral."""
         referral = Referral(
             referrer_id=test_user.id,
-            code="TESTCODE123",
+            referral_code="TESTCODE123",
         )
         test_db.add(referral)
         test_db.commit()
         test_db.refresh(referral)
 
         assert referral.id is not None
-        assert referral.code == "TESTCODE123"
+        assert referral.referral_code == "TESTCODE123"
         assert referral.referrer_id == test_user.id
 
     @pytest.mark.unit
     def test_referral_unique_code(self, test_db: Session, test_user: Profile):
         """Test that referral codes must be unique."""
-        referral1 = Referral(referrer_id=test_user.id, code="DUPLICATE")
-        referral2 = Referral(referrer_id=test_user.id, code="DUPLICATE")
+        referral1 = Referral(referrer_id=test_user.id, referral_code="DUPLICATE")
+        referral2 = Referral(referrer_id=test_user.id, referral_code="DUPLICATE")
 
         test_db.add(referral1)
         test_db.commit()
@@ -541,7 +570,7 @@ class TestReferralRedemptionModel:
         )
         test_db.add(referee)
 
-        referral = Referral(referrer_id=referrer.id, code="REFCODE")
+        referral = Referral(referrer_id=referrer.id, referral_code="REFCODE")
         test_db.add(referral)
         test_db.commit()
 
@@ -570,7 +599,7 @@ class TestReferralRedemptionModel:
         )
         test_db.add(referee)
 
-        referral = Referral(referrer_id=referrer.id, code="CODE")
+        referral = Referral(referrer_id=referrer.id, referral_code="CODE")
         test_db.add(referral)
         test_db.commit()
 

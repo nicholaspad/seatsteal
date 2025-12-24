@@ -25,6 +25,7 @@ from models.course import Course
 from models.college import College
 from models.enrollment import Enrollment
 from models.stripe_subscription import StripeSubscription
+from models.stripe_customer import StripeCustomer
 from models.notification_log import NotificationLog
 
 
@@ -84,10 +85,20 @@ class TestFindNotificationsToSend:
         mock_sms_service,
     ):
         """Test finding notifications for Pro users (every minute)."""
+        # Create Stripe customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_pro123",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+
         # Create Pro subscription
         pro_subscription = StripeSubscription(
             user_id=test_user.id,
             stripe_subscription_id="sub_pro123",
+            stripe_customer_id="cus_pro123",
+            price_id="price_pro",
             tier="pro",
             status="active",
         )
@@ -141,10 +152,20 @@ class TestFindNotificationsToSend:
         mock_sms_service,
     ):
         """Test finding notifications for Plus users (every 5 minutes)."""
+        # Create Stripe customer first
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_plus123",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+
         # Create Plus subscription
         plus_subscription = StripeSubscription(
             user_id=test_user.id,
             stripe_subscription_id="sub_plus123",
+            stripe_customer_id="cus_plus123",
+            price_id="price_plus",
             tier="plus",
             status="active",
         )
@@ -302,7 +323,7 @@ class TestSendNotification:
     """Tests for _send_notification method."""
 
     @pytest.mark.unit
-    async def test_send_notification_email_success(
+    def test_send_notification_email_success(
         self,
         test_db: Session,
         test_college: College,
@@ -338,7 +359,7 @@ class TestSendNotification:
         assert logs[0].status == "sent"
 
     @pytest.mark.unit
-    async def test_send_notification_with_sms(
+    def test_send_notification_with_sms(
         self,
         test_db: Session,
         test_college: College,
@@ -411,7 +432,7 @@ class TestSendNotification:
         assert len(logs) == 0
 
     @pytest.mark.unit
-    async def test_send_notification_email_failure_raises(
+    def test_send_notification_email_failure_raises(
         self,
         test_db: Session,
         test_college: College,
