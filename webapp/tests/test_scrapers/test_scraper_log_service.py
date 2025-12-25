@@ -259,6 +259,7 @@ class TestCompleteLog:
     async def test_complete_log_sets_completed_at(self, scraper_log_service, mock_db):
         """Test that completed_at timestamp is set"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_log.completed_at = None
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
@@ -360,6 +361,7 @@ class TestScraperLogLifecycle:
 
         # Complete log
         mock_log_complete = Mock(spec=ScraperLog)
+        mock_log_complete.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log_complete)
         mock_db.execute = Mock(return_value=mock_result)
@@ -389,6 +391,7 @@ class TestScraperLogLifecycle:
 
         # Complete with error
         mock_log_complete = Mock(spec=ScraperLog)
+        mock_log_complete.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log_complete)
         mock_db.execute = Mock(return_value=mock_result)
