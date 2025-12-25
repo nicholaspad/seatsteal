@@ -120,7 +120,7 @@ export function ClassCard({
               </Badge>
             )} */}
             {/* Watcher count badge - greyed out for non-pro users */}
-            {watcherCount !== undefined && isClosed && (
+            {(hasProAccess ? watcherCount !== undefined : true) && isClosed && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
@@ -139,7 +139,7 @@ export function ClassCard({
                         !hasProAccess && "blur-sm",
                       )}
                     >
-                      {watcherCount}
+                      {hasProAccess ? watcherCount : 10}
                     </span>
                   </Badge>
                 </TooltipTrigger>
