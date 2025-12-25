@@ -411,9 +411,10 @@ class TestCacheResponseAsync:
             result1 = await test_func()
             result2 = await test_func()
 
-            # Second call should return from cache
-            assert result1["timestamp"] == "2025-12-25T12:00:00+00:00"
-            assert result2 == result1
+            # First call returns original object
+            assert result1["timestamp"] == dt
+            # Second call returns from cache (deserialized from JSON)
+            assert result2["timestamp"] == "2025-12-25T12:00:00+00:00"
 
     @pytest.mark.asyncio
     async def test_cache_response_async_custom_key_builder(self, fake_redis, mock_settings_with_redis):
@@ -529,10 +530,15 @@ class TestCacheResponseSync:
             def test_func():
                 return TestUserModel(id="456", email="sync@example.com", name="Sync")
 
-            result = test_func()
+            result1 = test_func()
+            result2 = test_func()
 
-            assert isinstance(result, dict)  # Deserialized from cache
-            assert result["id"] == "456"
+            # First call returns original Pydantic model
+            assert isinstance(result1, TestUserModel)
+            assert result1.id == "456"
+            # Second call returns deserialized dict from cache
+            assert isinstance(result2, dict)
+            assert result2["id"] == "456"
 
 
 # ============================================================================

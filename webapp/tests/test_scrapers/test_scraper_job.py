@@ -261,7 +261,7 @@ class TestExecuteSuccess:
                     assert result.success is True
                     assert result.stats["courses_saved"] == 10
                     assert result.stats["classes_saved"] == 50
-                    assert result.duration_ms > 0
+                    assert result.duration_ms >= 0  # Can be 0 in fast tests
                     mock_lock.acquire.assert_called_once()
                     mock_lock.release.assert_called_once()
 
@@ -638,16 +638,25 @@ class TestExecuteErrorHandling:
         """Test handling of unexpected exceptions"""
         mock_lock = Mock()
         mock_lock.get_scraper_id = Mock(return_value=1)
-        mock_lock.acquire = Mock(side_effect=Exception("Unexpected error"))
+        mock_lock.acquire = Mock(return_value=LockResult(success=True))
+        mock_lock.release = Mock()
+
+        # Make the service raise an exception
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = AsyncMock(
+            side_effect=Exception("Unexpected error")
+        )
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
             with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                job = ScraperJob(test_college, mock_db)
+                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+                    job = ScraperJob(test_college, mock_db)
 
-                # Should not raise exception
-                result = await job.execute()
+                    # Should not raise exception, should return failure
+                    result = await job.execute()
 
-                assert result.success is False
+                    assert result.success is False
+                    assert "Unexpected error" in result.error
 
 
 # ============================================================================
@@ -729,7 +738,7 @@ class TestScraperJobIntegration:
 
                     # Verify success
                     assert result.success is True
-                    assert result.duration_ms > 0
+                    assert result.duration_ms >= 0  # Can be 0 in fast tests
                     assert result.stats["courses_saved"] == 10
 
                     # Cleanup

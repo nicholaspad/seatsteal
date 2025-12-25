@@ -179,6 +179,7 @@ class TestCompleteLog:
     async def test_complete_log_success_outcome(self, scraper_log_service, mock_db):
         """Test completing log with success outcome"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -199,6 +200,7 @@ class TestCompleteLog:
     async def test_complete_log_error_outcome(self, scraper_log_service, mock_db):
         """Test completing log with error outcome"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -217,6 +219,7 @@ class TestCompleteLog:
     async def test_complete_log_partial_outcome(self, scraper_log_service, mock_db):
         """Test completing log with partial outcome"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -238,6 +241,7 @@ class TestCompleteLog:
     async def test_complete_log_timeout_outcome(self, scraper_log_service, mock_db):
         """Test completing log with timeout outcome"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -282,6 +286,7 @@ class TestCompleteLog:
     async def test_complete_log_zero_statistics(self, scraper_log_service, mock_db):
         """Test completing with zero courses/classes"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -428,6 +433,7 @@ class TestStatisticsTracking:
     async def test_track_courses_and_classes(self, scraper_log_service, mock_db):
         """Test tracking courses and classes created"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -446,6 +452,7 @@ class TestStatisticsTracking:
     async def test_track_large_numbers(self, scraper_log_service, mock_db):
         """Test tracking large numbers of courses/classes"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -464,6 +471,7 @@ class TestStatisticsTracking:
     async def test_statistics_defaults_to_zero(self, scraper_log_service, mock_db):
         """Test that statistics default to 0 when not provided"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -487,6 +495,7 @@ class TestOutcomeTypes:
     async def test_outcome_success(self, scraper_log_service, mock_db):
         """Test success outcome"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -499,6 +508,7 @@ class TestOutcomeTypes:
     async def test_outcome_error(self, scraper_log_service, mock_db):
         """Test error outcome"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -511,6 +521,7 @@ class TestOutcomeTypes:
     async def test_outcome_partial(self, scraper_log_service, mock_db):
         """Test partial outcome"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
@@ -523,6 +534,7 @@ class TestOutcomeTypes:
     async def test_outcome_timeout(self, scraper_log_service, mock_db):
         """Test timeout outcome"""
         mock_log = Mock(spec=ScraperLog)
+        mock_log.started_at = datetime.now()  # Set started_at as datetime
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=mock_log)
         mock_db.execute = Mock(return_value=mock_result)
