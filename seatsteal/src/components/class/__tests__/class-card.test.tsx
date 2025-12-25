@@ -430,14 +430,14 @@ describe("ClassCard", () => {
       expect(screen.getByText("7")).toBeInTheDocument();
     });
 
-    it("does not show watcher count badge for non-pro users", () => {
-      customRender(
+    it("shows fake blurred watcher count (10) for non-pro users", () => {
+      const { container } = customRender(
         <ClassCard
           class={mockClosedClass}
           showSubscriptionButton={true}
           subscriptionsLoading={false}
           isSubscribed={false}
-          watcherCount={5}
+          watcherCount={5} // Backend would not send this, but testing frontend behavior
         />,
         {
           user: mockUser,
@@ -447,8 +447,41 @@ describe("ClassCard", () => {
         },
       );
 
-      // Should not show the eye icon badge with count
+      // Should show fake number 10 (not the real count 5)
+      expect(screen.getByText("10")).toBeInTheDocument();
       expect(screen.queryByText("5")).not.toBeInTheDocument();
+
+      // Should have blur class
+      const blurredNumber = screen.getByText("10");
+      expect(blurredNumber).toHaveClass("blur-sm");
+
+      // Should have greyed out badge styling
+      const badge = container.querySelector(".bg-gray-100");
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveClass("opacity-60");
+      expect(badge).toHaveClass("cursor-not-allowed");
+    });
+
+    it("shows fake blurred number (10) for non-pro users even without watcherCount prop", () => {
+      customRender(
+        <ClassCard
+          class={mockClosedClass}
+          showSubscriptionButton={true}
+          subscriptionsLoading={false}
+          isSubscribed={false}
+          // No watcherCount prop - normal case for non-pro users
+        />,
+        {
+          user: mockUser,
+          profile: mockProfile,
+          subscriptionStatus: canSubscribeStatus,
+          subscriptionTier: "free",
+        },
+      );
+
+      // Should still show fake number 10
+      expect(screen.getByText("10")).toBeInTheDocument();
+      expect(screen.getByText("10")).toHaveClass("blur-sm");
     });
 
     it("does not show watcher count badge for open classes", () => {

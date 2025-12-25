@@ -119,24 +119,53 @@ export function ClassCard({
                 ID: {classData.classNumber}
               </Badge>
             )} */}
-            {/* Pro-exclusive: Watcher count badge */}
-            {hasProAccess && watcherCount !== undefined && isClosed && (
+            {/* Watcher count badge - greyed out for non-pro users */}
+            {(hasProAccess ? watcherCount !== undefined : true) && isClosed && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
                     variant="secondary"
-                    className="text-xs inline-flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 h-5 px-2"
+                    className={cn(
+                      "text-xs inline-flex items-center gap-1 h-5 px-2",
+                      hasProAccess
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                        : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 opacity-60 cursor-not-allowed",
+                    )}
                   >
                     <Eye className="h-3 w-3 shrink-0" />
-                    <span className="leading-none pt-px">{watcherCount}</span>
+                    <span
+                      className={cn(
+                        "leading-none pt-px",
+                        !hasProAccess && "blur-sm",
+                      )}
+                    >
+                      {hasProAccess ? watcherCount : 10}
+                    </span>
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  <p>
-                    {watcherCount === 1
-                      ? "1 total subscription"
-                      : `${watcherCount} total subscriptions`}
-                  </p>
+                  {hasProAccess ? (
+                    <p>
+                      {watcherCount === 1
+                        ? "1 total subscription"
+                        : `${watcherCount} total subscriptions`}
+                    </p>
+                  ) : (
+                    <div className="space-y-1 text-center">
+                      <p className="font-medium">
+                        Subscription counts are a Pro feature. Subscribe to Pro
+                        to unlock!
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-1 text-xs"
+                        onClick={() => window.open("/#plans", "_blank")}
+                      >
+                        View pricing <ExternalLink className="ml-1 h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </TooltipContent>
               </Tooltip>
             )}
