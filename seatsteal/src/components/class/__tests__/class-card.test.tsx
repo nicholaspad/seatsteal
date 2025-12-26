@@ -455,10 +455,9 @@ describe("ClassCard", () => {
       const blurredNumber = screen.getByText("10");
       expect(blurredNumber).toHaveClass("blur-sm");
 
-      // Should have greyed out badge styling
-      const badge = container.querySelector(".bg-gray-100");
+      // Should have amber badge styling (not greyed out)
+      const badge = container.querySelector(".bg-amber-100");
       expect(badge).toBeInTheDocument();
-      expect(badge).toHaveClass("opacity-60");
       expect(badge).toHaveClass("cursor-not-allowed");
     });
 

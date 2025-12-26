@@ -119,7 +119,7 @@ export function ClassCard({
                 ID: {classData.classNumber}
               </Badge>
             )} */}
-            {/* Watcher count badge - greyed out for non-pro users */}
+            {/* Watcher count badge - blurred for non-pro users */}
             {(hasProAccess ? watcherCount !== undefined : true) && isClosed && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -127,9 +127,8 @@ export function ClassCard({
                     variant="secondary"
                     className={cn(
                       "text-xs inline-flex items-center gap-1 h-5 px-2",
-                      hasProAccess
-                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-                        : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 opacity-60 cursor-not-allowed",
+                      "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+                      !hasProAccess && "cursor-not-allowed",
                     )}
                   >
                     <Eye className="h-3 w-3 shrink-0" />
