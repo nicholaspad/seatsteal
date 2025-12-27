@@ -1,7 +1,7 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useSession } from "@/components/providers/SessionProvider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { PlusBadgeSvg, ProBadgeSvg } from "@/components/ui/svg-badges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -327,12 +327,8 @@ export default function Settings() {
                   <Label htmlFor="phone" className="flex items-center gap-2">
                     <Phone className="h-4 w-4" />
                     <span>Phone Number</span>
-                    <Badge variant="plus" className="ml-auto self-center">
-                      Plus
-                    </Badge>
-                    <Badge variant="pro" className="ml-1 self-center">
-                      Pro
-                    </Badge>
+                    <PlusBadgeSvg className="ml-auto self-center" />
+                    <ProBadgeSvg className="ml-1 self-center" />
                   </Label>
                   <Input
                     id="phone"
