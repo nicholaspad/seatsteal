@@ -3,6 +3,18 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "framework": "vite",
+  "redirects": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/favicon.svg",
+      "permanent": true
+    },
+    {
+      "source": "/favicon.png",
+      "destination": "/favicon.svg",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
