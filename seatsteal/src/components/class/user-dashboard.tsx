@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { PlusBadgeSvg, ProBadgeSvg } from "@/components/ui/svg-badges";
 import { Button } from "@/components/ui/button";
 import {
   BellOff,
@@ -375,12 +376,15 @@ const UserDashboard = memo(function UserDashboard({
             <CardContent className="pt-0 space-y-4">
               {/* Tier Badge with Manage Link */}
               <div className="flex items-center justify-between">
-                <Badge
-                  variant={userTier as "free" | "plus" | "pro"}
-                  className="capitalize"
-                >
-                  {userTier}
-                </Badge>
+                {userTier === "plus" ? (
+                  <PlusBadgeSvg />
+                ) : userTier === "pro" ? (
+                  <ProBadgeSvg />
+                ) : (
+                  <Badge variant="free" className="capitalize">
+                    Free
+                  </Badge>
+                )}
                 {userTier === "free" ? (
                   <Button
                     size="sm"

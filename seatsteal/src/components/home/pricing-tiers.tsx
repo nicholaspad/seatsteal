@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useHistory } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PlusBadgeSvg, ProBadgeSvg } from "@/components/ui/svg-badges";
 import { CheckCircle, ArrowRight } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -179,7 +180,15 @@ export function PricingTiers() {
               </div>
             )}
             <CardHeader className="text-center">
-              <CardTitle>{tier.name}</CardTitle>
+              <CardTitle className="flex items-center justify-center gap-2">
+                {tier.id === "plus" ? (
+                  <PlusBadgeSvg />
+                ) : tier.id === "pro" ? (
+                  <ProBadgeSvg />
+                ) : (
+                  tier.name
+                )}
+              </CardTitle>
               <div className="flex items-center justify-center gap-2">
                 <div className="text-3xl font-bold">
                   {tier.price}

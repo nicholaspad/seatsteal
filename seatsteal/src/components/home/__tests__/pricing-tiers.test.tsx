@@ -26,8 +26,8 @@ describe("PricingTiers", () => {
       render(<PricingTiers />);
 
       expect(screen.getByText("Free")).toBeInTheDocument();
-      expect(screen.getByText("Plus")).toBeInTheDocument();
-      expect(screen.getByText("Pro")).toBeInTheDocument();
+      expect(screen.getByText("PLUS")).toBeInTheDocument();
+      expect(screen.getByText("PRO")).toBeInTheDocument();
     });
 
     it("displays monthly prices by default", () => {
@@ -54,14 +54,16 @@ describe("PricingTiers", () => {
       render(<PricingTiers />);
 
       expect(screen.getByText(/Monitor 5 sections/)).toBeInTheDocument();
-      expect(screen.getByText(/Email \+ SMS notifications/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Email \+ SMS notifications/),
+      ).toBeInTheDocument();
     });
 
     it("displays Get Started button for Free tier", () => {
       render(<PricingTiers />);
 
       expect(
-        screen.getByRole("button", { name: /get started/i })
+        screen.getByRole("button", { name: /get started/i }),
       ).toBeInTheDocument();
     });
 
@@ -80,7 +82,7 @@ describe("PricingTiers", () => {
       render(<PricingTiers />);
 
       expect(
-        screen.getByText("Save 25% with an annual plan!")
+        screen.getByText("Save 25% with an annual plan!"),
       ).toBeInTheDocument();
     });
 
@@ -206,7 +208,7 @@ describe("PricingTiers", () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tier: "plus", interval: "monthly" }),
-          })
+          }),
         );
       });
     });
@@ -235,7 +237,7 @@ describe("PricingTiers", () => {
           "/api/stripe/create-checkout-session",
           expect.objectContaining({
             body: JSON.stringify({ tier: "pro", interval: "monthly" }),
-          })
+          }),
         );
       });
     });
@@ -286,7 +288,9 @@ describe("PricingTiers", () => {
       await user.click(subscribeButtons[0]);
 
       await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Invalid checkout session URL");
+        expect(toast.error).toHaveBeenCalledWith(
+          "Invalid checkout session URL",
+        );
       });
 
       expect(window.location.href).not.toBe("https://evil.com/phishing");
@@ -308,9 +312,9 @@ describe("PricingTiers", () => {
                     data: { sessionUrl: "https://checkout.stripe.com/test" },
                   }),
                 } as Response),
-              100
+              100,
             );
-          })
+          }),
       );
 
       render(<PricingTiers />);
@@ -339,9 +343,9 @@ describe("PricingTiers", () => {
                     data: { sessionUrl: "https://checkout.stripe.com/test" },
                   }),
                 } as Response),
-              100
+              100,
             );
-          })
+          }),
       );
 
       render(<PricingTiers />);
@@ -412,7 +416,7 @@ describe("PricingTiers", () => {
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith(
-          "Failed to create checkout session"
+          "Failed to create checkout session",
         );
       });
     });
@@ -443,9 +447,7 @@ describe("PricingTiers", () => {
       const { fetchWithToasts } = await import("@/lib/api");
       const { toast } = await import("sonner");
 
-      vi.mocked(fetchWithToasts).mockRejectedValue(
-        new Error("Network error")
-      );
+      vi.mocked(fetchWithToasts).mockRejectedValue(new Error("Network error"));
 
       render(<PricingTiers />);
 
@@ -475,7 +477,7 @@ describe("PricingTiers", () => {
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith(
-          "Failed to start subscription process"
+          "Failed to start subscription process",
         );
       });
     });
@@ -528,9 +530,9 @@ describe("PricingTiers", () => {
                     data: { sessionUrl: "https://checkout.stripe.com/test" },
                   }),
                 } as Response),
-              100
+              100,
             );
-          })
+          }),
       );
 
       render(<PricingTiers />);
@@ -571,7 +573,7 @@ describe("PricingTiers", () => {
           expect.anything(),
           expect.objectContaining({
             body: JSON.stringify({ tier: "plus", interval: "monthly" }),
-          })
+          }),
         );
       });
     });

@@ -6,5 +6,5 @@
     </linearGradient>
   </defs>
   <rect x="0" y="0" width="52" height="24" rx="6" ry="6" fill="url(#plusGradient)"/>
-  <text x="26" y="16" text-anchor="middle" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700">Plus</text>
+  <text x="26" y="16" text-anchor="middle" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700">PLUS</text>
 </svg>

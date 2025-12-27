@@ -342,7 +342,7 @@ describe("Dashboard Page", () => {
       renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
 
       await waitFor(() => {
-        expect(screen.getByText("free")).toBeInTheDocument();
+        expect(screen.getByText("Free")).toBeInTheDocument();
       });
     });
 
@@ -350,7 +350,7 @@ describe("Dashboard Page", () => {
       renderAuthenticated(<Dashboard />, { subscriptionTier: "plus" });
 
       await waitFor(() => {
-        expect(screen.getByText("plus")).toBeInTheDocument();
+        expect(screen.getByText("PLUS")).toBeInTheDocument();
       });
     });
 
@@ -358,7 +358,7 @@ describe("Dashboard Page", () => {
       renderAuthenticated(<Dashboard />, { subscriptionTier: "pro" });
 
       await waitFor(() => {
-        expect(screen.getByText("pro")).toBeInTheDocument();
+        expect(screen.getByText("PRO")).toBeInTheDocument();
       });
     });
   });
