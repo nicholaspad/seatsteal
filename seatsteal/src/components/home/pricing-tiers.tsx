@@ -161,9 +161,6 @@ export function PricingTiers() {
             Annual
           </span>
         </div>
-        <span className="text-sm text-green-600 font-medium">
-          Save 25% with an annual plan!
-        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
