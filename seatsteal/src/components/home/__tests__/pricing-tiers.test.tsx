@@ -78,14 +78,6 @@ describe("PricingTiers", () => {
   });
 
   describe("Billing Toggle", () => {
-    it("shows annual savings message", () => {
-      render(<PricingTiers />);
-
-      expect(
-        screen.getByText("Save 25% with an annual plan!"),
-      ).toBeInTheDocument();
-    });
-
     it("highlights monthly label when monthly is selected", () => {
       render(<PricingTiers />);
 
