@@ -1,0 +1,15 @@
+<svg width="46" height="24" viewBox="0 0 46 24" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="proBorderGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="proFillGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="46" height="24" rx="6" ry="6" fill="url(#proBorderGradient)"/>
+  <rect x="2" y="2" width="42" height="20" rx="4" ry="4" fill="url(#proFillGradient)"/>
+  <text x="23" y="16" text-anchor="middle" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700">Pro</text>
+</svg>
