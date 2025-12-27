@@ -149,6 +149,15 @@ async def health_check():
     }
 
 
+@app.get("/favicon.ico")
+@app.get("/favicon.png")
+@app.get("/favicon.svg")
+async def favicon():
+    """Favicon endpoint - returns 204 No Content for API"""
+    from fastapi.responses import Response
+    return Response(status_code=204)
+
+
 @app.get("/")
 async def root():
     """Root endpoint - disabled in production"""
