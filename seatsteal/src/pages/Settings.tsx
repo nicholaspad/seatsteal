@@ -313,32 +313,24 @@ export default function Settings() {
                     <Mail className="h-4 w-4" />
                     Email Address
                   </Label>
-                  <div className="relative">
-                    <Input
-                      id="email"
-                      type="email"
-                      value={settings.email}
-                      disabled
-                      className="bg-muted"
-                    />
-                    <Badge
-                      variant="secondary"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs"
-                    >
-                      Locked
-                    </Badge>
-                  </div>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={settings.email}
+                    disabled
+                    className="bg-muted"
+                  />
                 </div>
 
                 {/* Phone Number */}
                 <div className="space-y-1.5">
                   <Label htmlFor="phone" className="flex items-center gap-2">
                     <Phone className="h-4 w-4" />
-                    Phone Number
-                    <Badge variant="plus" className="ml-auto">
+                    <span>Phone Number</span>
+                    <Badge variant="plus" className="ml-auto self-center">
                       Plus
                     </Badge>
-                    <Badge variant="pro" className="ml-1">
+                    <Badge variant="pro" className="ml-1 self-center">
                       Pro
                     </Badge>
                   </Label>
@@ -355,8 +347,8 @@ export default function Settings() {
                     <p className="text-xs text-destructive">{phoneError}</p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      US phone number only (10 digits). Used for SMS
-                      notifications.
+                      US phone number only (10 digits). Used to send SMS
+                      open-seat notifications for Plus and Pro subscribers.
                     </p>
                   )}
                 </div>
