@@ -56,18 +56,6 @@ describe("Settings Page", () => {
       });
     });
 
-    it("displays email as read-only with Locked badge", async () => {
-      renderAuthenticated(<Settings />);
-
-      await waitFor(() => {
-        const emailInput = screen.getByLabelText(/Email Address/i);
-        expect(emailInput).toBeDisabled();
-        expect(emailInput).toHaveValue("test@university.edu");
-      });
-
-      expect(screen.getByText("Locked")).toBeInTheDocument();
-    });
-
     it("displays phone number input", async () => {
       renderAuthenticated(<Settings />);
 

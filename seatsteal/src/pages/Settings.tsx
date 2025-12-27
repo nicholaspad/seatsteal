@@ -313,21 +313,13 @@ export default function Settings() {
                     <Mail className="h-4 w-4" />
                     Email Address
                   </Label>
-                  <div className="relative">
-                    <Input
-                      id="email"
-                      type="email"
-                      value={settings.email}
-                      disabled
-                      className="bg-muted"
-                    />
-                    <Badge
-                      variant="secondary"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs"
-                    >
-                      Locked
-                    </Badge>
-                  </div>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={settings.email}
+                    disabled
+                    className="bg-muted"
+                  />
                 </div>
 
                 {/* Phone Number */}
