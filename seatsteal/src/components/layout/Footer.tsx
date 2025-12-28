@@ -29,7 +29,7 @@ export function Footer({ className }: FooterProps) {
               Terms
             </Link>
             <a
-              href="https://form.typeform.com/to/fz0mcjEn"
+              href="https://forms.gle/4SJq1aqGULZEBKi36"
               className="text-muted-foreground hover:text-foreground transition-colors"
               target="_blank"
               rel="noopener noreferrer"

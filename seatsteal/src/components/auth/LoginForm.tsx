@@ -66,7 +66,7 @@ export function LoginForm() {
           <>
             This email is not enrolled in early access.{" "}
             <a
-              href="https://form.typeform.com/to/mi3IrgGR"
+              href="https://forms.gle/FbdR2JvH1hKjQTem6"
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:no-underline"
@@ -203,7 +203,7 @@ export function LoginForm() {
         <div className="text-center text-xs text-muted-foreground">
           Must use a valid .edu address.{" "}
           <a
-            href="https://form.typeform.com/to/mi3IrgGR"
+            href="https://forms.gle/FbdR2JvH1hKjQTem6"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:no-underline"
