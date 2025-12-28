@@ -116,7 +116,7 @@ export function FAQSection({ colleges }: FAQSectionProps) {
                     We regularly add support for more universities. If you don't
                     see your school,{" "}
                     <a
-                      href="https://form.typeform.com/to/oPSf8iXX"
+                      href="https://forms.gle/nh2T76j8Pysp1rax5"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline"
