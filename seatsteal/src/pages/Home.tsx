@@ -89,7 +89,7 @@ export default function Home() {
                   className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
                 >
                   <a
-                    href="https://form.typeform.com/to/mi3IrgGR"
+                    href="https://forms.gle/FbdR2JvH1hKjQTem6"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -103,7 +103,7 @@ export default function Home() {
                   className="text-lg px-6 py-4 border-white bg-black text-white hover:bg-white/10"
                 >
                   <a
-                    href="https://form.typeform.com/to/oPSf8iXX"
+                    href="https://forms.gle/nh2T76j8Pysp1rax5"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
