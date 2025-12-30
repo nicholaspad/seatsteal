@@ -181,7 +181,9 @@ class TestSendCourseNotification:
             # Verify email content
             call_args = mock_ses_client.send_email.call_args[1]
             assert "Seat available" in call_args["Message"]["Subject"]["Data"]
-            assert "Intro to Computer Science" in call_args["Message"]["Subject"]["Data"]
+            assert (
+                "Intro to Computer Science" in call_args["Message"]["Subject"]["Data"]
+            )
 
     @pytest.mark.unit
     async def test_send_course_notification_with_unsubscribe(

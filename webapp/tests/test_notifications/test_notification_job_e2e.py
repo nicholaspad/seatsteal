@@ -226,18 +226,24 @@ class TestNotificationJobE2E:
 
             # Step 4: Verify results
             assert result["success"] is True
-            assert result["notifications_sent"] == 3, "All 3 tiers should be notified at :00"
+            assert (
+                result["notifications_sent"] == 3
+            ), "All 3 tiers should be notified at :00"
 
             # Verify all subscriptions are deactivated
             test_db.refresh(free_sub)
             test_db.refresh(plus_sub)
             test_db.refresh(pro_sub)
 
-            assert free_sub.is_active is False, "Free subscription should be deactivated"
+            assert (
+                free_sub.is_active is False
+            ), "Free subscription should be deactivated"
             assert free_sub.notification_count == 1
             assert free_sub.last_notified is not None
 
-            assert plus_sub.is_active is False, "Plus subscription should be deactivated"
+            assert (
+                plus_sub.is_active is False
+            ), "Plus subscription should be deactivated"
             assert plus_sub.notification_count == 1
             assert plus_sub.last_notified is not None
 
@@ -309,7 +315,9 @@ class TestNotificationJobE2E:
             result = job.execute()
 
             assert result["success"] is True
-            assert result["notifications_sent"] == 3, "Free, Plus, and Pro should all be notified at :30"
+            assert (
+                result["notifications_sent"] == 3
+            ), "Free, Plus, and Pro should all be notified at :30"
 
     @pytest.mark.integration
     @freeze_time("2024-01-15 10:05:00")
@@ -369,15 +377,21 @@ class TestNotificationJobE2E:
             result = job.execute()
 
             assert result["success"] is True
-            assert result["notifications_sent"] == 2, "Only Plus and Pro should be notified at :05"
+            assert (
+                result["notifications_sent"] == 2
+            ), "Only Plus and Pro should be notified at :05"
 
             # Verify free user NOT deactivated, plus and pro ARE deactivated
             test_db.refresh(free_sub)
             test_db.refresh(plus_sub)
             test_db.refresh(pro_sub)
 
-            assert free_sub.is_active is True, "Free subscription should still be active"
-            assert plus_sub.is_active is False, "Plus subscription should be deactivated"
+            assert (
+                free_sub.is_active is True
+            ), "Free subscription should still be active"
+            assert (
+                plus_sub.is_active is False
+            ), "Plus subscription should be deactivated"
             assert pro_sub.is_active is False, "Pro subscription should be deactivated"
 
     @pytest.mark.integration
@@ -438,15 +452,21 @@ class TestNotificationJobE2E:
             result = job.execute()
 
             assert result["success"] is True
-            assert result["notifications_sent"] == 1, "Only Pro should be notified at :07"
+            assert (
+                result["notifications_sent"] == 1
+            ), "Only Pro should be notified at :07"
 
             # Verify only pro user deactivated
             test_db.refresh(free_sub)
             test_db.refresh(plus_sub)
             test_db.refresh(pro_sub)
 
-            assert free_sub.is_active is True, "Free subscription should still be active"
-            assert plus_sub.is_active is True, "Plus subscription should still be active"
+            assert (
+                free_sub.is_active is True
+            ), "Free subscription should still be active"
+            assert (
+                plus_sub.is_active is True
+            ), "Plus subscription should still be active"
             assert pro_sub.is_active is False, "Pro subscription should be deactivated"
 
     @pytest.mark.integration
@@ -508,7 +528,9 @@ class TestNotificationJobE2E:
             result = job.execute()
 
             assert result["success"] is True
-            assert result["notifications_sent"] == 0, "No notifications should be sent for closed enrollment"
+            assert (
+                result["notifications_sent"] == 0
+            ), "No notifications should be sent for closed enrollment"
 
             # Verify all subscriptions still active
             test_db.refresh(free_sub)
@@ -563,8 +585,11 @@ class TestNotificationJobE2E:
         test_db.add(enrollment)
         test_db.commit()
 
-        with patch("notifications.send_notifs.SessionLocal") as mock_session_local, \
-             patch("notifications.send_notifs.time.sleep") as mock_sleep:
+        with patch(
+            "notifications.send_notifs.SessionLocal"
+        ) as mock_session_local, patch(
+            "notifications.send_notifs.time.sleep"
+        ) as mock_sleep:
             mock_session_local.return_value.__enter__.return_value = test_db
 
             job = NotificationJob(dry_run=False)
@@ -572,6 +597,7 @@ class TestNotificationJobE2E:
 
             # Verify time.sleep was called with PRO_PRIORITY_DELAY_SECONDS
             from notifications.constants import PRO_PRIORITY_DELAY_SECONDS
+
             mock_sleep.assert_called_once_with(PRO_PRIORITY_DELAY_SECONDS)
 
             assert result["success"] is True
@@ -624,7 +650,9 @@ class TestNotificationJobE2E:
             result = job.execute()
 
             assert result["success"] is True
-            assert result["notifications_sent"] == 0, "Inactive subscriptions should not be notified"
+            assert (
+                result["notifications_sent"] == 0
+            ), "Inactive subscriptions should not be notified"
 
             # Verify subscription still inactive with same notification count
             test_db.refresh(inactive_sub)

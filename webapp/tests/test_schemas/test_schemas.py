@@ -66,7 +66,8 @@ class TestTermUpdateSchemas:
 
         errors = exc_info.value.errors()
         assert any(
-            "at least 1 character" in str(error) or "String should have at least 1 character" in str(error)
+            "at least 1 character" in str(error)
+            or "String should have at least 1 character" in str(error)
             for error in errors
         )
 

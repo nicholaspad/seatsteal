@@ -223,7 +223,9 @@ class TestEnrollmentModel:
     """Tests for Enrollment model."""
 
     @pytest.mark.unit
-    def test_create_enrollment(self, test_db: Session, test_class: Class, test_college: College):
+    def test_create_enrollment(
+        self, test_db: Session, test_class: Class, test_college: College
+    ):
         """Test creating an enrollment record."""
         enrollment = Enrollment(
             class_id=test_class.class_id,
@@ -240,7 +242,9 @@ class TestEnrollmentModel:
         assert enrollment.scraped_at is not None
 
     @pytest.mark.unit
-    def test_enrollment_status_values(self, test_db: Session, test_class: Class, test_college: College):
+    def test_enrollment_status_values(
+        self, test_db: Session, test_class: Class, test_college: College
+    ):
         """Test valid enrollment status values."""
         valid_statuses = ["open", "closed", "waitlist"]
 
@@ -265,7 +269,11 @@ class TestSubscriptionModel:
 
     @pytest.mark.unit
     def test_create_subscription(
-        self, test_db: Session, test_user: Profile, test_class: Class, test_college: College
+        self,
+        test_db: Session,
+        test_user: Profile,
+        test_class: Class,
+        test_college: College,
     ):
         """Test creating a subscription."""
         subscription = Subscription(
@@ -284,7 +292,11 @@ class TestSubscriptionModel:
 
     @pytest.mark.unit
     def test_subscription_defaults(
-        self, test_db: Session, test_user: Profile, test_class: Class, test_college: College
+        self,
+        test_db: Session,
+        test_user: Profile,
+        test_class: Class,
+        test_college: College,
     ):
         """Test subscription default values."""
         subscription = Subscription(
@@ -302,7 +314,11 @@ class TestSubscriptionModel:
 
     @pytest.mark.unit
     def test_subscription_relationships(
-        self, test_db: Session, test_user: Profile, test_class: Class, test_college: College
+        self,
+        test_db: Session,
+        test_user: Profile,
+        test_class: Class,
+        test_college: College,
     ):
         """Test subscription relationships."""
         subscription = Subscription(
@@ -392,7 +408,9 @@ class TestStripeSubscriptionModel:
         assert subscription.status == "active"
 
     @pytest.mark.unit
-    def test_stripe_subscription_tier_values(self, test_db: Session, test_user: Profile):
+    def test_stripe_subscription_tier_values(
+        self, test_db: Session, test_user: Profile
+    ):
         """Test valid tier values."""
         # Create customer first
         customer = StripeCustomer(
@@ -421,7 +439,9 @@ class TestStripeSubscriptionModel:
             assert subscription.tier == tier
 
     @pytest.mark.unit
-    def test_stripe_subscription_status_values(self, test_db: Session, test_user: Profile):
+    def test_stripe_subscription_status_values(
+        self, test_db: Session, test_user: Profile
+    ):
         """Test valid status values."""
         # Create customer first
         customer = StripeCustomer(

@@ -102,7 +102,9 @@ class TestCacheClient:
             assert client1 is client2
             assert client1 is not None
 
-    def test_cache_client_with_valid_redis_url(self, fake_redis, mock_settings_with_redis):
+    def test_cache_client_with_valid_redis_url(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test successful connection to Redis"""
         with patch("redis.from_url", return_value=fake_redis):
             client = CacheClient.get_client()
@@ -127,7 +129,9 @@ class TestCacheClient:
 
         assert client is None
 
-    def test_cache_client_connection_timeout(self, fake_redis, mock_settings_with_redis):
+    def test_cache_client_connection_timeout(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test socket timeout configuration"""
         with patch("redis.from_url", return_value=fake_redis) as mock_from_url:
             CacheClient.get_client()
@@ -151,7 +155,9 @@ class TestCacheClient:
 
             assert CacheClient._instance is None
 
-    def test_cache_client_reuse_existing_connection(self, fake_redis, mock_settings_with_redis):
+    def test_cache_client_reuse_existing_connection(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test that get_client doesn't recreate connection"""
         with patch("redis.from_url", return_value=fake_redis) as mock_from_url:
             CacheClient.get_client()
@@ -308,7 +314,9 @@ class TestCacheResponseAsync:
     """Test cache_response decorator with async functions"""
 
     @pytest.mark.asyncio
-    async def test_cache_response_async_cache_miss(self, fake_redis, mock_settings_with_redis):
+    async def test_cache_response_async_cache_miss(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test async function called on cache miss"""
         with patch("redis.from_url", return_value=fake_redis):
             call_count = 0
@@ -327,7 +335,9 @@ class TestCacheResponseAsync:
             assert len(fake_redis.keys()) == 1
 
     @pytest.mark.asyncio
-    async def test_cache_response_async_cache_hit(self, fake_redis, mock_settings_with_redis):
+    async def test_cache_response_async_cache_hit(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test async function not called on cache hit"""
         with patch("redis.from_url", return_value=fake_redis):
             call_count = 0
@@ -348,7 +358,9 @@ class TestCacheResponseAsync:
             assert result1 == result2
 
     @pytest.mark.asyncio
-    async def test_cache_response_async_redis_unavailable(self, mock_settings_without_redis):
+    async def test_cache_response_async_redis_unavailable(
+        self, mock_settings_without_redis
+    ):
         """Test async function works when Redis unavailable"""
         call_count = 0
 
@@ -386,9 +398,12 @@ class TestCacheResponseAsync:
             assert call_count == 1
 
     @pytest.mark.asyncio
-    async def test_cache_response_async_pydantic_serialization(self, fake_redis, mock_settings_with_redis):
+    async def test_cache_response_async_pydantic_serialization(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test async caching of Pydantic models"""
         with patch("redis.from_url", return_value=fake_redis):
+
             @cache_response(prefix="test", ttl=300)
             async def test_func():
                 return TestUserModel(id="123", email="test@example.com", name="Test")
@@ -399,7 +414,9 @@ class TestCacheResponseAsync:
             assert result.id == "123"
 
     @pytest.mark.asyncio
-    async def test_cache_response_async_datetime_serialization(self, fake_redis, mock_settings_with_redis):
+    async def test_cache_response_async_datetime_serialization(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test async caching of datetime objects"""
         with patch("redis.from_url", return_value=fake_redis):
             dt = datetime(2025, 12, 25, 12, 0, 0, tzinfo=timezone.utc)
@@ -417,7 +434,9 @@ class TestCacheResponseAsync:
             assert result2["timestamp"] == "2025-12-25T12:00:00+00:00"
 
     @pytest.mark.asyncio
-    async def test_cache_response_async_custom_key_builder(self, fake_redis, mock_settings_with_redis):
+    async def test_cache_response_async_custom_key_builder(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test async caching with custom key builder"""
         with patch("redis.from_url", return_value=fake_redis):
             call_count = 0
@@ -440,9 +459,12 @@ class TestCacheResponseAsync:
             assert result1 == result2  # Both return cached result
 
     @pytest.mark.asyncio
-    async def test_cache_response_async_ttl_configuration(self, fake_redis, mock_settings_with_redis):
+    async def test_cache_response_async_ttl_configuration(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test async caching respects TTL"""
         with patch("redis.from_url", return_value=fake_redis):
+
             @cache_response(prefix="test", ttl=600)
             async def test_func(value: int):
                 return {"result": value}
@@ -500,6 +522,7 @@ class TestCacheResponseSync:
 
     def test_cache_response_sync_redis_unavailable(self, mock_settings_without_redis):
         """Test sync function works when Redis unavailable"""
+
         @cache_response(prefix="test", ttl=300)
         def test_func(value: int):
             return {"result": value * 2}
@@ -515,6 +538,7 @@ class TestCacheResponseSync:
         mock_redis.get.side_effect = Exception("Redis error")
 
         with patch("redis.from_url", return_value=mock_redis):
+
             @cache_response(prefix="test", ttl=300)
             def test_func(value: int):
                 return {"result": value * 2}
@@ -523,9 +547,12 @@ class TestCacheResponseSync:
 
             assert result == {"result": 10}
 
-    def test_cache_response_sync_pydantic_serialization(self, fake_redis, mock_settings_with_redis):
+    def test_cache_response_sync_pydantic_serialization(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test sync caching of Pydantic models"""
         with patch("redis.from_url", return_value=fake_redis):
+
             @cache_response(prefix="test", ttl=300)
             def test_func():
                 return TestUserModel(id="456", email="sync@example.com", name="Sync")
@@ -581,7 +608,9 @@ class TestCacheInvalidation:
             assert not fake_redis.exists("courses:def456")
             assert fake_redis.exists("colleges:xyz789")  # Not deleted
 
-    def test_invalidate_cache_pattern_no_matches(self, fake_redis, mock_settings_with_redis):
+    def test_invalidate_cache_pattern_no_matches(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test pattern invalidation with no matches"""
         with patch("redis.from_url", return_value=fake_redis):
             fake_redis.set("courses:abc123", "data1")
@@ -654,7 +683,9 @@ class TestUserProfileCaching:
 
             assert result is None
 
-    def test_get_cached_user_profile_redis_unavailable(self, mock_settings_without_redis):
+    def test_get_cached_user_profile_redis_unavailable(
+        self, mock_settings_without_redis
+    ):
         """Test getting profile when Redis unavailable"""
         user_id = "123e4567-e89b-12d3-a456-426614174000"
         result = get_cached_user_profile(user_id)
@@ -756,7 +787,9 @@ class TestCombinedUserCaches:
             assert get_cached_user_profile(user_id) is None
             assert get_cached_user_tier(user_id) is None
 
-    def test_invalidate_user_caches_partial_failure(self, fake_redis, mock_settings_with_redis):
+    def test_invalidate_user_caches_partial_failure(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test that partial failures don't stop invalidation"""
         with patch("redis.from_url", return_value=fake_redis):
             user_id = "123e4567-e89b-12d3-a456-426614174000"
@@ -764,7 +797,10 @@ class TestCombinedUserCaches:
             cache_user_tier(user_id, "pro")
 
             # Mock profile invalidation to fail
-            with patch("utils.cache.invalidate_user_profile_cache", side_effect=Exception("Failed")):
+            with patch(
+                "utils.cache.invalidate_user_profile_cache",
+                side_effect=Exception("Failed"),
+            ):
                 # Should not raise exception
                 invalidate_user_caches(user_id)
 
@@ -781,7 +817,9 @@ class TestCacheIntegration:
     """Integration tests for caching across multiple calls"""
 
     @pytest.mark.asyncio
-    async def test_cache_across_multiple_calls(self, fake_redis, mock_settings_with_redis):
+    async def test_cache_across_multiple_calls(
+        self, fake_redis, mock_settings_with_redis
+    ):
         """Test caching behavior across multiple function calls"""
         with patch("redis.from_url", return_value=fake_redis):
             call_count = 0
@@ -811,6 +849,7 @@ class TestCacheIntegration:
     def test_cache_with_different_prefixes(self, fake_redis, mock_settings_with_redis):
         """Test that different prefixes don't collide"""
         with patch("redis.from_url", return_value=fake_redis):
+
             @cache_response(prefix="courses", ttl=300)
             def get_courses(college_id: int):
                 return {"courses": [f"course_{college_id}"]}

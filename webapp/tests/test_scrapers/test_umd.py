@@ -89,18 +89,14 @@ class TestUmdScraper:
     @pytest.mark.unit
     def test_init_sets_college_short_name(self, mock_umd_db_session):
         """Test that scraper initializes with correct college."""
-        with patch(
-            "scraper.scrapers.umd.get_term_code_from_db", return_value="202408"
-        ):
+        with patch("scraper.scrapers.umd.get_term_code_from_db", return_value="202408"):
             scraper = UmdScraper(db_session=mock_umd_db_session)
             assert scraper.college_short_name == "umd"
 
     @pytest.mark.unit
     def test_init_sets_current_term(self, mock_umd_db_session):
         """Test that scraper fetches current term from database."""
-        with patch(
-            "scraper.scrapers.umd.get_term_code_from_db", return_value="202408"
-        ):
+        with patch("scraper.scrapers.umd.get_term_code_from_db", return_value="202408"):
             scraper = UmdScraper(db_session=mock_umd_db_session)
             assert scraper.current_term == "202408"
 

@@ -156,9 +156,7 @@ class TestJobResult:
 
     def test_job_result_failure(self):
         """Test failed job result"""
-        result = JobResult(
-            success=False, error="Network error", duration_ms=3000
-        )
+        result = JobResult(success=False, error="Network error", duration_ms=3000)
 
         assert result.success is False
         assert result.error == "Network error"
@@ -219,9 +217,7 @@ class TestScraperJobInitialization:
         with patch("scraper.scraper_job.ScraperLock") as MockLock:
             job = ScraperJob(test_college, mock_db, config)
 
-            MockLock.assert_called_once_with(
-                test_college.id, mock_db, 600000, True
-            )
+            MockLock.assert_called_once_with(test_college.id, mock_db, 600000, True)
 
     def test_scraper_job_get_methods(self, test_college, mock_db):
         """Test getter methods"""
@@ -252,8 +248,13 @@ class TestExecuteSuccess:
     ):
         """Test successful scraper execution"""
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     result = await job.execute()
@@ -273,8 +274,13 @@ class TestExecuteSuccess:
         config = JobConfig(subject="CS")
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db, config)
 
                     await job.execute()
@@ -291,8 +297,13 @@ class TestExecuteSuccess:
         config = JobConfig(limit=100)
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db, config)
 
                     await job.execute()
@@ -315,8 +326,13 @@ class TestExecuteSuccess:
         )
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     result = await job.execute()
@@ -330,8 +346,13 @@ class TestExecuteSuccess:
     ):
         """Test integration with log service"""
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     await job.execute()
@@ -367,7 +388,9 @@ class TestExecuteLockManagement:
         )
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
                 job = ScraperJob(test_college, mock_db)
 
                 result = await job.execute()
@@ -382,8 +405,13 @@ class TestExecuteLockManagement:
     ):
         """Test lock is released after successful scrape"""
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     await job.execute()
@@ -403,8 +431,13 @@ class TestExecuteLockManagement:
         )
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     await job.execute()
@@ -414,7 +447,9 @@ class TestExecuteLockManagement:
                     assert call_args[0] == "error"
 
     @pytest.mark.asyncio
-    async def test_execute_skip_lock_mode(self, test_college, mock_db, mock_log_service, mock_scraper_service):
+    async def test_execute_skip_lock_mode(
+        self, test_college, mock_db, mock_log_service, mock_scraper_service
+    ):
         """Test execution with skip_lock enabled"""
         config = JobConfig(skip_lock=True)
         mock_lock = Mock()
@@ -423,8 +458,13 @@ class TestExecuteLockManagement:
         mock_lock.release = Mock()
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db, config)
 
                     await job.execute()
@@ -472,8 +512,13 @@ class TestExecuteRetryLogic:
         )
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     result = await job.execute()
@@ -498,8 +543,13 @@ class TestExecuteRetryLogic:
         config = JobConfig(retry_delay_ms=100)  # Short delay for testing
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
                         job = ScraperJob(test_college, mock_db, config)
 
@@ -524,8 +574,13 @@ class TestExecuteRetryLogic:
         config = JobConfig(retry_attempts=3)
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db, config)
 
                     result = await job.execute()
@@ -549,8 +604,13 @@ class TestExecuteRetryLogic:
         )
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     result = await job.execute()
@@ -571,8 +631,13 @@ class TestExecuteRetryLogic:
         config = JobConfig(retry_attempts=2, retry_delay_ms=100)
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
                         job = ScraperJob(test_college, mock_db, config)
 
@@ -603,8 +668,13 @@ class TestExecuteErrorHandling:
         config = JobConfig(retry_attempts=1)  # Single attempt for faster test
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     result = await job.execute()
@@ -622,8 +692,13 @@ class TestExecuteErrorHandling:
         mock_log_service.start_log = AsyncMock(side_effect=Exception("Log error"))
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     result = await job.execute()
@@ -648,8 +723,13 @@ class TestExecuteErrorHandling:
         )
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     # Should not raise exception, should return failure
@@ -726,8 +806,13 @@ class TestScraperJobIntegration:
     ):
         """Test complete successful workflow from start to finish"""
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db)
 
                     # Verify can run
@@ -768,8 +853,13 @@ class TestScraperJobIntegration:
         config = JobConfig(retry_attempts=3, retry_delay_ms=10)
 
         with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
-            with patch("scraper.scraper_job.ScraperLogService", return_value=mock_log_service):
-                with patch("scraper.scraper_job.ScraperService", return_value=mock_scraper_service):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
                     job = ScraperJob(test_college, mock_db, config)
 
                     result = await job.execute()

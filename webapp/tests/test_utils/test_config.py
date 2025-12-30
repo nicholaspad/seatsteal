@@ -78,7 +78,10 @@ class TestSettingsLoading:
 
             assert settings.DATABASE_URL == minimal_env["DATABASE_URL"]
             assert settings.VITE_SUPABASE_URL == minimal_env["VITE_SUPABASE_URL"]
-            assert settings.SUPABASE_SERVICE_ROLE_KEY == minimal_env["SUPABASE_SERVICE_ROLE_KEY"]
+            assert (
+                settings.SUPABASE_SERVICE_ROLE_KEY
+                == minimal_env["SUPABASE_SERVICE_ROLE_KEY"]
+            )
 
     def test_settings_defaults(self, minimal_env):
         """Test default values for optional fields"""
@@ -161,28 +164,46 @@ class TestDatabaseURL:
 
     def test_async_database_url_conversion(self, minimal_env):
         """Test conversion of sync URL to async format"""
-        env = {**minimal_env, "DATABASE_URL": "postgresql://user:pass@localhost:5432/db"}
+        env = {
+            **minimal_env,
+            "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
+        }
         with patch.dict(os.environ, env, clear=True):
             settings = Settings()
 
-            assert settings.async_database_url == "postgresql+asyncpg://user:pass@localhost:5432/db"
+            assert (
+                settings.async_database_url
+                == "postgresql+asyncpg://user:pass@localhost:5432/db"
+            )
 
     def test_async_database_url_already_async(self, minimal_env):
         """Test that already async URLs are not double-converted"""
-        env = {**minimal_env, "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost:5432/db"}
+        env = {
+            **minimal_env,
+            "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost:5432/db",
+        }
         with patch.dict(os.environ, env, clear=True):
             settings = Settings()
 
-            assert settings.async_database_url == "postgresql+asyncpg://user:pass@localhost:5432/db"
+            assert (
+                settings.async_database_url
+                == "postgresql+asyncpg://user:pass@localhost:5432/db"
+            )
 
     def test_async_database_url_psycopg2_format(self, minimal_env):
         """Test handling of postgresql+psycopg2:// URLs"""
-        env = {**minimal_env, "DATABASE_URL": "postgresql+psycopg2://user:pass@localhost:5432/db"}
+        env = {
+            **minimal_env,
+            "DATABASE_URL": "postgresql+psycopg2://user:pass@localhost:5432/db",
+        }
         with patch.dict(os.environ, env, clear=True):
             settings = Settings()
 
             # Should return as-is (unknown format)
-            assert settings.async_database_url == "postgresql+psycopg2://user:pass@localhost:5432/db"
+            assert (
+                settings.async_database_url
+                == "postgresql+psycopg2://user:pass@localhost:5432/db"
+            )
 
 
 # ============================================================================
@@ -468,7 +489,9 @@ class TestEffectiveFrontendURL:
         with patch.dict(os.environ, env, clear=True):
             settings = Settings()
 
-            expected = "https://seatsteal-frontend-git-feature-new-ui-seatsteal.vercel.app"
+            expected = (
+                "https://seatsteal-frontend-git-feature-new-ui-seatsteal.vercel.app"
+            )
             assert settings.effective_frontend_url == expected
 
     def test_effective_frontend_url_vercel_preview_sanitization(self, minimal_env):
