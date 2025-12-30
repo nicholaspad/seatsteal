@@ -21,7 +21,7 @@ twilio==9.3.0
 
 # Authentication & Security
 supabase>=2.9.0
-pyjwt==2.8.0
+pyjwt==2.10.1
 python-jose[cryptography]==3.3.0
 
 # Security: Explicit pins to override transitive dependency versions
