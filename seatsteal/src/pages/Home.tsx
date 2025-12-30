@@ -88,13 +88,7 @@ export default function Home() {
                   size="lg"
                   className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
                 >
-                  <a
-                    href="https://forms.gle/FbdR2JvH1hKjQTem6"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Request early access
-                  </a>
+                  <a href="/login">Get started</a>
                 </Button>
                 <Button
                   asChild

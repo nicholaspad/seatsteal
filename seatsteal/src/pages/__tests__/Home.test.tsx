@@ -34,7 +34,7 @@ describe("Home Page", () => {
     it("renders call-to-action buttons", () => {
       renderAnonymous(<Home />);
 
-      expect(screen.getByText("Request early access")).toBeInTheDocument();
+      expect(screen.getByText("Get started")).toBeInTheDocument();
       expect(screen.getByText("Request a college")).toBeInTheDocument();
     });
 
@@ -96,15 +96,14 @@ describe("Home Page", () => {
     });
   });
 
-  describe("External Links", () => {
-    it("Request early access button has correct external link attributes", () => {
+  describe("Links", () => {
+    it("Get started button links to login page", () => {
       renderAnonymous(<Home />);
 
-      const earlyAccessLink = screen.getByRole("link", {
-        name: /Request early access/i,
+      const getStartedLink = screen.getByRole("link", {
+        name: /Get started/i,
       });
-      expect(earlyAccessLink).toHaveAttribute("target", "_blank");
-      expect(earlyAccessLink).toHaveAttribute("rel", "noopener noreferrer");
+      expect(getStartedLink).toHaveAttribute("href", "/login");
     });
 
     it("Request a college button has correct external link attributes", () => {

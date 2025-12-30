@@ -10,7 +10,6 @@ from models.scraper_log import ScraperLog
 from models.scraper import Scraper
 from models.enrollment import Enrollment
 from models.notification_log import NotificationLog
-from models.early_access_email import EarlyAccessEmail
 from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
 from models.query_performance_metric import QueryPerformanceMetric
@@ -28,7 +27,6 @@ __all__ = [
     "Scraper",
     "Enrollment",
     "NotificationLog",
-    "EarlyAccessEmail",
     "StripeCustomer",
     "StripeSubscription",
     "QueryPerformanceMetric",

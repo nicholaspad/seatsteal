@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { EduEmailSchema } from "@/lib/validation";
-import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
+import { ServerErrorWithToast } from "@/lib/api";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -41,45 +41,6 @@ export function LoginForm() {
     }
 
     try {
-      // Check early access before sending magic link
-      const earlyAccessResponse = await fetchWithToasts(
-        "/api/auth/check-early-access",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email }),
-        },
-      );
-
-      const earlyAccessData = await earlyAccessResponse.json();
-
-      if (!earlyAccessResponse.ok) {
-        setError(earlyAccessData.error || "Failed to verify email");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!earlyAccessData.hasEarlyAccess) {
-        setError(
-          <>
-            This email is not enrolled in early access.{" "}
-            <a
-              href="https://forms.gle/FbdR2JvH1hKjQTem6"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:no-underline"
-            >
-              Request early access
-            </a>
-          </>,
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Proceed with magic link if early access is granted
       const { error } = await signInWithMagicLink(email);
 
       if (error) {
@@ -201,15 +162,7 @@ export function LoginForm() {
         </Button>
 
         <div className="text-center text-xs text-muted-foreground">
-          Must use a valid .edu address.{" "}
-          <a
-            href="https://forms.gle/FbdR2JvH1hKjQTem6"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:no-underline"
-          >
-            Request access
-          </a>
+          Must use a valid .edu address.
         </div>
       </form>
     </>
