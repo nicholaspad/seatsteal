@@ -129,9 +129,7 @@ class TestFindNotificationsToSend:
             mock_session_local.return_value.__enter__.return_value = test_db
 
             # Pro users should be included every minute
-            with patch(
-                "notifications.send_notifs.datetime"
-            ) as mock_datetime:
+            with patch("notifications.send_notifs.datetime") as mock_datetime:
                 mock_datetime.now.return_value.minute = 0  # Any minute
 
                 notifications = job._find_notifications_to_send(test_db)
@@ -561,9 +559,7 @@ class TestExecute:
     """Tests for execute method (main job runner)."""
 
     @pytest.mark.unit
-    def test_execute_no_notifications(
-        self, mock_email_service, mock_sms_service
-    ):
+    def test_execute_no_notifications(self, mock_email_service, mock_sms_service):
         """Test execute when no notifications need to be sent."""
         job = NotificationJob(dry_run=False)
 

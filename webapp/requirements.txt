@@ -18,6 +18,10 @@ supabase>=2.9.0
 pyjwt==2.8.0
 python-jose[cryptography]==3.3.0
 
+# Security: Explicit pins to override transitive dependency versions
+cryptography>=46.0.1
+setuptools>=78.1.1
+
 # Utilities
 python-dotenv==1.0.1
 pydantic==2.5.3

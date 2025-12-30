@@ -354,7 +354,9 @@ class TestScraperLogLifecycle:
 
         mock_db.add = Mock(side_effect=lambda x: setattr(x, "id", 1))
 
-        with patch("scraper.services.scraper_log.ScraperLog", return_value=mock_log_start):
+        with patch(
+            "scraper.services.scraper_log.ScraperLog", return_value=mock_log_start
+        ):
             log_id = await scraper_log_service.start_log(123)
 
         assert log_id == 1
@@ -386,7 +388,9 @@ class TestScraperLogLifecycle:
 
         mock_db.add = Mock(side_effect=lambda x: setattr(x, "id", 2))
 
-        with patch("scraper.services.scraper_log.ScraperLog", return_value=mock_log_start):
+        with patch(
+            "scraper.services.scraper_log.ScraperLog", return_value=mock_log_start
+        ):
             log_id = await scraper_log_service.start_log(456)
 
         # Complete with error
@@ -416,7 +420,9 @@ class TestScraperLogLifecycle:
 
             mock_db.add = Mock(side_effect=lambda x, idx=i: setattr(x, "id", idx + 1))
 
-            with patch("scraper.services.scraper_log.ScraperLog", return_value=mock_log):
+            with patch(
+                "scraper.services.scraper_log.ScraperLog", return_value=mock_log
+            ):
                 log_id = await scraper_log_service.start_log(100 + i)
                 log_ids.append(log_id)
 

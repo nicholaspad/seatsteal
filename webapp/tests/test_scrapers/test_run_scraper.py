@@ -30,7 +30,9 @@ def test_college():
 @pytest.fixture
 def inactive_college():
     """Create an inactive college"""
-    return College(id=2, name="Inactive University", short_name="inactive", is_active=False)
+    return College(
+        id=2, name="Inactive University", short_name="inactive", is_active=False
+    )
 
 
 @pytest.fixture
@@ -115,7 +117,12 @@ class TestRunJob:
         )
         mock_job.cleanup = Mock()
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             with patch("scraper.run_scraper.ScraperJob", return_value=mock_job):
                 cli = ScraperCLI()
                 result = await cli.run_job("test")
@@ -131,7 +138,12 @@ class TestRunJob:
         mock_result.scalar_one_or_none = Mock(return_value=None)
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             cli = ScraperCLI()
             result = await cli.run_job("nonexistent")
 
@@ -144,7 +156,12 @@ class TestRunJob:
         mock_result.scalar_one_or_none = Mock(return_value=inactive_college)
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             cli = ScraperCLI()
             result = await cli.run_job("inactive")
 
@@ -161,14 +178,25 @@ class TestRunJob:
         mock_job.execute = AsyncMock(return_value=JobResult(success=True))
         mock_job.cleanup = Mock()
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
-            with patch("scraper.run_scraper.ScraperJob", return_value=mock_job) as MockJob:
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch(
+                "scraper.run_scraper.ScraperJob", return_value=mock_job
+            ) as MockJob:
                 cli = ScraperCLI()
                 await cli.run_job("test", subject="CS")
 
                 # Verify JobConfig passed with subject
                 call_args = MockJob.call_args
-                config = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("config")
+                config = (
+                    call_args[0][2]
+                    if len(call_args[0]) > 2
+                    else call_args[1].get("config")
+                )
                 assert config.subject == "CS"
 
     @pytest.mark.asyncio
@@ -182,13 +210,24 @@ class TestRunJob:
         mock_job.execute = AsyncMock(return_value=JobResult(success=True))
         mock_job.cleanup = Mock()
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
-            with patch("scraper.run_scraper.ScraperJob", return_value=mock_job) as MockJob:
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch(
+                "scraper.run_scraper.ScraperJob", return_value=mock_job
+            ) as MockJob:
                 cli = ScraperCLI()
                 await cli.run_job("test", limit=100)
 
                 call_args = MockJob.call_args
-                config = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("config")
+                config = (
+                    call_args[0][2]
+                    if len(call_args[0]) > 2
+                    else call_args[1].get("config")
+                )
                 assert config.limit == 100
 
     @pytest.mark.asyncio
@@ -204,7 +243,12 @@ class TestRunJob:
         )
         mock_job.cleanup = Mock()
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             with patch("scraper.run_scraper.ScraperJob", return_value=mock_job):
                 cli = ScraperCLI()
                 result = await cli.run_job("test")
@@ -228,7 +272,12 @@ class TestRunSingleJob:
         mock_job.execute = AsyncMock(return_value=JobResult(success=True))
         mock_job.cleanup = Mock()
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             with patch("scraper.run_scraper.ScraperJob", return_value=mock_job):
                 cli = ScraperCLI()
                 result = await cli._run_single_job(test_college)
@@ -242,7 +291,12 @@ class TestRunSingleJob:
         mock_job = Mock()
         mock_job.execute = AsyncMock(side_effect=Exception("Unexpected error"))
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             with patch("scraper.run_scraper.ScraperJob", return_value=mock_job):
                 cli = ScraperCLI()
                 result = await cli._run_single_job(test_college)
@@ -271,8 +325,15 @@ class TestRunAllJobs:
         mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=colleges)))
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
-            with patch.object(ScraperCLI, "_run_single_job", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "_run_single_job", new_callable=AsyncMock
+            ) as mock_run:
                 mock_run.return_value = True
 
                 cli = ScraperCLI()
@@ -296,8 +357,15 @@ class TestRunAllJobs:
         mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=colleges)))
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
-            with patch.object(ScraperCLI, "_run_single_job", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "_run_single_job", new_callable=AsyncMock
+            ) as mock_run:
                 # 2 success, 1 failure
                 mock_run.side_effect = [True, False, True]
 
@@ -315,7 +383,12 @@ class TestRunAllJobs:
         mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=[])))
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             cli = ScraperCLI()
             result = await cli.run_all_jobs()
 
@@ -332,8 +405,15 @@ class TestRunAllJobs:
         mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=colleges)))
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
-            with patch.object(ScraperCLI, "_run_single_job", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "_run_single_job", new_callable=AsyncMock
+            ) as mock_run:
                 mock_run.return_value = True
 
                 cli = ScraperCLI()
@@ -356,8 +436,15 @@ class TestRunAllJobs:
         mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=colleges)))
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
-            with patch.object(ScraperCLI, "_run_single_job", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "_run_single_job", new_callable=AsyncMock
+            ) as mock_run:
                 # First raises exception (caught by gather), second succeeds
                 mock_run.side_effect = [Exception("Error in job 1"), True]
 
@@ -411,7 +498,9 @@ class TestSessionManagement:
         mock_job.execute = AsyncMock(return_value=JobResult(success=True))
         mock_job.cleanup = Mock()
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=mock_context) as MockSession:
+        with patch(
+            "scraper.run_scraper.SessionLocal", return_value=mock_context
+        ) as MockSession:
             with patch("scraper.run_scraper.ScraperJob", return_value=mock_job):
                 cli = ScraperCLI()
                 await cli._run_single_job(test_college)
@@ -436,7 +525,12 @@ class TestConfiguration:
         mock_result.scalar_one_or_none = Mock(return_value=test_college)
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             with patch("scraper.run_scraper.ScraperJob") as MockJob:
                 mock_job = Mock()
                 mock_job.execute = AsyncMock(return_value=JobResult(success=True))
@@ -448,7 +542,11 @@ class TestConfiguration:
 
                 # Verify skip_lock=True in config
                 call_args = MockJob.call_args
-                config = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("config")
+                config = (
+                    call_args[0][2]
+                    if len(call_args[0]) > 2
+                    else call_args[1].get("config")
+                )
                 assert config.skip_lock is True
 
     @pytest.mark.asyncio
@@ -458,7 +556,12 @@ class TestConfiguration:
         mock_result.scalar_one_or_none = Mock(return_value=test_college)
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             with patch("scraper.run_scraper.ScraperJob") as MockJob:
                 mock_job = Mock()
                 mock_job.execute = AsyncMock(return_value=JobResult(success=True))
@@ -469,7 +572,11 @@ class TestConfiguration:
                 await cli.run_job("test", subject="CS", limit=500)
 
                 call_args = MockJob.call_args
-                config = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("config")
+                config = (
+                    call_args[0][2]
+                    if len(call_args[0]) > 2
+                    else call_args[1].get("config")
+                )
                 assert config.subject == "CS"
                 assert config.limit == 500
                 assert config.skip_lock is True
@@ -494,13 +601,22 @@ class TestIntegration:
         mock_job.execute = AsyncMock(
             return_value=JobResult(
                 success=True,
-                stats={"courses_saved": 20, "classes_saved": 100, "enrollments_saved": 500},
+                stats={
+                    "courses_saved": 20,
+                    "classes_saved": 100,
+                    "enrollments_saved": 500,
+                },
                 duration_ms=8000,
             )
         )
         mock_job.cleanup = Mock()
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
             with patch("scraper.run_scraper.ScraperJob", return_value=mock_job):
                 cli = ScraperCLI()
                 result = await cli.run_job("test", subject="ALL", limit=1000)
@@ -521,8 +637,15 @@ class TestIntegration:
         mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=colleges)))
         mock_db.execute = Mock(return_value=mock_result)
 
-        with patch("scraper.run_scraper.SessionLocal", return_value=MagicMock(__enter__=Mock(return_value=mock_db), __exit__=Mock())):
-            with patch.object(ScraperCLI, "_run_single_job", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "_run_single_job", new_callable=AsyncMock
+            ) as mock_run:
                 # 4 succeed, 1 fails
                 mock_run.side_effect = [True, True, False, True, True]
 

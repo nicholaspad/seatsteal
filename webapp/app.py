@@ -155,6 +155,7 @@ async def health_check():
 async def favicon():
     """Favicon endpoint - returns 204 No Content for API"""
     from fastapi.responses import Response
+
     return Response(status_code=204)
 
 

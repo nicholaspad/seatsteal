@@ -387,9 +387,7 @@ class TestGetTermCodesEndpoint:
         assert response.status_code == 403
 
     @pytest.mark.unit
-    async def test_get_term_codes_unsupported_college(
-        self, admin_client: AsyncClient
-    ):
+    async def test_get_term_codes_unsupported_college(self, admin_client: AsyncClient):
         """Test getting term codes for unsupported college."""
         response = await admin_client.get("/api/admin/term-codes/unsupported")
         assert response.status_code == 404
@@ -411,9 +409,7 @@ class TestGetTermCodesEndpoint:
     async def test_get_term_codes_bu_success(self, admin_client: AsyncClient):
         """Test getting term codes for BU with complex JSON parsing."""
         search_options = {
-            "search_options": {
-                "terms": [{"strm": "2248", "descr": "Fall 2024"}]
-            }
+            "search_options": {"terms": [{"strm": "2248", "descr": "Fall 2024"}]}
         }
         json_str = json.dumps(search_options)
         b64_data = base64.b64encode(json_str.encode()).decode()
@@ -482,9 +478,7 @@ class TestGetTermCodesEndpoint:
 
                 response = await admin_client.get(f"/api/admin/term-codes/{college}")
 
-                assert (
-                    response.status_code == 200
-                ), f"Failed for college: {college}"
+                assert response.status_code == 200, f"Failed for college: {college}"
                 data = response.json()
                 assert data["success"] is True
                 assert data["data"]["college"] == college
