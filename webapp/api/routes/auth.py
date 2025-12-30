@@ -1,12 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 from db.session import get_db
 from models.user import Profile
 from models.college import College
-from models.early_access_email import EarlyAccessEmail
 from api.middleware.auth import require_auth, supabase
 from api.middleware.rate_limit import rate_limit
 from config import settings
@@ -129,47 +128,3 @@ async def admin_signin(
         raise
     except Exception as e:
         log_and_raise_500("Failed to send admin sign-in email", e)
-
-
-class CheckEarlyAccessRequest(BaseModel):
-    """Request schema for checking early access"""
-
-    email: EmailStr
-
-
-@router.post("/check-early-access")
-@rate_limit(max_requests=10, window_seconds=60)
-async def check_early_access(
-    http_request: Request,
-    request: CheckEarlyAccessRequest,
-    db: Session = Depends(get_db),
-):
-    """Check if email has early access"""
-    try:
-        # Validate .edu domain
-        if not request.email.endswith(".edu"):
-            raise HTTPException(
-                status_code=400,
-                detail="Please use a valid .edu email address",
-            )
-
-        # Check if email is in early access list
-        result = db.execute(
-            select(EarlyAccessEmail).where(
-                and_(
-                    EarlyAccessEmail.email == request.email,
-                    EarlyAccessEmail.is_active == True,
-                )
-            )
-        )
-        early_access = result.scalar_one_or_none()
-
-        return {
-            "hasEarlyAccess": early_access is not None,
-            "email": request.email,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_and_raise_500("Failed to check early access status", e)
