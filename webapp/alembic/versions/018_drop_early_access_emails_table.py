@@ -22,9 +22,6 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # Drop indexes first
     op.drop_index("early_access_emails_email_idx", table_name="early_access_emails")
-    op.drop_index(
-        op.f("ix_early_access_emails_id"), table_name="early_access_emails"
-    )
     # Drop table
     op.drop_table("early_access_emails")
 
@@ -43,9 +40,6 @@ def downgrade() -> None:
         ),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_early_access_emails_id"), "early_access_emails", ["id"], unique=False
     )
     op.create_index(
         "early_access_emails_email_idx", "early_access_emails", ["email"], unique=True
