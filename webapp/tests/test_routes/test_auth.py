@@ -93,6 +93,45 @@ class TestUpdateCollege:
         assert response.status_code == 401
 
 
+class TestIsAdmin:
+    """Tests for GET /api/auth/is-admin endpoint."""
+
+    @pytest.mark.unit
+    async def test_is_admin_returns_true_for_admin(
+        self,
+        admin_client: AsyncClient,
+        test_admin_user: Profile,
+    ):
+        """Test that is-admin returns true for admin users."""
+        response = await admin_client.get("/api/auth/is-admin")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        assert response_json["isAdmin"] is True
+
+    @pytest.mark.unit
+    async def test_is_admin_returns_false_for_regular_user(
+        self,
+        authenticated_client: AsyncClient,
+        test_user: Profile,
+    ):
+        """Test that is-admin returns false for regular users."""
+        response = await authenticated_client.get("/api/auth/is-admin")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        assert response_json["isAdmin"] is False
+
+    @pytest.mark.unit
+    async def test_is_admin_unauthenticated(self, client: AsyncClient):
+        """Test is-admin without authentication."""
+        response = await client.get("/api/auth/is-admin")
+
+        assert response.status_code == 401
+
+
 class TestAdminSignIn:
     """Tests for POST /api/auth/admin-signin endpoint."""
 

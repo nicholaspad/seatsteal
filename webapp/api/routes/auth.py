@@ -71,6 +71,17 @@ class AdminSignInRequest(BaseModel):
     email: EmailStr
 
 
+@router.get("/is-admin")
+async def is_admin(
+    user: Profile = Depends(require_auth),
+):
+    """Check if the current authenticated user is an admin"""
+    return {
+        "success": True,
+        "isAdmin": user.role == "admin",
+    }
+
+
 @router.post("/admin-signin")
 @rate_limit(max_requests=10, window_seconds=60)
 async def admin_signin(
