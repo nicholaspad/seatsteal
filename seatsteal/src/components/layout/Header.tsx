@@ -1,7 +1,8 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { Link, useLocation, useHistory } from "react-router-dom";
 import { useSession } from "@/components/providers/SessionProvider";
 import { signOut } from "@/lib/supabase";
+import { fetchWithToasts } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Home,
@@ -11,6 +12,7 @@ import {
   X,
   LogOut,
   LogIn,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,25 +29,54 @@ interface HeaderProps {
 
 export function Header({ className }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const location = useLocation();
   const history = useHistory();
   const { user, profile, loading, profileLoading } = useSession();
 
   const isLoading = loading || (user && profileLoading);
 
-  const navigation = [
-    { name: "Home", href: "/", icon: Home },
-    {
-      name: "Courses",
-      href: profile?.collegeId
-        ? `/courses?college=${profile.collegeId}`
-        : "/courses",
-      icon: BookOpen,
-    },
-    ...(user
-      ? [{ name: "Dashboard", href: "/dashboard", icon: LayoutDashboard }]
-      : []),
-  ];
+  // Check admin status after page load (non-blocking)
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    const checkAdminStatus = async () => {
+      try {
+        const response = await fetchWithToasts("/api/auth/is-admin");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setIsAdmin(data.isAdmin);
+          }
+        }
+      } catch {
+        // Silently fail - non-critical feature
+      }
+    };
+
+    checkAdminStatus();
+  }, [user]);
+
+  const navigation = useMemo(
+    () => [
+      { name: "Home", href: "/", icon: Home },
+      {
+        name: "Courses",
+        href: profile?.collegeId
+          ? `/courses?college=${profile.collegeId}`
+          : "/courses",
+        icon: BookOpen,
+      },
+      ...(user
+        ? [{ name: "Dashboard", href: "/dashboard", icon: LayoutDashboard }]
+        : []),
+      ...(isAdmin ? [{ name: "Admin", href: "/admin", icon: Shield }] : []),
+    ],
+    [user, profile?.collegeId, isAdmin],
+  );
 
   const handleNavClick = async (
     e: React.MouseEvent<HTMLAnchorElement>,
