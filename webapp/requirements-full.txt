@@ -30,8 +30,8 @@ setuptools>=78.1.1
 
 # Utilities
 python-dotenv==1.0.1
-pydantic==2.5.3
-pydantic-settings==2.1.0
+pydantic==2.10.3
+pydantic-settings==2.7.0
 email-validator==2.3.0
 loguru==0.7.2
 redis==5.0.1
