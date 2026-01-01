@@ -156,6 +156,7 @@ async def get_analytics(
                 func.count(Profile.id).label("userCount"),
             )
             .select_from(College)
+            .where(College.is_active == True)
             .outerjoin(Profile, College.id == Profile.college_id)
             .group_by(College.id, College.name, College.short_name)
             .order_by(desc(func.count(Profile.id)))
@@ -367,6 +368,7 @@ async def get_notifications(
                 College.short_name.label("shortName"),
             )
             .select_from(College)
+            .where(College.is_active == True)
             .order_by(College.short_name)
         )
         colleges_result = db.execute(colleges_query)
@@ -846,6 +848,7 @@ async def get_scrapers(
                 func.count(Scraper.id).label("scraperCount"),
             )
             .select_from(College)
+            .where(College.is_active == True)
             .outerjoin(Scraper, College.id == Scraper.college_id)
             .group_by(College.id, College.name, College.short_name)
             .order_by(College.short_name)
