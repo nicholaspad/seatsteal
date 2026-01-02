@@ -13,13 +13,21 @@ Before adding a college, verify it meets these requirements:
    - Must not require authentication to access course data
 
 2. **Enrollment status per class/section**
-   - Must indicate whether a class is open, closed, or waitlisted
+   - Must indicate whether a class is closed or open, either directly or via seat counts
    - Actual seat counts are NOT required - just open/closed status
+   - The only statuses we care about are Open and Closed.
 
 3. **Basic metadata available**
    - Course code (e.g., "CS 101", "MATH 200")
    - Course title (e.g., "Introduction to Computer Science")
    - Section/class identifier (e.g., "LEC 001", CRN number)
+   - Term code
+
+
+Notes:
+- Feel free to send curl requests to the college's API or website to verify that it meets the requirements.
+- Make sure to target large colleges with a big userbase opportunity.
+- Target American colleges only.
 
 ---
 
