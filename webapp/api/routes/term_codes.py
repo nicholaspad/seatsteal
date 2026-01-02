@@ -231,6 +231,58 @@ async def fetch_upenn_terms() -> Tuple[str, List[dict], Optional[str]]:
         return ("error", [], str(e))
 
 
+async def fetch_uci_terms() -> Tuple[str, List[dict], Optional[str]]:
+    """
+    Generate term codes for UC Irvine.
+
+    UCI uses a quarter system with codes in format: YYYY:Quarter
+    Quarters: Fall, Winter, Spring, Summer1, Summer10wk, Summer2
+    """
+    try:
+        from datetime import datetime
+
+        # Get current date to determine current quarter
+        now = datetime.now()
+        year = now.year
+        month = now.month
+
+        # Determine current quarter based on month
+        # Fall: Sep-Dec, Winter: Jan-Mar, Spring: Apr-Jun, Summer: Jul-Aug
+        if month >= 9:
+            current_quarter = "Fall"
+        elif month >= 6:
+            current_quarter = "Summer2"
+        elif month >= 4:
+            current_quarter = "Spring"
+        elif month >= 1:
+            current_quarter = "Winter"
+        else:
+            current_quarter = "Fall"
+            year -= 1
+
+        # Generate next 4 quarters starting from current
+        quarter_order = ["Winter", "Spring", "Summer1", "Summer2", "Fall"]
+        terms = []
+
+        quarter_idx = quarter_order.index(current_quarter)
+        current_year = year
+
+        for _ in range(4):
+            quarter = quarter_order[quarter_idx]
+            code = f"{current_year}:{quarter}"
+            description = f"{quarter} {current_year}"
+            terms.append({"code": code, "description": description})
+
+            # Move to next quarter
+            quarter_idx = (quarter_idx + 1) % len(quarter_order)
+            if quarter_idx == 0:  # Wrapped to Winter, increment year
+                current_year += 1
+
+        return ("success", terms, None)
+    except Exception as e:
+        return ("error", [], str(e))
+
+
 # College fetch function mapping
 COLLEGE_FETCHERS = {
     "brown": fetch_brown_terms,
@@ -241,6 +293,7 @@ COLLEGE_FETCHERS = {
     "umd": fetch_umd_terms,
     "rutgers": fetch_rutgers_terms,
     "upenn": fetch_upenn_terms,
+    "uci": fetch_uci_terms,
 }
 
 

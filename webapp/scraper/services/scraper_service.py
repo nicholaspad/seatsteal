@@ -18,6 +18,7 @@ from scraper.scrapers.usc import UscScraper
 from scraper.scrapers.upenn import UPennScraper
 from scraper.scrapers.umd import UmdScraper
 from scraper.scrapers.rutgers import RutgersScraper
+from scraper.scrapers.uci import UciScraper
 
 
 # Map college short names to scraper classes
@@ -29,6 +30,7 @@ SCRAPER_MAP = {
     "neu": NeuScraper,
     "usc": UscScraper,
     "upenn": UPennScraper,
+    "uci": UciScraper,
     # "umd": UmdScraper, // Too slow - takes ~30-40 minutes per run
 }
 

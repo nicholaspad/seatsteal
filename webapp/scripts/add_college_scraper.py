@@ -46,7 +46,7 @@ def add_college_and_scraper():
     # Get college information from user
     name = get_input("Full college name (e.g., Princeton University)")
     short_name = get_input("Short name (lowercase, no spaces, e.g., princeton)").lower()
-    domain = get_input("Domain (e.g., @princeton.edu)", required=False)
+    domain = get_input("Domain (e.g., princeton.edu)", required=False)
     term_code = get_input(
         "Current term code (e.g., 1262 for Princeton)", required=False
     )
