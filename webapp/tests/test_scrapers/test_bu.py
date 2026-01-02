@@ -13,6 +13,7 @@ sys.path.insert(0, str(webapp_dir))
 
 from scraper.scrapers.bu import BuScraper
 from models.college import College
+from tests.test_scrapers.conftest import create_mock_response
 
 
 # Sample BU API response data
@@ -224,12 +225,12 @@ class TestBuScraper:
         scraper = BuScraper(mock_bu_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "pageCount": 1,
-            "classes": SAMPLE_BU_CLASSES,
-        }
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(
+            {
+                "pageCount": 1,
+                "classes": SAMPLE_BU_CLASSES,
+            }
+        )
         mock_response.headers = {"content-type": "application/json"}
 
         mock_client = AsyncMock()
@@ -250,9 +251,7 @@ class TestBuScraper:
         scraper = BuScraper(mock_bu_db_session)
 
         # Mock response without "classes" key
-        mock_response = MagicMock()
-        mock_response.json.return_value = {}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({})
         mock_response.headers = {"content-type": "application/json"}
 
         mock_client = AsyncMock()
@@ -294,19 +293,18 @@ class TestBuScraper:
             nonlocal call_count
             call_count += 1
 
-            mock_response = MagicMock()
-            mock_response.raise_for_status = MagicMock()
-            mock_response.headers = {"content-type": "application/json"}
-
             # Return classes for first 2 pages, empty for rest
             if call_count <= 2:
-                mock_response.json.return_value = {
-                    "pageCount": 100,
-                    "classes": SAMPLE_BU_CLASSES,
-                }
+                mock_response = create_mock_response(
+                    {
+                        "pageCount": 100,
+                        "classes": SAMPLE_BU_CLASSES,
+                    }
+                )
             else:
-                mock_response.json.return_value = {"pageCount": 100, "classes": []}
+                mock_response = create_mock_response({"pageCount": 100, "classes": []})
 
+            mock_response.headers = {"content-type": "application/json"}
             return mock_response
 
         mock_client = AsyncMock()
@@ -332,18 +330,17 @@ class TestBuScraper:
             nonlocal call_count
             call_count += 1
 
-            mock_response = MagicMock()
-            mock_response.raise_for_status = MagicMock()
-            mock_response.headers = {"content-type": "application/json"}
-
             if call_count == 1:
-                mock_response.json.return_value = {
-                    "pageCount": 1,
-                    "classes": SAMPLE_BU_CLASSES,
-                }
+                mock_response = create_mock_response(
+                    {
+                        "pageCount": 1,
+                        "classes": SAMPLE_BU_CLASSES,
+                    }
+                )
             else:
-                mock_response.json.return_value = {"pageCount": 1, "classes": []}
+                mock_response = create_mock_response({"pageCount": 1, "classes": []})
 
+            mock_response.headers = {"content-type": "application/json"}
             return mock_response
 
         mock_client = AsyncMock()
@@ -369,18 +366,17 @@ class TestBuScraper:
             nonlocal call_count
             call_count += 1
 
-            mock_response = MagicMock()
-            mock_response.raise_for_status = MagicMock()
-            mock_response.headers = {"content-type": "application/json"}
-
             if call_count == 1:
-                mock_response.json.return_value = {
-                    "pageCount": 1,
-                    "classes": SAMPLE_BU_CLASSES,
-                }
+                mock_response = create_mock_response(
+                    {
+                        "pageCount": 1,
+                        "classes": SAMPLE_BU_CLASSES,
+                    }
+                )
             else:
-                mock_response.json.return_value = {"pageCount": 1, "classes": []}
+                mock_response = create_mock_response({"pageCount": 1, "classes": []})
 
+            mock_response.headers = {"content-type": "application/json"}
             return mock_response
 
         mock_client = AsyncMock()
@@ -407,18 +403,17 @@ class TestBuScraper:
             nonlocal call_count
             call_count += 1
 
-            mock_response = MagicMock()
-            mock_response.raise_for_status = MagicMock()
-            mock_response.headers = {"content-type": "application/json"}
-
             if call_count == 1:
-                mock_response.json.return_value = {
-                    "pageCount": 1,
-                    "classes": SAMPLE_BU_CLASSES,
-                }
+                mock_response = create_mock_response(
+                    {
+                        "pageCount": 1,
+                        "classes": SAMPLE_BU_CLASSES,
+                    }
+                )
             else:
-                mock_response.json.return_value = {"pageCount": 1, "classes": []}
+                mock_response = create_mock_response({"pageCount": 1, "classes": []})
 
+            mock_response.headers = {"content-type": "application/json"}
             return mock_response
 
         mock_client = AsyncMock()

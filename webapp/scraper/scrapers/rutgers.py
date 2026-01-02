@@ -185,7 +185,7 @@ class RutgersScraper(BaseScraper):
             response.raise_for_status()
             self.request_count += 1
 
-            courses = response.json()
+            courses = self.decode_json_response(response)
             logger.info(f"Fetched {len(courses)} courses from Rutgers API")
 
             return courses

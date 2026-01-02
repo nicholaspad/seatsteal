@@ -13,6 +13,7 @@ sys.path.insert(0, str(webapp_dir))
 
 from scraper.scrapers.umd import UmdScraper
 from models.college import College
+from tests.test_scrapers.conftest import create_mock_response
 
 
 # Sample UMD API response data
@@ -118,8 +119,7 @@ class TestUmdScraper:
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
         # Mock API responses
-        mock_response = MagicMock()
-        mock_response.json.return_value = [SAMPLE_UMD_COURSE_DETAILS]
+        mock_response = create_mock_response([SAMPLE_UMD_COURSE_DETAILS])
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -140,14 +140,10 @@ class TestUmdScraper:
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
         # Mock courses list API response
-        mock_list_response = MagicMock()
-        mock_list_response.json.return_value = SAMPLE_UMD_COURSES_LIST
-        mock_list_response.raise_for_status = MagicMock()
+        mock_list_response = create_mock_response(SAMPLE_UMD_COURSES_LIST)
 
         # Mock course details API response
-        mock_details_response = MagicMock()
-        mock_details_response.json.return_value = SAMPLE_UMD_COURSE_DETAILS
-        mock_details_response.raise_for_status = MagicMock()
+        mock_details_response = create_mock_response(SAMPLE_UMD_COURSE_DETAILS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -172,13 +168,9 @@ class TestUmdScraper:
         """Test that limit parameter restricts number of courses."""
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
-        mock_list_response = MagicMock()
-        mock_list_response.json.return_value = SAMPLE_UMD_COURSES_LIST
-        mock_list_response.raise_for_status = MagicMock()
+        mock_list_response = create_mock_response(SAMPLE_UMD_COURSES_LIST)
 
-        mock_details_response = MagicMock()
-        mock_details_response.json.return_value = SAMPLE_UMD_COURSE_DETAILS
-        mock_details_response.raise_for_status = MagicMock()
+        mock_details_response = create_mock_response(SAMPLE_UMD_COURSE_DETAILS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -235,9 +227,7 @@ class TestUmdScraper:
         """Test fetching courses for a specific department."""
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_UMD_DEPARTMENT_COURSES
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_UMD_DEPARTMENT_COURSES)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -258,13 +248,9 @@ class TestUmdScraper:
         """Test fetching all courses."""
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
-        mock_list_response = MagicMock()
-        mock_list_response.json.return_value = SAMPLE_UMD_COURSES_LIST
-        mock_list_response.raise_for_status = MagicMock()
+        mock_list_response = create_mock_response(SAMPLE_UMD_COURSES_LIST)
 
-        mock_details_response = MagicMock()
-        mock_details_response.json.return_value = SAMPLE_UMD_COURSE_DETAILS
-        mock_details_response.raise_for_status = MagicMock()
+        mock_details_response = create_mock_response(SAMPLE_UMD_COURSE_DETAILS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -308,13 +294,9 @@ class TestUmdScraper:
         scraper = UmdScraper(db_session=mock_umd_db_session)
         initial_count = scraper.request_count
 
-        mock_list_response = MagicMock()
-        mock_list_response.json.return_value = ["CMSC131"]
-        mock_list_response.raise_for_status = MagicMock()
+        mock_list_response = create_mock_response(["CMSC131"])
 
-        mock_details_response = MagicMock()
-        mock_details_response.json.return_value = SAMPLE_UMD_COURSE_DETAILS
-        mock_details_response.raise_for_status = MagicMock()
+        mock_details_response = create_mock_response(SAMPLE_UMD_COURSE_DETAILS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -333,9 +315,7 @@ class TestUmdScraper:
         """Test handling of empty course list."""
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = []
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response([])
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -360,9 +340,7 @@ class TestUmdScraper:
             "sections": [],
         }
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = [course_no_sections]
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response([course_no_sections])
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()

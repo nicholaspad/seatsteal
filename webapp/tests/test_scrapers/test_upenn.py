@@ -13,6 +13,7 @@ sys.path.insert(0, str(webapp_dir))
 
 from scraper.scrapers.upenn import UPennScraper
 from models.college import College
+from tests.test_scrapers.conftest import create_mock_response
 
 
 # Sample UPenn FOSE API response data
@@ -216,9 +217,7 @@ class TestUPennScraper:
         scraper = UPennScraper(mock_upenn_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"results": SAMPLE_UPENN_COURSE_LIST}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({"results": SAMPLE_UPENN_COURSE_LIST})
         mock_response.headers = {"content-type": "application/json"}
 
         mock_client = AsyncMock()
@@ -239,9 +238,7 @@ class TestUPennScraper:
         scraper = UPennScraper(mock_upenn_db_session)
 
         # Mock response without "results" key
-        mock_response = MagicMock()
-        mock_response.json.return_value = {}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({})
         mock_response.headers = {"content-type": "application/json"}
 
         mock_client = AsyncMock()
@@ -312,9 +309,7 @@ class TestUPennScraper:
         scraper = UPennScraper(mock_upenn_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"results": SAMPLE_UPENN_COURSE_LIST}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({"results": SAMPLE_UPENN_COURSE_LIST})
         mock_response.headers = {"content-type": "application/json"}
 
         mock_client = AsyncMock()
@@ -336,9 +331,7 @@ class TestUPennScraper:
         scraper = UPennScraper(mock_upenn_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"results": SAMPLE_UPENN_COURSE_LIST}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({"results": SAMPLE_UPENN_COURSE_LIST})
         mock_response.headers = {"content-type": "application/json"}
 
         mock_client = AsyncMock()
@@ -359,9 +352,7 @@ class TestUPennScraper:
         scraper = UPennScraper(mock_upenn_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"results": SAMPLE_UPENN_COURSE_LIST}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({"results": SAMPLE_UPENN_COURSE_LIST})
         mock_response.headers = {"content-type": "application/json"}
 
         mock_client = AsyncMock()
@@ -383,9 +374,7 @@ class TestUPennScraper:
         scraper = UPennScraper(mock_upenn_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"success": True}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({"success": True})
         mock_response.headers = {"content-type": "application/json"}
 
         mock_client = AsyncMock()

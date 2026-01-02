@@ -147,7 +147,7 @@ class UciScraper(BaseScraper):
             response.raise_for_status()
             self.request_count += 1
 
-            data = response.json()
+            data = self.decode_json_response(response)
 
             if not data.get("ok"):
                 error_msg = data.get("message", "Unknown API error")

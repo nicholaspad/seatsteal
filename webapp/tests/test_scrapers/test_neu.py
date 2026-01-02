@@ -13,6 +13,7 @@ sys.path.insert(0, str(webapp_dir))
 
 from scraper.scrapers.neu import NeuScraper
 from models.college import College
+from tests.test_scrapers.conftest import create_mock_response
 
 
 # Sample NEU Banner API response data
@@ -288,9 +289,7 @@ class TestNeuScraper:
         scraper.session_cookies = {"JSESSIONID": "test123"}
 
         # Mock HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_NEU_API_RESPONSE
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_NEU_API_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -317,13 +316,13 @@ class TestNeuScraper:
         scraper.session_cookies = {"JSESSIONID": "test123"}
 
         # Mock HTTP client with empty response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "success": True,
-            "totalCount": 0,
-            "data": [],
-        }
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(
+            {
+                "success": True,
+                "totalCount": 0,
+                "data": [],
+            }
+        )
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -340,13 +339,13 @@ class TestNeuScraper:
         scraper.session_cookies = {"JSESSIONID": "test123"}
 
         # Mock HTTP client with failure response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "success": False,
-            "totalCount": 0,
-            "data": [],
-        }
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(
+            {
+                "success": False,
+                "totalCount": 0,
+                "data": [],
+            }
+        )
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -363,9 +362,7 @@ class TestNeuScraper:
         scraper.session_cookies = {"JSESSIONID": "test123"}
 
         # Mock HTTP client
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_NEU_API_RESPONSE
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_NEU_API_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response

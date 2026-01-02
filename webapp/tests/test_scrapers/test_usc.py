@@ -13,6 +13,7 @@ sys.path.insert(0, str(webapp_dir))
 
 from scraper.scrapers.usc import UscScraper
 from models.college import College
+from tests.test_scrapers.conftest import create_mock_response
 
 
 # Sample USC Schools API response data
@@ -254,9 +255,7 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_USC_SCHOOLS
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_USC_SCHOOLS)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -281,9 +280,7 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock response that's not a list
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"error": "Invalid"}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({"error": "Invalid"})
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -299,9 +296,7 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_USC_COURSES_RESPONSE
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_USC_COURSES_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -324,9 +319,7 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock empty response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_USC_EMPTY_COURSES_RESPONSE
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_USC_EMPTY_COURSES_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -344,9 +337,7 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock response without "courses" key
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"error": "Invalid"}
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response({"error": "Invalid"})
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -365,14 +356,10 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock schools API response
-        mock_schools_response = MagicMock()
-        mock_schools_response.json.return_value = SAMPLE_USC_SCHOOLS
-        mock_schools_response.raise_for_status = MagicMock()
+        mock_schools_response = create_mock_response(SAMPLE_USC_SCHOOLS)
 
         # Mock courses API response
-        mock_courses_response = MagicMock()
-        mock_courses_response.json.return_value = SAMPLE_USC_COURSES_RESPONSE
-        mock_courses_response.raise_for_status = MagicMock()
+        mock_courses_response = create_mock_response(SAMPLE_USC_COURSES_RESPONSE)
 
         mock_client = AsyncMock()
         # First call gets schools, subsequent calls get courses
@@ -398,14 +385,10 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock schools API response
-        mock_schools_response = MagicMock()
-        mock_schools_response.json.return_value = SAMPLE_USC_SCHOOLS
-        mock_schools_response.raise_for_status = MagicMock()
+        mock_schools_response = create_mock_response(SAMPLE_USC_SCHOOLS)
 
         # Mock courses API response
-        mock_courses_response = MagicMock()
-        mock_courses_response.json.return_value = SAMPLE_USC_COURSES_RESPONSE
-        mock_courses_response.raise_for_status = MagicMock()
+        mock_courses_response = create_mock_response(SAMPLE_USC_COURSES_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.side_effect = [
@@ -428,14 +411,10 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock schools API response
-        mock_schools_response = MagicMock()
-        mock_schools_response.json.return_value = SAMPLE_USC_SCHOOLS
-        mock_schools_response.raise_for_status = MagicMock()
+        mock_schools_response = create_mock_response(SAMPLE_USC_SCHOOLS)
 
         # Mock courses API response
-        mock_courses_response = MagicMock()
-        mock_courses_response.json.return_value = SAMPLE_USC_COURSES_RESPONSE
-        mock_courses_response.raise_for_status = MagicMock()
+        mock_courses_response = create_mock_response(SAMPLE_USC_COURSES_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.side_effect = [
@@ -459,9 +438,7 @@ class TestUscScraper:
         scraper = UscScraper(mock_usc_db_session)
 
         # Mock schools API response
-        mock_schools_response = MagicMock()
-        mock_schools_response.json.return_value = SAMPLE_USC_SCHOOLS
-        mock_schools_response.raise_for_status = MagicMock()
+        mock_schools_response = create_mock_response(SAMPLE_USC_SCHOOLS)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_schools_response

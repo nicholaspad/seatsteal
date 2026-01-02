@@ -243,7 +243,7 @@ class UscScraper(BaseScraper):
             response.raise_for_status()
             self.request_count += 1
 
-            schools_data = response.json()
+            schools_data = self.decode_json_response(response)
 
             if not schools_data or not isinstance(schools_data, list):
                 raise Exception("Invalid response format from USC Schools API")
@@ -294,7 +294,7 @@ class UscScraper(BaseScraper):
             response.raise_for_status()
             self.request_count += 1
 
-            program_response = response.json()
+            program_response = self.decode_json_response(response)
 
             if (
                 not program_response
