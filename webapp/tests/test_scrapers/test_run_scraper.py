@@ -81,13 +81,13 @@ class TestScraperCLIInitialization:
         """Test basic CLI initialization"""
         cli = ScraperCLI()
 
-        assert cli.loop_interval_seconds == 300
+        assert cli.loop_interval_seconds == 180
 
     def test_scraper_cli_default_interval(self):
-        """Test default loop interval is 5 minutes"""
+        """Test default loop interval is 3 minutes"""
         cli = ScraperCLI()
 
-        assert cli.loop_interval_seconds == 300  # 5 minutes
+        assert cli.loop_interval_seconds == 180  # 3 minutes
 
 
 # ============================================================================
@@ -580,6 +580,207 @@ class TestConfiguration:
                 assert config.subject == "CS"
                 assert config.limit == 500
                 assert config.skip_lock is True
+
+
+# ============================================================================
+# Independent Loop Tests
+# ============================================================================
+
+
+class TestIndependentLoops:
+    """Test independent college scraper loops"""
+
+    @pytest.mark.asyncio
+    async def test_college_loop_success(self, test_college):
+        """Test single college loop executes and waits 3 minutes"""
+        cli = ScraperCLI()
+        call_count = 0
+
+        async def mock_run_single_job(college):
+            nonlocal call_count
+            call_count += 1
+            # After 3 iterations, raise CancelledError to stop the loop
+            if call_count >= 3:
+                raise asyncio.CancelledError()
+            return True
+
+        # Mock sleep to avoid waiting
+        async def mock_sleep(duration):
+            assert duration == 180  # Verify 3-minute wait
+            pass
+
+        with patch.object(cli, "_run_single_job", side_effect=mock_run_single_job):
+            with patch("asyncio.sleep", side_effect=mock_sleep):
+                with pytest.raises(asyncio.CancelledError):
+                    await cli._college_loop(test_college)
+
+                # Should have run 3 times before cancellation
+                assert call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_college_loop_error_recovery(self, test_college):
+        """Test college loop continues after error"""
+        cli = ScraperCLI()
+        call_count = 0
+
+        async def mock_run_single_job(college):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First call raises exception
+                raise Exception("Unexpected error")
+            elif call_count == 2:
+                # Second call succeeds
+                return True
+            else:
+                # Third call cancels
+                raise asyncio.CancelledError()
+
+        # Mock sleep to avoid waiting
+        async def mock_sleep(duration):
+            assert duration == 180
+            pass
+
+        with patch.object(cli, "_run_single_job", side_effect=mock_run_single_job):
+            with patch("asyncio.sleep", side_effect=mock_sleep):
+                with pytest.raises(asyncio.CancelledError):
+                    await cli._college_loop(test_college)
+
+                # Should have attempted 3 times (error, success, cancel)
+                assert call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_college_loop_cancellation(self, test_college):
+        """Test college loop handles cancellation gracefully"""
+        cli = ScraperCLI()
+
+        async def mock_run_single_job(college):
+            return True
+
+        async def mock_sleep(duration):
+            raise asyncio.CancelledError()
+
+        with patch.object(cli, "_run_single_job", side_effect=mock_run_single_job):
+            with patch("asyncio.sleep", side_effect=mock_sleep):
+                # Should propagate CancelledError
+                with pytest.raises(asyncio.CancelledError):
+                    await cli._college_loop(test_college)
+
+    @pytest.mark.asyncio
+    async def test_loop_independent_creates_tasks(self, mock_db):
+        """Test independent loop creates task per college"""
+        colleges = [
+            College(id=1, name="College 1", short_name="c1", is_active=True),
+            College(id=2, name="College 2", short_name="c2", is_active=True),
+            College(id=3, name="College 3", short_name="c3", is_active=True),
+        ]
+
+        mock_result = Mock()
+        mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=colleges)))
+        mock_db.execute = Mock(return_value=mock_result)
+
+        created_tasks = []
+
+        async def mock_college_loop(college):
+            # Simulate running for a short time then cancelling
+            await asyncio.sleep(0.01)
+            raise asyncio.CancelledError()
+
+        original_create_task = asyncio.create_task
+
+        def mock_create_task(coro, name=None):
+            task = original_create_task(coro, name=name)
+            created_tasks.append(task)
+            return task
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "reset_all_scrapers_to_idle", new_callable=AsyncMock
+            ):
+                with patch.object(
+                    ScraperCLI, "_college_loop", side_effect=mock_college_loop
+                ):
+                    with patch("asyncio.create_task", side_effect=mock_create_task):
+                        cli = ScraperCLI()
+
+                        # This will raise when tasks are cancelled, which is expected
+                        try:
+                            await cli.loop_independent()
+                        except asyncio.CancelledError:
+                            pass
+
+                        # Should have created 3 tasks (one per college)
+                        assert len(created_tasks) == 3
+
+    @pytest.mark.asyncio
+    async def test_loop_independent_no_colleges(self, mock_db):
+        """Test handling of no active colleges"""
+        mock_result = Mock()
+        mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=[])))
+        mock_db.execute = Mock(return_value=mock_result)
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "reset_all_scrapers_to_idle", new_callable=AsyncMock
+            ):
+                cli = ScraperCLI()
+                # Should return gracefully without errors
+                await cli.loop_independent()
+
+    @pytest.mark.asyncio
+    async def test_loop_independent_isolation(self, mock_db):
+        """Test colleges run independently"""
+        colleges = [
+            College(id=1, name="College 1", short_name="c1", is_active=True),
+            College(id=2, name="College 2", short_name="c2", is_active=True),
+        ]
+
+        mock_result = Mock()
+        mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=colleges)))
+        mock_db.execute = Mock(return_value=mock_result)
+
+        college_runs = {"c1": 0, "c2": 0}
+
+        async def mock_college_loop(college):
+            # Track runs per college
+            college_runs[college.short_name] += 1
+            # Run a few times then cancel
+            if college_runs[college.short_name] >= 2:
+                raise asyncio.CancelledError()
+            await asyncio.sleep(0.01)
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "reset_all_scrapers_to_idle", new_callable=AsyncMock
+            ):
+                with patch.object(
+                    ScraperCLI, "_college_loop", side_effect=mock_college_loop
+                ):
+                    cli = ScraperCLI()
+
+                    try:
+                        await cli.loop_independent()
+                    except asyncio.CancelledError:
+                        pass
+
+                    # Both colleges should have run independently
+                    assert college_runs["c1"] >= 1
+                    assert college_runs["c2"] >= 1
 
 
 # ============================================================================

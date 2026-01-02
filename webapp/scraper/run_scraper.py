@@ -33,7 +33,7 @@ class ScraperCLI:
     """CLI for managing scraper jobs"""
 
     def __init__(self):
-        self.loop_interval_seconds = 300  # 5 minutes
+        self.loop_interval_seconds = 180  # 3 minutes
 
     async def _run_single_job(
         self,
@@ -66,6 +66,47 @@ class ScraperCLI:
             except Exception as e:
                 logger.error(f"❌ Failed to scrape {college.short_name}: {e}")
                 return False
+
+    async def _college_loop(self, college: College) -> None:
+        """
+        Run scraper for a single college on independent 3-minute schedule.
+
+        This task runs indefinitely, executing the scraper and waiting 3 minutes
+        between runs. Errors are caught and logged but don't terminate the loop.
+
+        Args:
+            college: College to scrape on a loop
+        """
+        logger.info(f"🔄 Starting independent scraper loop for {college.name}")
+
+        while True:
+            try:
+                logger.info(f"🎯 Running scraper for {college.name}")
+                success = await self._run_single_job(college)
+
+                if success:
+                    logger.info(
+                        f"✅ Completed scraper for {college.name}, waiting 3 minutes"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️  Scraper failed for {college.name}, waiting 3 minutes before retry"
+                    )
+
+                # Wait 3 minutes before next run
+                await asyncio.sleep(180)
+
+            except asyncio.CancelledError:
+                # Handle graceful shutdown
+                logger.info(f"🛑 Scraper loop cancelled for {college.name}")
+                raise
+            except Exception as e:
+                # Catch all other exceptions to keep task alive
+                logger.error(
+                    f"❌ Unexpected error in scraper loop for {college.name}: {e}"
+                )
+                logger.info(f"⏰ Waiting 3 minutes before retry")
+                await asyncio.sleep(180)
 
     async def run_job(
         self,
@@ -283,6 +324,70 @@ class ScraperCLI:
                 # Still wait before next iteration
                 await asyncio.sleep(self.loop_interval_seconds)
 
+    async def loop_independent(
+        self, subject: str = "ALL", limit: Optional[int] = None
+    ) -> None:
+        """
+        Run scraper jobs in independent loops with 3-minute intervals per college.
+
+        Each active college runs on its own schedule:
+        - After completing a run, waits 3 minutes
+        - Then runs again, independently of other colleges
+        - Errors in one college don't affect others
+
+        Args:
+            subject: Subject filter (default: 'ALL')
+            limit: Optional limit on courses
+        """
+        logger.info("🚀 Starting independent scraper loops (3 minutes per college)")
+
+        # Reset all scrapers to idle on first bootup
+        logger.info("🔄 Resetting all scraper statuses to idle on bootup...")
+        await self.reset_all_scrapers_to_idle()
+
+        # Get all active colleges (using separate session)
+        with SessionLocal() as db:
+            colleges = (
+                db.execute(select(College).where(College.is_active == True))
+                .scalars()
+                .all()
+            )
+
+        if not colleges:
+            logger.warning("⚠️  No active colleges found")
+            return
+
+        logger.info(
+            f"📚 Found {len(colleges)} active colleges to scrape independently:"
+        )
+        for college in colleges:
+            logger.info(f"   - {college.name} ({college.short_name})")
+
+        try:
+            # Create independent task for each college
+            tasks = [
+                asyncio.create_task(
+                    self._college_loop(college), name=f"scraper-{college.short_name}"
+                )
+                for college in colleges
+            ]
+
+            # Wait for all tasks (will run indefinitely)
+            # return_exceptions=True prevents one task failure from killing others
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        except KeyboardInterrupt:
+            logger.info("🛑 Received shutdown signal, stopping all scraper loops...")
+
+            # Cancel all tasks
+            for task in tasks:
+                task.cancel()
+
+            # Wait for tasks to finish cancelling
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            logger.info("✅ All scraper loops stopped")
+
 
 async def main():
     """Main entry point"""
@@ -334,7 +439,7 @@ Examples:
 
     try:
         if args.loop:
-            await cli.loop(subject=args.subject, limit=args.limit)
+            await cli.loop_independent(subject=args.subject, limit=args.limit)
         elif args.command == "run":
             if not args.college:
                 logger.error("❌ --college parameter required for 'run' command")
