@@ -5,7 +5,7 @@ Scraper daemon/CLI - Manages course scraping jobs
 Usage:
     python run_scraper.py run --college princeton
     python run_scraper.py run-all
-    python run_scraper.py --loop  # Run every 10 minutes
+    python run_scraper.py --loop  # Run independent loops per college (3 min interval each)
 """
 
 import argparse
@@ -33,7 +33,8 @@ class ScraperCLI:
     """CLI for managing scraper jobs"""
 
     def __init__(self):
-        self.loop_interval_seconds = 300  # 5 minutes
+        self.loop_interval_seconds = 300  # 5 minutes (used by run_all_jobs)
+        self.college_loop_interval_seconds = 180  # 3 minutes per college
 
     async def _run_single_job(
         self,
@@ -66,6 +67,35 @@ class ScraperCLI:
             except Exception as e:
                 logger.error(f"❌ Failed to scrape {college.short_name}: {e}")
                 return False
+
+    async def _run_college_loop(
+        self,
+        college: College,
+        subject: str = "ALL",
+        limit: Optional[int] = None,
+    ) -> None:
+        """
+        Run a single college's scraper in an independent loop.
+
+        After each scrape completes, waits for the configured interval
+        before starting the next run for this college.
+
+        Args:
+            college: College object to scrape
+            subject: Subject filter (default: 'ALL')
+            limit: Optional limit on courses
+        """
+        while True:
+            try:
+                await self._run_single_job(college, subject=subject, limit=limit)
+            except Exception as e:
+                logger.error(f"❌ Error in {college.short_name} loop: {e}")
+
+            # Wait before next run for THIS college
+            logger.info(
+                f"⏰ {college.short_name}: waiting {self.college_loop_interval_seconds}s until next run..."
+            )
+            await asyncio.sleep(self.college_loop_interval_seconds)
 
     async def run_job(
         self,
@@ -251,37 +281,50 @@ class ScraperCLI:
 
     async def loop(self, subject: str = "ALL", limit: Optional[int] = None) -> None:
         """
-        Run scraper jobs in a loop every 10 minutes.
+        Run scraper jobs in independent loops per college.
+
+        Each college runs on its own schedule - after completing a scrape,
+        it waits 3 minutes before starting its next run. This ensures that
+        fast-running colleges aren't blocked by slow-running ones.
 
         Args:
             subject: Subject filter (default: 'ALL')
             limit: Optional limit on courses
         """
         logger.info(
-            f"🔁 Running scraper in loop mode (every {self.loop_interval_seconds}s)"
+            f"🔁 Running scraper in loop mode (independent college loops, "
+            f"{self.college_loop_interval_seconds}s interval per college)"
         )
 
         # Reset all scrapers to idle on first bootup
         logger.info("🔄 Resetting all scraper statuses to idle on bootup...")
         await self.reset_all_scrapers_to_idle()
 
-        while True:
-            try:
-                await self.run_all_jobs(subject=subject, limit=limit)
+        # Get all active colleges
+        with SessionLocal() as db:
+            colleges = (
+                db.execute(select(College).where(College.is_active == True))
+                .scalars()
+                .all()
+            )
 
-                # Wait until next interval
-                logger.info(
-                    f"⏰ Waiting {self.loop_interval_seconds}s until next run..."
-                )
-                await asyncio.sleep(self.loop_interval_seconds)
+        if not colleges:
+            logger.warning("⚠️  No active colleges found")
+            return
 
-            except KeyboardInterrupt:
-                logger.info("🛑 Stopping loop...")
-                break
-            except Exception as e:
-                logger.error(f"❌ Loop iteration failed: {e}")
-                # Still wait before next iteration
-                await asyncio.sleep(self.loop_interval_seconds)
+        logger.info(f"🚀 Starting independent loops for {len(colleges)} colleges")
+
+        # Create independent loop task for each college
+        tasks = [
+            self._run_college_loop(college, subject=subject, limit=limit)
+            for college in colleges
+        ]
+
+        try:
+            # Run all college loops concurrently (each runs independently forever)
+            await asyncio.gather(*tasks)
+        except KeyboardInterrupt:
+            logger.info("🛑 Stopping all college loops...")
 
 
 async def main():
@@ -318,7 +361,9 @@ Examples:
     parser.add_argument("--limit", type=int, help="Limit number of courses to scrape")
 
     parser.add_argument(
-        "--loop", action="store_true", help="Run continuously every 10 minutes"
+        "--loop",
+        action="store_true",
+        help="Run independent loops per college (3 min interval each)",
     )
 
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
