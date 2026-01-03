@@ -641,7 +641,7 @@ async def get_scrapers(
             )
             .select_from(Scraper)
             .join(College, Scraper.college_id == College.id)
-            .where(college_filter)
+            .where(and_(college_filter, College.is_active == True))
             .order_by(College.short_name)
         )
         scrapers_details_result = db.execute(scrapers_details_query)
@@ -688,6 +688,7 @@ async def get_scrapers(
                     ScraperLog.started_at >= days_ago,
                     ScraperLog.outcome != "running",
                     college_filter,
+                    College.is_active == True,
                 )
             )
             .group_by(
@@ -740,6 +741,7 @@ async def get_scrapers(
                     ScraperLog.started_at >= days_ago,
                     ScraperLog.duration_ms.isnot(None),
                     college_filter,
+                    College.is_active == True,
                 )
             )
             .group_by(
@@ -784,7 +786,7 @@ async def get_scrapers(
             .select_from(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
             .join(College, Scraper.college_id == College.id)
-            .where(college_filter)
+            .where(and_(college_filter, College.is_active == True))
             .order_by(desc(ScraperLog.started_at))
             .limit(50)
         )
@@ -822,7 +824,7 @@ async def get_scrapers(
             .select_from(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
             .join(College, Scraper.college_id == College.id)
-            .where(and_(ScraperLog.outcome == "error", college_filter))
+            .where(and_(ScraperLog.outcome == "error", college_filter, College.is_active == True))
             .order_by(desc(ScraperLog.started_at))
             .limit(20)
         )
