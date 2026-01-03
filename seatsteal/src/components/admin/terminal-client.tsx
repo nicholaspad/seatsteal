@@ -236,9 +236,10 @@ export function TerminalClient() {
     connect();
   }, [connect]);
 
-  // Send Ctrl-D (EOF)
+  // Send Ctrl-D (EOF) and Ctrl-C
   const sendCtrlD = useCallback(() => {
-    sendInput("\x04");
+    sendInput("\x03"); // Ctrl-C
+    sendInput("\x04"); // Ctrl-D
   }, [sendInput]);
 
   // Send enter
