@@ -51,7 +51,7 @@ class UciScraper(BaseScraper):
                 headers={
                     "User-Agent": "SeatSteal/1.0",
                     "Accept": "application/json",
-                    "Accept-Encoding": "gzip, deflate, br",
+                    "Accept-Encoding": "gzip, deflate",
                 },
             )
 
