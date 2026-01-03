@@ -336,8 +336,8 @@ setup_dependencies
 echo "🔄 Navigating to seatsteal/webapp directory..."
 cd ~/seatsteal/webapp
 
-echo "📥 Pulling latest changes..."
-cd ~/seatsteal && git pull && cd webapp
+echo "📥 Pulling latest changes (force)..."
+cd ~/seatsteal && git fetch --all && git reset --hard origin/\$(git rev-parse --abbrev-ref HEAD) && cd webapp
 
 # Build docker environment flags from current environment
 # All required vars were exported at the start of this script
