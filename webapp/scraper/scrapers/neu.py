@@ -296,7 +296,7 @@ class NeuScraper(BaseScraper):
             response.raise_for_status()
             self.request_count += 1
 
-            api_response = response.json()
+            api_response = self.decode_json_response(response)
 
             logger.debug(
                 f"API Response - success: {api_response.get('success')}, "
@@ -367,7 +367,7 @@ class NeuScraper(BaseScraper):
             response = await self.client.get(url, params=params, headers=headers)
             response.raise_for_status()
 
-            return response.json()
+            return self.decode_json_response(response)
 
         except Exception as e:
             logger.error(f"Error fetching API response at offset {page_offset}: {e}")

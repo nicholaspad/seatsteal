@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 import httpx
 import asyncio
+import json
 from bs4 import BeautifulSoup
 from loguru import logger
 import time
@@ -95,6 +96,28 @@ class BaseScraper(ABC):
             logger.error(f"Failed to fetch {url}: {e}")
             raise
 
+    def decode_json_response(self, response: httpx.Response) -> Dict[str, Any]:
+        """
+        Decode JSON from an HTTP response with encoding fallback.
+
+        Some APIs return Latin-1 encoded content instead of UTF-8.
+        This method tries UTF-8 first, then falls back to Latin-1.
+
+        Args:
+            response: httpx Response object
+
+        Returns:
+            Parsed JSON as dictionary
+        """
+        try:
+            text = response.content.decode("utf-8")
+        except UnicodeDecodeError:
+            logger.warning(
+                f"Response not valid UTF-8, falling back to Latin-1: {response.url}"
+            )
+            text = response.content.decode("latin-1")
+        return json.loads(text)
+
     async def fetch_json(self, url: str, timeout: int = 30) -> Dict[str, Any]:
         """
         Fetch JSON data from a URL.
@@ -122,7 +145,7 @@ class BaseScraper(ABC):
             self.request_count += 1
             self.last_request_time = time.time()
 
-            return response.json()
+            return self.decode_json_response(response)
 
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch JSON from {url}: {e}")

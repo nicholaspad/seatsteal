@@ -94,7 +94,7 @@ class UmdScraper(BaseScraper):
             response.raise_for_status()
             self.request_count += 1
 
-            all_course_ids = response.json()
+            all_course_ids = self.decode_json_response(response)
             logger.info(f"Found {len(all_course_ids)} total courses")
 
             # Apply limit if specified
@@ -133,7 +133,7 @@ class UmdScraper(BaseScraper):
             response.raise_for_status()
             self.request_count += 1
 
-            courses = response.json()
+            courses = self.decode_json_response(response)
 
             if not courses:
                 logger.warning(f"No courses found for department {dept_id}")
@@ -266,7 +266,7 @@ class UmdScraper(BaseScraper):
                 response.raise_for_status()
                 self.request_count += 1
 
-                sections = response.json()
+                sections = self.decode_json_response(response)
 
                 if not sections:
                     logger.debug(f"No sections found for {course_id}")

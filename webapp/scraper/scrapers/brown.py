@@ -504,12 +504,7 @@ class BrownScraper(BaseScraper):
             self.request_count += 1
 
             # Parse JSON response
-            content_type = response.headers.get("content-type", "")
-            if "application/json" in content_type:
-                return response.json()
-            else:
-                # Try to parse as JSON anyway
-                return response.json()
+            return self.decode_json_response(response)
 
         except Exception as e:
             logger.error(f"API request failed for {url}: {e}")

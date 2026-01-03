@@ -13,6 +13,7 @@ sys.path.insert(0, str(webapp_dir))
 
 from scraper.scrapers.uci import UciScraper
 from models.college import College
+from tests.test_scrapers.conftest import create_mock_response
 
 
 # Sample UCI API response data
@@ -420,9 +421,7 @@ class TestUciScraper:
         """Test that variable topic courses are aggregated by course code."""
         scraper = UciScraper(mock_uci_db_session)
 
-        result = scraper._transform_courses(
-            SAMPLE_UCI_VARIABLE_TOPIC_RESPONSE["data"]
-        )
+        result = scraper._transform_courses(SAMPLE_UCI_VARIABLE_TOPIC_RESPONSE["data"])
 
         # Should have only 1 course (ECO EVO 200B) with 2 sections
         assert len(result) == 1
@@ -455,12 +454,12 @@ class TestUciScraper:
         scraper = UciScraper(mock_uci_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "ok": True,
-            "data": {"schools": []},
-        }
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(
+            {
+                "ok": True,
+                "data": {"schools": []},
+            }
+        )
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -478,12 +477,12 @@ class TestUciScraper:
         scraper = UciScraper(mock_uci_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "ok": False,
-            "message": "Invalid term code",
-        }
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(
+            {
+                "ok": False,
+                "message": "Invalid term code",
+            }
+        )
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -520,12 +519,12 @@ class TestUciScraper:
         scraper = UciScraper(mock_uci_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "ok": True,
-            "data": {"schools": []},
-        }
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(
+            {
+                "ok": True,
+                "data": {"schools": []},
+            }
+        )
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -548,12 +547,12 @@ class TestUciScraper:
         scraper = UciScraper(mock_uci_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "ok": True,
-            "data": {"schools": []},
-        }
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(
+            {
+                "ok": True,
+                "data": {"schools": []},
+            }
+        )
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -576,9 +575,7 @@ class TestUciScraper:
         scraper = UciScraper(mock_uci_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_UCI_API_RESPONSE
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_UCI_API_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -599,9 +596,7 @@ class TestUciScraper:
         scraper = UciScraper(mock_uci_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_UCI_API_RESPONSE
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_UCI_API_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -619,9 +614,7 @@ class TestUciScraper:
         scraper = UciScraper(mock_uci_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_UCI_API_RESPONSE
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_UCI_API_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -639,9 +632,7 @@ class TestUciScraper:
         scraper = UciScraper(mock_uci_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_UCI_API_RESPONSE
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_UCI_API_RESPONSE)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response

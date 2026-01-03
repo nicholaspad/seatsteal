@@ -13,6 +13,7 @@ sys.path.insert(0, str(webapp_dir))
 
 from scraper.scrapers.rutgers import RutgersScraper
 from models.college import College
+from tests.test_scrapers.conftest import create_mock_response
 
 
 # Sample Rutgers API response data
@@ -303,9 +304,7 @@ class TestRutgersScraper:
         scraper = RutgersScraper(mock_rutgers_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_RUTGERS_COURSES
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_RUTGERS_COURSES)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -326,9 +325,7 @@ class TestRutgersScraper:
         scraper = RutgersScraper(mock_rutgers_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_RUTGERS_COURSES
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_RUTGERS_COURSES)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -348,9 +345,7 @@ class TestRutgersScraper:
         scraper = RutgersScraper(mock_rutgers_db_session)
 
         # Mock the HTTP client and response
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_RUTGERS_COURSES
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_RUTGERS_COURSES)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -367,9 +362,7 @@ class TestRutgersScraper:
         """Test that API request uses correct URL and parameters."""
         scraper = RutgersScraper(mock_rutgers_db_session)
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_RUTGERS_COURSES
-        mock_response.raise_for_status = MagicMock()
+        mock_response = create_mock_response(SAMPLE_RUTGERS_COURSES)
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response

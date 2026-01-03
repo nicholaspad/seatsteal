@@ -234,7 +234,7 @@ class BuScraper(BaseScraper):
                 )
                 return None
 
-            data = response.json()
+            data = self.decode_json_response(response)
 
             if (
                 not data
