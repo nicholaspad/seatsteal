@@ -5,11 +5,12 @@ Scraper daemon/CLI - Manages course scraping jobs
 Usage:
     python run_scraper.py run --college princeton
     python run_scraper.py run-all
-    python run_scraper.py --loop  # Run independent loops per college (3 min interval each)
+    python run_scraper.py --loop  # Run independent loops per college (configurable interval)
 """
 
 import argparse
 import asyncio
+import os
 import sys
 import time
 from datetime import datetime
@@ -34,7 +35,9 @@ class ScraperCLI:
 
     def __init__(self):
         self.loop_interval_seconds = 300  # 5 minutes (used by run_all_jobs)
-        self.college_loop_interval_seconds = 180  # 3 minutes per college
+        # Read scraper interval from environment variable (in minutes), default to 30 minutes
+        interval_minutes = int(os.getenv("SCRAPER_INTERVAL_MINUTES", "30"))
+        self.college_loop_interval_seconds = interval_minutes * 60
 
     async def _run_single_job(
         self,
@@ -78,7 +81,7 @@ class ScraperCLI:
         Run a single college's scraper in an independent loop.
 
         After each scrape completes, waits for the configured interval
-        before starting the next run for this college.
+        (set via SCRAPER_INTERVAL_MINUTES env var) before starting the next run.
 
         Args:
             college: College object to scrape
@@ -92,8 +95,9 @@ class ScraperCLI:
                 logger.error(f"❌ Error in {college.short_name} loop: {e}")
 
             # Wait before next run for THIS college
+            interval_mins = self.college_loop_interval_seconds // 60
             logger.info(
-                f"⏰ {college.short_name}: waiting {self.college_loop_interval_seconds}s until next run..."
+                f"⏰ {college.short_name}: waiting {interval_mins} minutes until next run..."
             )
             await asyncio.sleep(self.college_loop_interval_seconds)
 
@@ -284,16 +288,18 @@ class ScraperCLI:
         Run scraper jobs in independent loops per college.
 
         Each college runs on its own schedule - after completing a scrape,
-        it waits 3 minutes before starting its next run. This ensures that
-        fast-running colleges aren't blocked by slow-running ones.
+        it waits for the configured interval (SCRAPER_INTERVAL_MINUTES env var)
+        before starting its next run. This ensures that fast-running colleges
+        aren't blocked by slow-running ones.
 
         Args:
             subject: Subject filter (default: 'ALL')
             limit: Optional limit on courses
         """
+        interval_mins = self.college_loop_interval_seconds // 60
         logger.info(
             f"🔁 Running scraper in loop mode (independent college loops, "
-            f"{self.college_loop_interval_seconds}s interval per college)"
+            f"{interval_mins} minute interval per college)"
         )
 
         # Reset all scrapers to idle on first bootup
@@ -363,7 +369,7 @@ Examples:
     parser.add_argument(
         "--loop",
         action="store_true",
-        help="Run independent loops per college (3 min interval each)",
+        help="Run independent loops per college (interval set by SCRAPER_INTERVAL_MINUTES env var, default: 30 min)",
     )
 
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
