@@ -23,7 +23,8 @@ describe("LoginForm", () => {
     mockSignInWithGoogle.mockResolvedValue({ error: null });
   });
 
-  describe("Google Sign-In", () => {
+  // Temporarily skip Google Sign-In tests while Google login is disabled
+  describe.skip("Google Sign-In", () => {
     it("renders the Google sign-in button", () => {
       render(<LoginForm />);
 
@@ -103,7 +104,8 @@ describe("LoginForm", () => {
     });
   });
 
-  describe("Divider", () => {
+  // Temporarily skip Divider test while Google login is disabled
+  describe.skip("Divider", () => {
     it("renders the divider with 'Or continue with email' text", () => {
       render(<LoginForm />);
 
@@ -123,7 +125,9 @@ describe("LoginForm", () => {
     it("renders login button", () => {
       render(<LoginForm />);
 
-      expect(screen.getByRole("button", { name: /^login$/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /^login$/i }),
+      ).toBeInTheDocument();
     });
 
     it("calls signInWithMagicLink when form is submitted with valid email", async () => {
