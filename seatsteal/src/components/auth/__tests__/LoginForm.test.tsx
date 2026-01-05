@@ -23,8 +23,7 @@ describe("LoginForm", () => {
     mockSignInWithGoogle.mockResolvedValue({ error: null });
   });
 
-  // Temporarily skip Google Sign-In tests while Google login is disabled
-  describe.skip("Google Sign-In", () => {
+  describe("Google Sign-In", () => {
     it("renders the Google sign-in button", () => {
       render(<LoginForm />);
 
@@ -104,8 +103,7 @@ describe("LoginForm", () => {
     });
   });
 
-  // Temporarily skip Divider test while Google login is disabled
-  describe.skip("Divider", () => {
+  describe("Divider", () => {
     it("renders the divider with 'Or continue with email' text", () => {
       render(<LoginForm />);
 
