@@ -34,6 +34,16 @@ export const signInWithAdminMagicLink = async (email: string) => {
   });
 };
 
+// Helper function to sign in with Google
+export const signInWithGoogle = async () => {
+  return await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
+};
+
 // Helper function to sign out
 export const signOut = async () => {
   return await supabase.auth.signOut();
