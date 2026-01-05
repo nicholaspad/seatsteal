@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { EduEmailSchema } from "@/lib/validation";
+import { EmailSchema } from "@/lib/validation";
 import { ServerErrorWithToast } from "@/lib/api";
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -65,7 +65,7 @@ export function LoginForm() {
 
   const validateEmail = (email: string) => {
     try {
-      EduEmailSchema.parse(email);
+      EmailSchema.parse(email);
       setValidationError("");
       return true;
     } catch (error) {
@@ -224,7 +224,7 @@ export function LoginForm() {
                   validateEmail(email);
                 }
               }}
-              placeholder="john@university.edu"
+              placeholder="john@example.com"
               className="pl-10"
               required
               disabled={isLoading}
@@ -242,10 +242,6 @@ export function LoginForm() {
             "Login"
           )}
         </Button>
-
-        <div className="text-center text-xs text-muted-foreground">
-          Must use a valid .edu address.
-        </div>
       </form>
     </>
   );

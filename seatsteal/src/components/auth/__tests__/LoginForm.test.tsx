@@ -88,8 +88,8 @@ describe("LoginForm", () => {
 
       render(<LoginForm />);
 
-      const emailInput = screen.getByPlaceholderText(/john@university\.edu/i);
-      await userEvent.type(emailInput, "test@university.edu");
+      const emailInput = screen.getByPlaceholderText(/john@example\.com/i);
+      await userEvent.type(emailInput, "test@example.com");
 
       const loginButton = screen.getByRole("button", { name: /^login$/i });
       fireEvent.click(loginButton);
@@ -116,7 +116,7 @@ describe("LoginForm", () => {
       render(<LoginForm />);
 
       expect(
-        screen.getByPlaceholderText(/john@university\.edu/i),
+        screen.getByPlaceholderText(/john@example\.com/i),
       ).toBeInTheDocument();
     });
 
@@ -129,20 +129,20 @@ describe("LoginForm", () => {
     it("calls signInWithMagicLink when form is submitted with valid email", async () => {
       render(<LoginForm />);
 
-      const emailInput = screen.getByPlaceholderText(/john@university\.edu/i);
-      await userEvent.type(emailInput, "test@university.edu");
+      const emailInput = screen.getByPlaceholderText(/john@example\.com/i);
+      await userEvent.type(emailInput, "test@example.com");
 
       const loginButton = screen.getByRole("button", { name: /^login$/i });
       await userEvent.click(loginButton);
 
-      expect(mockSignInWithMagicLink).toHaveBeenCalledWith("test@university.edu");
+      expect(mockSignInWithMagicLink).toHaveBeenCalledWith("test@example.com");
     });
 
     it("shows success message after successful magic link send", async () => {
       render(<LoginForm />);
 
-      const emailInput = screen.getByPlaceholderText(/john@university\.edu/i);
-      await userEvent.type(emailInput, "test@university.edu");
+      const emailInput = screen.getByPlaceholderText(/john@example\.com/i);
+      await userEvent.type(emailInput, "test@example.com");
 
       const loginButton = screen.getByRole("button", { name: /^login$/i });
       await userEvent.click(loginButton);
@@ -152,11 +152,11 @@ describe("LoginForm", () => {
       });
     });
 
-    it("shows validation error for non-.edu email", async () => {
+    it("shows validation error for email with + character", async () => {
       render(<LoginForm />);
 
-      const emailInput = screen.getByPlaceholderText(/john@university\.edu/i);
-      await userEvent.type(emailInput, "test@gmail.com");
+      const emailInput = screen.getByPlaceholderText(/john@example\.com/i);
+      await userEvent.type(emailInput, "test+tag@gmail.com");
 
       const loginButton = screen.getByRole("button", { name: /^login$/i });
       await userEvent.click(loginButton);
