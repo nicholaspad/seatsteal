@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { signInWithMagicLink, signInWithGoogle } from "@/lib/supabase";
+import { signInWithMagicLink /* , signInWithGoogle */ } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Mail } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import { EduEmailSchema } from "@/lib/validation";
+import { EmailSchema } from "@/lib/validation";
 import { ServerErrorWithToast } from "@/lib/api";
 
+/* Temporarily disabled Google sign-in
 function GoogleIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -35,15 +36,17 @@ function GoogleIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+*/
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  // const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState<React.ReactNode>("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [validationError, setValidationError] = useState("");
 
+  /* Temporarily disabled Google sign-in
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
     setError("");
@@ -62,10 +65,11 @@ export function LoginForm() {
       setIsGoogleLoading(false);
     }
   }
+  */
 
   const validateEmail = (email: string) => {
     try {
-      EduEmailSchema.parse(email);
+      EmailSchema.parse(email);
       setValidationError("");
       return true;
     } catch (error) {
@@ -157,13 +161,14 @@ export function LoginForm() {
 
   return (
     <>
-      <div className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
+      {/* Temporarily disabled Google sign-in */}
+      {/* <div className="space-y-4">
         <Button
           type="button"
           variant="outline"
@@ -194,9 +199,9 @@ export function LoginForm() {
             </span>
           </div>
         </div>
-      </div>
+      </div> */}
 
-      <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {validationError && (
           <Alert variant="destructive">
             <AlertDescription>{validationError}</AlertDescription>
@@ -224,7 +229,7 @@ export function LoginForm() {
                   validateEmail(email);
                 }
               }}
-              placeholder="john@university.edu"
+              placeholder="john@example.com"
               className="pl-10"
               required
               disabled={isLoading}
@@ -242,10 +247,6 @@ export function LoginForm() {
             "Login"
           )}
         </Button>
-
-        <div className="text-center text-xs text-muted-foreground">
-          Must use a valid .edu address.
-        </div>
       </form>
     </>
   );

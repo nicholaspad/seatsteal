@@ -3,14 +3,9 @@ import { z } from "zod";
 // Common validation schemas
 export const IdSchema = z.number().int().positive();
 export const UuidSchema = z.string().uuid();
-export const EmailSchema = z.string().email();
-export const EduEmailSchema = z
+export const EmailSchema = z
   .string()
   .email()
-  .refine(
-    (email) => email.endsWith(".edu"),
-    "Please use a valid .edu email address",
-  )
   .refine(
     (email) => !email.includes("+"),
     "Email addresses with + characters are not allowed",

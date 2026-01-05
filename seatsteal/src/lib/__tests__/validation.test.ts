@@ -3,7 +3,6 @@ import {
   IdSchema,
   UuidSchema,
   EmailSchema,
-  EduEmailSchema,
   PhoneSchema,
   SubscriptionRequestSchema,
   SubscriptionUpdateSchema,
@@ -73,20 +72,31 @@ describe("Validation Schemas", () => {
   describe("EmailSchema", () => {
     it("accepts valid email addresses", () => {
       expect(EmailSchema.parse("user@example.com")).toBe("user@example.com");
-      expect(EmailSchema.parse("test.user@domain.co.uk")).toBe(
-        "test.user@domain.co.uk",
+      expect(EmailSchema.parse("student@university.edu")).toBe(
+        "student@university.edu",
+      );
+      expect(EmailSchema.parse("john@school.edu")).toBe("john@school.edu");
+    });
+
+    it("accepts emails with numbers", () => {
+      expect(EmailSchema.parse("student123@university.edu")).toBe(
+        "student123@university.edu",
       );
     });
 
-    it("accepts emails with + character", () => {
-      expect(EmailSchema.parse("user+tag@example.com")).toBe(
-        "user+tag@example.com",
-      );
+    it("rejects emails with + character", () => {
+      expect(() => EmailSchema.parse("user+tag@example.com")).toThrow();
+      expect(() => EmailSchema.parse("student+tag@university.edu")).toThrow();
     });
 
-    it("accepts emails with dots in username", () => {
-      expect(EmailSchema.parse("first.last@example.com")).toBe(
-        "first.last@example.com",
+    it("rejects emails with dots in username", () => {
+      expect(() => EmailSchema.parse("first.last@example.com")).toThrow();
+      expect(() => EmailSchema.parse("john.doe@school.edu")).toThrow();
+    });
+
+    it("allows dots in domain part", () => {
+      expect(EmailSchema.parse("student@sub.university.edu")).toBe(
+        "student@sub.university.edu",
       );
     });
 
@@ -95,94 +105,6 @@ describe("Validation Schemas", () => {
       expect(() => EmailSchema.parse("@example.com")).toThrow();
       expect(() => EmailSchema.parse("user@")).toThrow();
       expect(() => EmailSchema.parse("")).toThrow();
-    });
-  });
-
-  describe("EduEmailSchema", () => {
-    describe("valid .edu emails", () => {
-      it("accepts valid .edu email addresses", () => {
-        expect(EduEmailSchema.parse("student@university.edu")).toBe(
-          "student@university.edu",
-        );
-        expect(EduEmailSchema.parse("john@school.edu")).toBe("john@school.edu");
-      });
-
-      it("accepts .edu emails with numbers", () => {
-        expect(EduEmailSchema.parse("student123@university.edu")).toBe(
-          "student123@university.edu",
-        );
-      });
-    });
-
-    describe(".edu requirement", () => {
-      it("rejects non-.edu email addresses", () => {
-        expect(() => EduEmailSchema.parse("user@gmail.com")).toThrow();
-        expect(() => EduEmailSchema.parse("user@company.com")).toThrow();
-      });
-
-      it("rejects .com emails even if they contain edu", () => {
-        expect(() => EduEmailSchema.parse("edu@example.com")).toThrow();
-      });
-    });
-
-    describe("+ character blocking", () => {
-      it("rejects .edu emails with + character", () => {
-        expect(() =>
-          EduEmailSchema.parse("student+tag@university.edu"),
-        ).toThrow();
-        expect(() => EduEmailSchema.parse("user+1@school.edu")).toThrow();
-      });
-
-      it("error message mentions + characters are not allowed", () => {
-        try {
-          EduEmailSchema.parse("user+tag@university.edu");
-          expect.fail("Should have thrown an error");
-        } catch (error: any) {
-          expect(error.issues[0].message).toContain("+ characters");
-        }
-      });
-    });
-
-    describe("dots in username blocking", () => {
-      it("rejects .edu emails with dots in username", () => {
-        expect(() =>
-          EduEmailSchema.parse("first.last@university.edu"),
-        ).toThrow();
-        expect(() => EduEmailSchema.parse("john.doe@school.edu")).toThrow();
-      });
-
-      it("allows dots in domain part", () => {
-        expect(EduEmailSchema.parse("student@sub.university.edu")).toBe(
-          "student@sub.university.edu",
-        );
-      });
-
-      it("error message mentions . characters in username are not allowed", () => {
-        try {
-          EduEmailSchema.parse("first.last@university.edu");
-          expect.fail("Should have thrown an error");
-        } catch (error: any) {
-          expect(error.issues[0].message).toContain(". characters");
-          expect(error.issues[0].message).toContain("username");
-        }
-      });
-    });
-
-    describe("combined validation", () => {
-      it("rejects emails with both + and . in username", () => {
-        expect(() =>
-          EduEmailSchema.parse("first.last+tag@university.edu"),
-        ).toThrow();
-      });
-
-      it("provides specific error message for first failing rule", () => {
-        try {
-          EduEmailSchema.parse("user@gmail.com");
-          expect.fail("Should have thrown an error");
-        } catch (error: any) {
-          expect(error.issues[0].message).toContain(".edu");
-        }
-      });
     });
   });
 
