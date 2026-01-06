@@ -12,12 +12,12 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={false}
-        />
+        />,
       );
 
       expect(screen.getByText("Confirm Unsubscribe")).toBeInTheDocument();
       expect(
-        screen.getByText(/Are you sure you want to unsubscribe/)
+        screen.getByText(/Are you sure you want to unsubscribe/),
       ).toBeInTheDocument();
     });
 
@@ -28,10 +28,12 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={false}
-        />
+        />,
       );
 
-      expect(container.querySelector('[role="dialog"]')).not.toBeInTheDocument();
+      expect(
+        container.querySelector('[role="dialog"]'),
+      ).not.toBeInTheDocument();
     });
 
     it("displays warning message about losing notifications", () => {
@@ -41,11 +43,11 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={false}
-        />
+        />,
       );
 
       expect(
-        screen.getByText(/no longer receive notifications/)
+        screen.getByText(/no longer receive notifications/),
       ).toBeInTheDocument();
     });
   });
@@ -61,7 +63,7 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={onClose}
           onConfirm={vi.fn()}
           isLoading={false}
-        />
+        />,
       );
 
       await user.click(screen.getByRole("button", { name: /cancel/i }));
@@ -78,7 +80,7 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={onConfirm}
           isLoading={false}
-        />
+        />,
       );
 
       await user.click(screen.getByRole("button", { name: /^unsubscribe$/i }));
@@ -95,7 +97,7 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={onConfirm}
           isLoading={false}
-        />
+        />,
       );
 
       const button = screen.getByRole("button", { name: /^unsubscribe$/i });
@@ -114,12 +116,12 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={true}
-        />
+        />,
       );
 
       expect(screen.getByRole("button", { name: /cancel/i })).toBeDisabled();
       expect(
-        screen.getByRole("button", { name: /unsubscribing/i })
+        screen.getByRole("button", { name: /unsubscribing/i }),
       ).toBeDisabled();
     });
 
@@ -130,7 +132,7 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={true}
-        />
+        />,
       );
 
       expect(screen.getByText("Unsubscribing...")).toBeInTheDocument();
@@ -143,7 +145,7 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={false}
-        />
+        />,
       );
 
       expect(screen.getByText(/^Unsubscribe$/)).toBeInTheDocument();
@@ -156,12 +158,14 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={false}
-        />
+        />,
       );
 
-      expect(screen.getByRole("button", { name: /cancel/i })).not.toBeDisabled();
       expect(
-        screen.getByRole("button", { name: /^unsubscribe$/i })
+        screen.getByRole("button", { name: /cancel/i }),
+      ).not.toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /^unsubscribe$/i }),
       ).not.toBeDisabled();
     });
   });
@@ -174,7 +178,7 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={false}
-        />
+        />,
       );
 
       const unsubscribeButton = screen.getByRole("button", {
@@ -190,7 +194,7 @@ describe("UnsubscribeConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           isLoading={false}
-        />
+        />,
       );
 
       const cancelButton = screen.getByRole("button", { name: /cancel/i });

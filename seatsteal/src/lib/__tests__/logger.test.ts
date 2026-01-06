@@ -26,7 +26,7 @@ describe("Logger", () => {
       expect(consoleErrorSpy).toHaveBeenCalled();
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining("Test context"),
-        expect.anything()
+        expect.anything(),
       );
     });
 
@@ -74,7 +74,7 @@ describe("Logger", () => {
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         "Complex warning",
-        complexData
+        complexData,
       );
     });
   });

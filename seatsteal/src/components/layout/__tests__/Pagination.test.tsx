@@ -279,11 +279,7 @@ describe("Pagination", () => {
 
     it("handles large totalPages (100)", () => {
       render(
-        <Pagination
-          currentPage={50}
-          totalPages={100}
-          onPageChange={vi.fn()}
-        />,
+        <Pagination currentPage={50} totalPages={100} onPageChange={vi.fn()} />,
       );
 
       // Should show pages around 50 (49, 50, 51 with siblingCount=1)

@@ -1,14 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 
 from db.session import get_db
 from models.user import Profile
 from models.college import College
-from api.middleware.auth import require_auth, supabase
-from api.middleware.rate_limit import rate_limit
-from config import settings
+from api.middleware.auth import require_auth
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches
 
@@ -65,12 +62,6 @@ async def update_college(
         log_and_raise_500("Failed to update college", e)
 
 
-class AdminSignInRequest(BaseModel):
-    """Request schema for admin sign-in"""
-
-    email: EmailStr
-
-
 @router.get("/is-admin")
 async def is_admin(
     user: Profile = Depends(require_auth),
@@ -80,62 +71,3 @@ async def is_admin(
         "success": True,
         "isAdmin": user.role == "admin",
     }
-
-
-@router.post("/admin-signin")
-@rate_limit(max_requests=10, window_seconds=60)
-async def admin_signin(
-    http_request: Request,
-    request: AdminSignInRequest,
-    db: Session = Depends(get_db),
-):
-    """Send admin magic link sign-in email"""
-    try:
-        # Check if user exists and has admin role
-        result = db.execute(
-            select(Profile).where(Profile.email == request.email).limit(1)
-        )
-        user = result.scalar_one_or_none()
-
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        if user.role != "admin":
-            raise HTTPException(
-                status_code=403,
-                detail="Access denied. Admin privileges required.",
-            )
-
-        # Send magic link using Supabase
-        # The Python Supabase SDK raises exceptions on errors (unlike JS SDK)
-        try:
-            auth_response = supabase.auth.sign_in_with_otp(
-                {
-                    "email": request.email,
-                    "options": {
-                        "email_redirect_to": f"{settings.effective_frontend_url}/auth/callback?admin=true"
-                    },
-                }
-            )
-        except Exception as supabase_error:
-            error_msg = str(supabase_error)
-            # Check if it's a rate limit error from Supabase exception
-            if (
-                "rate limit" in error_msg.lower()
-                or "security purposes" in error_msg.lower()
-            ):
-                raise HTTPException(
-                    status_code=429, detail="Too many requests. Please try again later."
-                )
-            # Re-raise other Supabase exceptions to be caught by outer handler
-            raise
-
-        return {
-            "success": True,
-            "message": "Admin magic link sent successfully",
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_and_raise_500("Failed to send admin sign-in email", e)

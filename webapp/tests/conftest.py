@@ -251,14 +251,10 @@ def test_subscription(
 @pytest.fixture
 def mock_supabase():
     """Mock Supabase client."""
-    with patch("api.middleware.auth.supabase") as mock1, patch(
-        "api.routes.auth.supabase"
-    ) as mock2:
+    with patch("api.middleware.auth.supabase") as mock:
         mock_auth = MagicMock()
-        mock1.auth = mock_auth
-        mock2.auth = mock_auth
-        # Return mock2 since that's what the auth routes use
-        yield mock2
+        mock.auth = mock_auth
+        yield mock
 
 
 @pytest.fixture

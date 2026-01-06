@@ -16,7 +16,7 @@ export function RouteAwareSkeleton() {
   const path = location.pathname;
 
   // Match routes to their specific skeletons
-  if (path === "/login" || path === "/login-admin") {
+  if (path === "/login") {
     return <LoginSkeleton />;
   }
 

@@ -156,7 +156,9 @@ describe("Courses Page", () => {
 
   describe("College filter", () => {
     it("defaults to All colleges when the search param is undefined", async () => {
-      mockUseSearchParams.mockReturnValue(new URLSearchParams("college=undefined"));
+      mockUseSearchParams.mockReturnValue(
+        new URLSearchParams("college=undefined"),
+      );
 
       mockFetchWithToasts.mockImplementation((url: string) => {
         if (url.includes("/api/courses")) {

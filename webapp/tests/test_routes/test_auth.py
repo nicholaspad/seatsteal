@@ -3,7 +3,6 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
-from unittest.mock import MagicMock
 
 from models.college import College
 from models.user import Profile
@@ -130,83 +129,3 @@ class TestIsAdmin:
         response = await client.get("/api/auth/is-admin")
 
         assert response.status_code == 401
-
-
-class TestAdminSignIn:
-    """Tests for POST /api/auth/admin-signin endpoint."""
-
-    @pytest.mark.unit
-    async def test_admin_signin_success(
-        self,
-        client: AsyncClient,
-        test_db: Session,
-        test_admin_user: Profile,
-        mock_supabase,
-    ):
-        """Test successful admin sign-in."""
-        # Mock Supabase sign_in_with_otp to return successfully
-        mock_auth_response = MagicMock()
-        mock_supabase.auth.sign_in_with_otp.return_value = mock_auth_response
-
-        response = await client.post(
-            "/api/auth/admin-signin",
-            json={"email": test_admin_user.email},
-        )
-
-        assert response.status_code == 200
-        response_json = response.json()
-        assert response_json["success"] is True
-        assert "magic link sent" in response_json["message"].lower()
-
-    @pytest.mark.unit
-    async def test_admin_signin_user_not_found(
-        self,
-        client: AsyncClient,
-        test_db: Session,
-    ):
-        """Test admin sign-in with non-existent user."""
-        response = await client.post(
-            "/api/auth/admin-signin",
-            json={"email": "nonexistent@example.edu"},
-        )
-
-        assert response.status_code == 404
-        assert "User not found" in response.json()["detail"]
-
-    @pytest.mark.unit
-    async def test_admin_signin_non_admin_user(
-        self,
-        client: AsyncClient,
-        test_db: Session,
-        test_user: Profile,
-    ):
-        """Test admin sign-in with non-admin user."""
-        response = await client.post(
-            "/api/auth/admin-signin",
-            json={"email": test_user.email},
-        )
-
-        assert response.status_code == 403
-        assert "Admin privileges required" in response.json()["detail"]
-
-    @pytest.mark.unit
-    async def test_admin_signin_supabase_error(
-        self,
-        client: AsyncClient,
-        test_db: Session,
-        test_admin_user: Profile,
-        mock_supabase,
-    ):
-        """Test admin sign-in with Supabase error."""
-        # Mock Supabase to raise an exception (Python SDK behavior)
-        mock_supabase.auth.sign_in_with_otp.side_effect = Exception("Supabase error")
-
-        response = await client.post(
-            "/api/auth/admin-signin",
-            json={"email": test_admin_user.email},
-        )
-
-        assert response.status_code == 500
-        # Security: Error messages are now sanitized to prevent information leakage
-        # The actual error details ("Supabase error") are logged but not exposed
-        assert "Failed to send admin sign-in email" in response.json()["detail"]

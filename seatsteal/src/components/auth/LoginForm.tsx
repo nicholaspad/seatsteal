@@ -204,41 +204,45 @@ export function LoginForm() {
           <label htmlFor="email" className="text-sm font-medium">
             Email
           </label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (validationError) {
-                  setValidationError("");
-                }
-              }}
-              onBlur={() => {
-                if (email) {
-                  validateEmail(email);
-                }
-              }}
-              placeholder="john@example.com"
-              className="pl-10"
-              required
-              disabled={isLoading}
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (validationError) {
+                    setValidationError("");
+                  }
+                }}
+                onBlur={() => {
+                  if (email) {
+                    validateEmail(email);
+                  }
+                }}
+                placeholder="john@example.com"
+                className="pl-10"
+                required
+                disabled={isLoading}
+              />
+            </div>
+            <Button
+              type="submit"
+              className="px-6 min-w-[80px]"
+              disabled={isLoading || !email}
+            >
+              {isLoading ? (
+                <div style={{ color: "black" }}>
+                  <Spinner className="size-4" />
+                </div>
+              ) : (
+                "Login"
+              )}
+            </Button>
           </div>
         </div>
-
-        <Button type="submit" className="w-full" disabled={isLoading || !email}>
-          {isLoading ? (
-            <>
-              <Spinner className="size-4 mr-2" />
-              Logging in...
-            </>
-          ) : (
-            "Login"
-          )}
-        </Button>
       </form>
     </>
   );

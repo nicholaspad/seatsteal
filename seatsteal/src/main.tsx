@@ -60,7 +60,6 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const SelectCollege = lazy(() => import("@/pages/SelectCollege"));
 const VerifyRequest = lazy(() => import("@/pages/VerifyRequest"));
-const LoginAdmin = lazy(() => import("@/pages/LoginAdmin"));
 const Offline = lazy(() => import("@/pages/Offline"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("@/pages/TermsOfService"));
@@ -106,7 +105,6 @@ createRoot(document.getElementById("root")!).render(
                     <Route exact path="/offline" component={Offline} />
                     <Route exact path="/privacy" component={PrivacyPolicy} />
                     <Route exact path="/terms" component={TermsOfService} />
-                    <Route exact path="/login-admin" component={LoginAdmin} />
                     <Route
                       exact
                       path="/verify-request"
