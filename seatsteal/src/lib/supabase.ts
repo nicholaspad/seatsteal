@@ -40,6 +40,7 @@ export const signInWithGoogle = async () => {
     provider: "google",
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
+      scopes: "openid email",
     },
   });
 };
