@@ -230,14 +230,13 @@ export function LoginForm() {
             </div>
             <Button
               type="submit"
-              className="px-6"
+              className="px-6 min-w-[80px]"
               disabled={isLoading || !email}
             >
               {isLoading ? (
-                <>
-                  <Spinner className="size-4 mr-2 text-black dark:text-black" />
-                  Logging in...
-                </>
+                <div style={{ color: "black" }}>
+                  <Spinner className="size-4" />
+                </div>
               ) : (
                 "Login"
               )}
