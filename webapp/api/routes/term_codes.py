@@ -283,6 +283,67 @@ async def fetch_uci_terms() -> Tuple[str, List[dict], Optional[str]]:
         return ("error", [], str(e))
 
 
+async def fetch_uiuc_terms() -> Tuple[str, List[dict], Optional[str]]:
+    """
+    Fetch term codes from University of Illinois Urbana-Champaign.
+
+    UIUC uses 6-digit term codes: 1YYYY# where # is:
+    - 0 = Winter
+    - 1 = Spring
+    - 5 = Summer
+    - 8 = Fall
+
+    Example: 120261 = Spring 2026
+    """
+    try:
+        from datetime import datetime
+        from bs4 import BeautifulSoup
+
+        # Get current year
+        now = datetime.now()
+        year = now.year
+
+        # Fetch available terms from the API
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get(
+                f"https://courses.illinois.edu/cisapp/explorer/schedule/{year}.xml"
+            )
+            xml_text = response.text
+
+        soup = BeautifulSoup(xml_text, "xml")
+        terms = []
+
+        # Parse term elements
+        for term_elem in soup.find_all("term"):
+            term_id = term_elem.get("id", "")
+            term_href = term_elem.get("href", "")
+
+            # Get term name from element text
+            term_name = term_elem.get_text(strip=True)
+
+            if term_id and term_name:
+                terms.append({"code": term_id, "description": term_name})
+
+        # If current year has no terms, try previous year
+        if not terms:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                response = await client.get(
+                    f"https://courses.illinois.edu/cisapp/explorer/schedule/{year - 1}.xml"
+                )
+                xml_text = response.text
+
+            soup = BeautifulSoup(xml_text, "xml")
+            for term_elem in soup.find_all("term"):
+                term_id = term_elem.get("id", "")
+                term_name = term_elem.get_text(strip=True)
+                if term_id and term_name:
+                    terms.append({"code": term_id, "description": term_name})
+
+        return ("success", terms[:4], None)
+    except Exception as e:
+        return ("error", [], str(e))
+
+
 # College fetch function mapping
 COLLEGE_FETCHERS = {
     "brown": fetch_brown_terms,
@@ -294,6 +355,7 @@ COLLEGE_FETCHERS = {
     "rutgers": fetch_rutgers_terms,
     "upenn": fetch_upenn_terms,
     "uci": fetch_uci_terms,
+    "uiuc": fetch_uiuc_terms,
 }
 
 

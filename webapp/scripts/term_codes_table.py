@@ -313,6 +313,69 @@ def fetch_uci_terms() -> List[Tuple[str, str]]:
         return [("ERROR", str(e))]
 
 
+def fetch_uiuc_terms() -> List[Tuple[str, str]]:
+    """
+    Fetch term codes from University of Illinois Urbana-Champaign.
+
+    UIUC uses 6-digit term codes: 1YYYY# where # is:
+    - 0 = Winter
+    - 1 = Spring
+    - 5 = Summer
+    - 8 = Fall
+
+    Example: 120261 = Spring 2026
+    """
+    try:
+        from datetime import datetime
+
+        # Get current year
+        now = datetime.now()
+        year = now.year
+
+        # Fetch available terms from the API
+        result = subprocess.run(
+            [
+                "curl",
+                "-s",
+                f"https://courses.illinois.edu/cisapp/explorer/schedule/{year}.xml",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        xml_text = result.stdout
+
+        # Parse term elements using regex (simpler than BeautifulSoup for CLI)
+        pattern = r'<term id="(\d+)"[^>]*>([^<]+)</term>'
+        matches = re.findall(pattern, xml_text)
+
+        terms = []
+        for term_id, term_name in matches:
+            terms.append((term_id, term_name.strip()))
+
+        # If current year has no terms, try previous year
+        if not terms:
+            result = subprocess.run(
+                [
+                    "curl",
+                    "-s",
+                    f"https://courses.illinois.edu/cisapp/explorer/schedule/{year - 1}.xml",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            xml_text = result.stdout
+
+            matches = re.findall(pattern, xml_text)
+            for term_id, term_name in matches:
+                terms.append((term_id, term_name.strip()))
+
+        return terms[:4]
+    except Exception as e:
+        return [("ERROR", str(e))]
+
+
 def display_term_codes_table():
     """Fetch and display a formatted table of term codes for all colleges."""
 
@@ -332,6 +395,7 @@ def display_term_codes_table():
         "rutgers": fetch_rutgers_terms,
         "upenn": fetch_upenn_terms,
         "uci": fetch_uci_terms,
+        "uiuc": fetch_uiuc_terms,
     }
 
     term_data = {}

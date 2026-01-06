@@ -25,6 +25,44 @@ This document describes the term code formats for each supported college.
 
 ---
 
+## University of Illinois Urbana-Champaign (UIUC)
+
+**Format:** 6-digit code (`1YYYY#`)
+
+The format is:
+- First digit: always `1`
+- Next 4 digits: year (e.g., `2026`)
+- Last digit: term indicator
+
+**Term codes (last digit):**
+- `0` - Winter
+- `1` - Spring
+- `5` - Summer
+- `8` - Fall
+
+**Examples:**
+- `120261` - Spring 2026
+- `120268` - Fall 2026
+- `120260` - Winter 2026
+- `120265` - Summer 2026
+
+**API:** Uses the Course Explorer XML API
+
+**Steps to get term codes:**
+```bash
+curl -s "https://courses.illinois.edu/cisapp/explorer/schedule/2026.xml" | grep -o 'id="[0-9]*"' | head -5
+```
+
+**Example output:**
+```
+id="120260"  (Winter 2026)
+id="120261"  (Spring 2026)
+id="120265"  (Summer 2026)
+id="120268"  (Fall 2026)
+```
+
+---
+
 ## Rutgers University
 
 **Format:** `YYYY:T:CAMPUS`
