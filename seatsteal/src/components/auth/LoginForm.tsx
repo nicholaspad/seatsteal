@@ -3,7 +3,7 @@ import { signInWithMagicLink, signInWithGoogle } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail } from "lucide-react";
+import { Mail, ArrowRight } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { EmailSchema } from "@/lib/validation";
 import { ServerErrorWithToast } from "@/lib/api";
@@ -200,48 +200,42 @@ export function LoginForm() {
           </Alert>
         )}
 
-        <div className="space-y-2">
-          <label htmlFor="email" className="text-sm font-medium">
-            Email
-          </label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (validationError) {
-                    setValidationError("");
-                  }
-                }}
-                onBlur={() => {
-                  if (email) {
-                    validateEmail(email);
-                  }
-                }}
-                placeholder="john@example.com"
-                className="pl-10"
-                required
-                disabled={isLoading}
-              />
-            </div>
-            <Button
-              type="submit"
-              className="px-6 min-w-[80px]"
-              disabled={isLoading || !email}
-            >
-              {isLoading ? (
-                <div style={{ color: "black" }}>
-                  <Spinner className="size-4" />
-                </div>
-              ) : (
-                "Login"
-              )}
-            </Button>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (validationError) {
+                  setValidationError("");
+                }
+              }}
+              onBlur={() => {
+                if (email) {
+                  validateEmail(email);
+                }
+              }}
+              placeholder="john@example.com"
+              className="pl-10"
+              required
+              disabled={isLoading}
+            />
           </div>
+          <Button
+            type="submit"
+            className="h-10 w-10 p-0"
+            disabled={isLoading || !email}
+            aria-label="Login"
+          >
+            {isLoading ? (
+              <Spinner className="size-4" />
+            ) : (
+              <ArrowRight className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </form>
     </>
