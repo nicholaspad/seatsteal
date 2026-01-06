@@ -25,6 +25,7 @@ Before adding a college, verify it meets these requirements:
 
 
 Notes:
+- Colleges we tried and failed to scrape: UIUC (blocked with 403 errors), UMD (too slow)
 - Feel free to send curl requests to the college's API or website to verify that it meets the requirements.
 - Make sure to target large colleges with a big userbase opportunity.
 - Target American colleges only.
