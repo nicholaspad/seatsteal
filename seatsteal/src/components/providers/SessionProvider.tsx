@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import { supabase } from "@/lib/supabase";
 import { fetchWithToasts } from "@/lib/api";
 import type { User } from "@supabase/supabase-js";
@@ -71,34 +78,37 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Function to fetch user's subscription tier
-  const fetchSubscriptionTier = useCallback(async (userId?: string) => {
-    const effectiveUserId = userId || user?.id;
-    if (!effectiveUserId) {
-      setTierLoading(false);
-      return;
-    }
-
-    try {
-      setTierLoading(true);
-      const response = await fetchWithToasts("/api/user/subscription-tier");
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setSubscriptionTier(data.data.tier);
-        } else {
-          throw new Error(data.error || "Failed to fetch tier");
-        }
-      } else {
-        throw new Error("Failed to fetch subscription tier");
+  const fetchSubscriptionTier = useCallback(
+    async (userId?: string) => {
+      const effectiveUserId = userId || user?.id;
+      if (!effectiveUserId) {
+        setTierLoading(false);
+        return;
       }
-    } catch {
-      // Default to free on error
-      setSubscriptionTier("free");
-    } finally {
-      setTierLoading(false);
-    }
-  }, [user]);
+
+      try {
+        setTierLoading(true);
+        const response = await fetchWithToasts("/api/user/subscription-tier");
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setSubscriptionTier(data.data.tier);
+          } else {
+            throw new Error(data.error || "Failed to fetch tier");
+          }
+        } else {
+          throw new Error("Failed to fetch subscription tier");
+        }
+      } catch {
+        // Default to free on error
+        setSubscriptionTier("free");
+      } finally {
+        setTierLoading(false);
+      }
+    },
+    [user],
+  );
 
   // Function to fetch user's subscription status (count, limit, tier)
   const fetchSubscriptionStatus = useCallback(async () => {

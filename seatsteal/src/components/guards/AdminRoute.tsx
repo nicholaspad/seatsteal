@@ -17,7 +17,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
 
   // Redirect to login if no user
   if (!user) {
-    return <Redirect to="/login-admin" />;
+    return <Redirect to="/login" />;
   }
 
   // Redirect to home if not admin (UX only, backend enforces real authorization)

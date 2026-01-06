@@ -824,7 +824,13 @@ async def get_scrapers(
             .select_from(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
             .join(College, Scraper.college_id == College.id)
-            .where(and_(ScraperLog.outcome == "error", college_filter, College.is_active == True))
+            .where(
+                and_(
+                    ScraperLog.outcome == "error",
+                    college_filter,
+                    College.is_active == True,
+                )
+            )
             .order_by(desc(ScraperLog.started_at))
             .limit(20)
         )
