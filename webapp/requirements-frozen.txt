@@ -79,7 +79,7 @@ supabase-functions==2.20.0
 tomli==2.2.1
 typing_extensions==4.15.0
 tzdata==2025.2
-urllib3==2.6.0
+urllib3==2.6.3
 uvicorn==0.27.0
 uvloop==0.21.0
 watchfiles==1.1.0
