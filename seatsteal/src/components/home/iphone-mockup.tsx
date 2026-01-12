@@ -6,30 +6,32 @@ export function IPhoneMockup() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (hasTriggered || !containerRef.current) return;
+    if (hasTriggered) return;
 
-    // Use IntersectionObserver to detect when phone becomes more visible
-    // This works with Ionic's IonContent scroll container
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          // Trigger when phone is more than 30% visible
-          if (entry.intersectionRatio > 0.3 && !hasTriggered) {
-            setShowNotification(true);
-            setHasTriggered(true);
-            observer.disconnect();
-          }
-        });
-      },
-      {
-        threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5],
-        rootMargin: "0px",
-      },
-    );
+    // Find the IonContent's shadow DOM scroll container
+    const ionContent = document.querySelector("ion-content");
+    if (!ionContent) return;
 
-    observer.observe(containerRef.current);
+    const handleScroll = () => {
+      if (!hasTriggered) {
+        setShowNotification(true);
+        setHasTriggered(true);
+      }
+    };
 
-    return () => observer.disconnect();
+    // IonContent uses a shadow DOM, need to get the scroll element
+    ionContent.getScrollElement().then((scrollEl) => {
+      scrollEl.addEventListener("scroll", handleScroll, {
+        passive: true,
+        once: true,
+      });
+    });
+
+    return () => {
+      ionContent.getScrollElement().then((scrollEl) => {
+        scrollEl.removeEventListener("scroll", handleScroll);
+      });
+    };
   }, [hasTriggered]);
 
   return (
