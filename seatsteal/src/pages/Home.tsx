@@ -70,8 +70,8 @@ export default function Home() {
           <section className="min-h-screen flex flex-col relative overflow-hidden bg-black">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-black"></div>
 
-            {/* Main content - centered vertically with padding for phone */}
-            <div className="flex-1 flex items-center justify-center pb-48 md:pb-64">
+            {/* Main content - centered vertically */}
+            <div className="flex-1 flex items-center justify-center">
               <div className="container mx-auto px-4 text-center space-y-8 relative z-10">
                 <div className="space-y-4">
                   <h1 className="text-6xl md:text-8xl lg:text-9xl font-bold tracking-tight text-white drop-shadow-lg">
