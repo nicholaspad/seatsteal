@@ -12,8 +12,10 @@ export function IPhoneMockup() {
     const ionContent = document.querySelector("ion-content");
     if (!ionContent) return;
 
-    const handleScroll = () => {
-      if (!hasTriggered) {
+    const handleScroll = (e: Event) => {
+      const scrollEl = e.target as HTMLElement;
+      // Require scrolling down at least 250px before showing notification
+      if (!hasTriggered && scrollEl.scrollTop > 250) {
         setShowNotification(true);
         setHasTriggered(true);
       }
@@ -23,7 +25,6 @@ export function IPhoneMockup() {
     ionContent.getScrollElement().then((scrollEl) => {
       scrollEl.addEventListener("scroll", handleScroll, {
         passive: true,
-        once: true,
       });
     });
 
@@ -37,7 +38,7 @@ export function IPhoneMockup() {
   return (
     <div
       ref={containerRef}
-      className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[78%] w-[320px] md:w-[380px] z-20"
+      className="absolute -bottom-[500px] md:-bottom-[580px] left-1/2 -translate-x-1/2 w-[320px] md:w-[380px] z-20"
     >
       {/* iPhone Frame */}
       <div className="relative">
