@@ -6,25 +6,36 @@ export function IPhoneMockup() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (hasTriggered) return;
+    if (hasTriggered || !containerRef.current) return;
 
-      const scrollY = window.scrollY;
-      // Trigger notification after scrolling 100px
-      if (scrollY > 100) {
-        setShowNotification(true);
-        setHasTriggered(true);
-      }
-    };
+    // Use IntersectionObserver to detect when phone becomes more visible
+    // This works with Ionic's IonContent scroll container
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // Trigger when phone is more than 30% visible
+          if (entry.intersectionRatio > 0.3 && !hasTriggered) {
+            setShowNotification(true);
+            setHasTriggered(true);
+            observer.disconnect();
+          }
+        });
+      },
+      {
+        threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5],
+        rootMargin: "0px",
+      },
+    );
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    observer.observe(containerRef.current);
+
+    return () => observer.disconnect();
   }, [hasTriggered]);
 
   return (
     <div
       ref={containerRef}
-      className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[75%] w-[320px] md:w-[380px] z-20"
+      className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[78%] w-[320px] md:w-[380px] z-20"
     >
       {/* iPhone Frame */}
       <div className="relative">
@@ -34,12 +45,12 @@ export function IPhoneMockup() {
           <div className="bg-black rounded-[2.8rem] overflow-hidden">
             {/* Screen content */}
             <div className="relative aspect-[9/19.5] overflow-hidden">
-              {/* Colorful gradient wallpaper */}
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-fuchsia-500 to-orange-400">
-                {/* Animated gradient orbs for depth */}
-                <div className="absolute top-[10%] left-[20%] w-32 h-32 bg-blue-400/40 rounded-full blur-3xl animate-pulse-slow"></div>
-                <div className="absolute top-[30%] right-[10%] w-40 h-40 bg-pink-400/40 rounded-full blur-3xl animate-pulse-slower"></div>
-                <div className="absolute bottom-[20%] left-[30%] w-36 h-36 bg-yellow-400/30 rounded-full blur-3xl animate-pulse-slow"></div>
+              {/* Dark blue gradient wallpaper */}
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950">
+                {/* Subtle gradient orbs for depth */}
+                <div className="absolute top-[10%] left-[20%] w-32 h-32 bg-blue-800/30 rounded-full blur-3xl animate-pulse-slow"></div>
+                <div className="absolute top-[30%] right-[10%] w-40 h-40 bg-indigo-700/20 rounded-full blur-3xl animate-pulse-slower"></div>
+                <div className="absolute bottom-[20%] left-[30%] w-36 h-36 bg-blue-600/20 rounded-full blur-3xl animate-pulse-slow"></div>
               </div>
 
               {/* Dynamic Island */}
@@ -259,7 +270,7 @@ export function IPhoneMockup() {
         </div>
 
         {/* Subtle reflection/glow effect */}
-        <div className="absolute -inset-4 bg-gradient-to-t from-violet-500/20 via-transparent to-transparent blur-2xl -z-10 opacity-60"></div>
+        <div className="absolute -inset-4 bg-gradient-to-t from-blue-500/20 via-transparent to-transparent blur-2xl -z-10 opacity-60"></div>
       </div>
     </div>
   );
