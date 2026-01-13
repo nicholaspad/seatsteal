@@ -74,7 +74,10 @@ export default function Home() {
             <div className="flex-1 flex items-center justify-center">
               <div className="container mx-auto px-4 text-center space-y-8 relative z-10">
                 <div className="space-y-4">
-                  <h1 className="text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tight text-white drop-shadow-lg">
+                  <h1
+                    className="text-6xl md:text-8xl lg:text-9xl tracking-tight text-white drop-shadow-lg"
+                    style={{ fontWeight: 800 }}
+                  >
                     Course full?
                   </h1>
                   <p className="text-2xl md:text-3xl text-gray-200 drop-shadow-md flex items-center justify-center gap-3">
