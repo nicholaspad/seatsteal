@@ -59,67 +59,6 @@ export function IPhoneMockup() {
               {/* Dynamic Island */}
               <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[100px] h-[32px] bg-black rounded-full z-30"></div>
 
-              {/* Status bar */}
-              <div className="absolute top-3 left-0 right-0 px-8 flex justify-between items-center text-white text-xs font-semibold z-20">
-                <span className="w-12">9:41</span>
-                <div className="flex-1"></div>
-                <div className="flex items-center gap-1 w-12 justify-end">
-                  {/* Signal bars */}
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <rect x="2" y="16" width="3" height="6" rx="1" />
-                    <rect x="7" y="12" width="3" height="10" rx="1" />
-                    <rect x="12" y="8" width="3" height="14" rx="1" />
-                    <rect x="17" y="4" width="3" height="18" rx="1" />
-                  </svg>
-                  {/* WiFi */}
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 18c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0-6c3.31 0 6 2.69 6 6h-2c0-2.21-1.79-4-4-4s-4 1.79-4 4H6c0-3.31 2.69-6 6-6zm0-4c4.42 0 8 3.58 8 8h-2c0-3.31-2.69-6-6-6s-6 2.69-6 6H4c0-4.42 3.58-8 8-8z" />
-                  </svg>
-                  {/* Battery */}
-                  <svg
-                    className="w-6 h-4"
-                    viewBox="0 0 28 14"
-                    fill="currentColor"
-                  >
-                    <rect
-                      x="0"
-                      y="1"
-                      width="24"
-                      height="12"
-                      rx="3"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      fill="none"
-                    />
-                    <rect
-                      x="2"
-                      y="3"
-                      width="18"
-                      height="8"
-                      rx="1.5"
-                      fill="currentColor"
-                    />
-                    <rect
-                      x="25"
-                      y="4"
-                      width="2"
-                      height="6"
-                      rx="1"
-                      fill="currentColor"
-                      opacity="0.5"
-                    />
-                  </svg>
-                </div>
-              </div>
-
               {/* Push Notification */}
               <div
                 className={`absolute top-14 left-3 right-3 z-40 transition-all duration-500 ease-out ${
@@ -130,20 +69,14 @@ export function IPhoneMockup() {
               >
                 <div className="bg-white/90 backdrop-blur-xl rounded-2xl p-3 shadow-lg">
                   <div className="flex items-start gap-3">
-                    {/* App icon */}
-                    <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                    {/* iMessage icon */}
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
                       <svg
                         className="w-6 h-6 text-white"
-                        fill="none"
                         viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.5}
+                        fill="currentColor"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                        />
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -154,7 +87,7 @@ export function IPhoneMockup() {
                         <span className="text-xs text-gray-500">now</span>
                       </div>
                       <p className="text-sm font-medium text-gray-900 mt-0.5">
-                        A seat opened up!
+                        🎉 A seat opened up!
                       </p>
                       <p className="text-sm text-gray-600 leading-snug">
                         CS 103 now has 1 seat available. Enroll now before it
@@ -168,9 +101,9 @@ export function IPhoneMockup() {
               {/* Date and time widget area */}
               <div className="absolute top-24 left-0 right-0 text-center text-white z-10 mt-8">
                 <p className="text-sm font-medium opacity-90">
-                  Monday, January 12
+                  Monday, January 13
                 </p>
-                <p className="text-7xl font-light tracking-tight">9:41</p>
+                <p className="text-7xl font-normal tracking-tight">9:41</p>
               </div>
 
               {/* App icons grid - showing top portion */}
