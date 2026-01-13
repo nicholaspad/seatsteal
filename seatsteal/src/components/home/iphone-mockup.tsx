@@ -98,12 +98,11 @@ export function IPhoneMockup() {
                 </div>
               </div>
 
-              {/* Date and time widget area */}
+              {/* Date widget area */}
               <div className="absolute top-24 left-0 right-0 text-center text-white z-10 mt-8">
                 <p className="text-sm font-medium opacity-90">
                   Monday, January 13
                 </p>
-                <p className="text-7xl font-normal tracking-tight">9:41</p>
               </div>
 
               {/* App icons grid - showing top portion */}
