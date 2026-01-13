@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import Home from "../Home";
 import { renderAnonymous } from "@/test/utils";
 import { mockCollegesResponse } from "@/test/mocks/api";
@@ -48,12 +47,6 @@ describe("Home Page", () => {
       renderAnonymous(<Home />);
 
       expect(screen.getByText("FAQs")).toBeInTheDocument();
-    });
-
-    it("renders view plans link", () => {
-      renderAnonymous(<Home />);
-
-      expect(screen.getByText("View plans")).toBeInTheDocument();
     });
   });
 
@@ -114,32 +107,6 @@ describe("Home Page", () => {
       });
       expect(requestCollegeLink).toHaveAttribute("target", "_blank");
       expect(requestCollegeLink).toHaveAttribute("rel", "noopener noreferrer");
-    });
-  });
-
-  describe("Smooth Scroll", () => {
-    it("View plans button triggers scroll to plans section", async () => {
-      const user = userEvent.setup();
-      const scrollIntoViewMock = vi.fn();
-
-      // Mock getElementById to return an element with scrollIntoView
-      const mockElement = { scrollIntoView: scrollIntoViewMock };
-      vi.spyOn(document, "getElementById").mockReturnValue(
-        mockElement as unknown as HTMLElement,
-      );
-
-      renderAnonymous(<Home />);
-
-      const viewPlansButton = screen.getByRole("button", {
-        name: /View plans/i,
-      });
-      await user.click(viewPlansButton);
-
-      expect(document.getElementById).toHaveBeenCalledWith("plans");
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
-      });
     });
   });
 });

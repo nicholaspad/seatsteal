@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import { FAQSection } from "@/components/home/faq-section";
 import { PricingTiers } from "@/components/home/pricing-tiers";
 import { ReferralAlert } from "@/components/referral/ReferralAlert";
+import { IPhoneMockup } from "@/components/home/iphone-mockup";
 import type { College } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -64,65 +65,61 @@ export default function Home() {
     <IonPage>
       <IonContent>
         <ReferralAlert />
-        <div className="space-y-20 bg-black text-foreground">
+        <div className="bg-black text-foreground">
           {/* Hero Section */}
-          <section className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black">
+          <section className="min-h-screen flex flex-col relative overflow-hidden bg-black">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-black"></div>
-            <div className="container mx-auto px-4 text-center space-y-8 relative z-10">
-              <div className="space-y-4">
-                <h1 className="text-6xl md:text-8xl lg:text-9xl font-bold tracking-tight text-white drop-shadow-lg">
-                  Course full?
-                </h1>
-                <p className="text-2xl md:text-3xl text-gray-200 drop-shadow-md flex items-center justify-center gap-3">
-                  <span className="relative">
-                    <span className="block w-3 h-3 bg-green-500 rounded-full animate-ping"></span>
-                    <span className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-pulse"></span>
-                  </span>
-                  Get notified when a seat opens up.
-                </p>
-              </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-12">
-                <Button
-                  asChild
-                  size="lg"
-                  className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
-                >
-                  <a href="/login">Get started</a>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="text-lg px-6 py-4 border-white bg-black text-white hover:bg-white/10"
-                >
-                  <a
-                    href="https://forms.gle/nh2T76j8Pysp1rax5"
-                    target="_blank"
-                    rel="noopener noreferrer"
+            {/* Main content - centered vertically */}
+            <div className="flex-1 flex items-center justify-center">
+              <div className="container mx-auto px-4 text-center space-y-8 relative z-10">
+                <div className="space-y-4">
+                  <h1
+                    className="text-6xl md:text-8xl lg:text-9xl tracking-tight text-white drop-shadow-lg"
+                    style={{ fontWeight: 800 }}
                   >
-                    Request a college
-                  </a>
-                </Button>
-              </div>
+                    Course full?
+                  </h1>
+                  <p className="text-2xl md:text-3xl text-gray-200 drop-shadow-md flex items-center justify-center gap-3">
+                    <span className="relative w-5 h-5">
+                      {/* Radar sweep animation */}
+                      <span className="absolute inset-0 rounded-full bg-green-500/20"></span>
+                      <span className="absolute inset-0 rounded-full bg-gradient-conic from-transparent via-transparent to-green-400 animate-radar"></span>
+                      <span className="absolute inset-[3px] rounded-full bg-black"></span>
+                      <span className="absolute inset-[5px] rounded-full bg-green-400"></span>
+                    </span>
+                    Get notified when a seat opens up.
+                  </p>
+                </div>
 
-              <div className="flex justify-center mt-4">
-                <button
-                  onClick={() => {
-                    const element = document.getElementById("plans");
-                    if (element) {
-                      element.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      });
-                    }
-                  }}
-                  className="text-gray-300 hover:text-white transition-colors text-base underline"
-                >
-                  View plans
-                </button>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-12">
+                  <Button
+                    asChild
+                    size="lg"
+                    className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
+                  >
+                    <a href="/login">Get started</a>
+                  </Button>
+                  <Button
+                    asChild
+                    size="lg"
+                    variant="outline"
+                    className="text-lg px-6 py-4 border-white bg-black text-white hover:bg-white/10"
+                  >
+                    <a
+                      href="https://forms.gle/nh2T76j8Pysp1rax5"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Request a college
+                    </a>
+                  </Button>
+                </div>
               </div>
             </div>
+
+            {/* iPhone Mockup - positioned at bottom, only top visible */}
+            <IPhoneMockup />
           </section>
 
           {/* Social Proof Stats */}
