@@ -74,6 +74,15 @@
   --sidebar-ring: 0 0% 55.6%;
 }
 
+@keyframes radar-sweep {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes pulse-slow {
   0%,
   100% {
@@ -95,6 +104,19 @@
 }
 
 @layer utilities {
+  .animate-radar {
+    animation: radar-sweep 2s linear infinite;
+  }
+
+  .bg-gradient-conic {
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      transparent 270deg,
+      rgb(74 222 128) 360deg
+    );
+  }
+
   .animate-pulse-slow {
     animation: pulse-slow 8s ease-in-out infinite;
   }
