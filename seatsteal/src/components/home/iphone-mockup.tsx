@@ -87,11 +87,10 @@ export function IPhoneMockup() {
                         <span className="text-xs text-gray-500">now</span>
                       </div>
                       <p className="text-sm font-medium text-gray-900 mt-0.5">
-                        🎉 A seat opened up!
+                        🎉 Seat available in Intro to CS!
                       </p>
                       <p className="text-sm text-gray-600 leading-snug">
-                        CS 103 now has 1 seat available. Enroll now before it
-                        fills up!
+                        Intro to CS (CS 103) 01 at Rutgers is OPEN!
                       </p>
                     </div>
                   </div>
