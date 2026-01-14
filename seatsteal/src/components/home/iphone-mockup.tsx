@@ -90,7 +90,7 @@ export function IPhoneMockup() {
                         🎉 Seat available in Intro to CS!
                       </p>
                       <p className="text-sm text-gray-600 leading-snug">
-                        Intro to CS (CS 103) 01 at Stanford is OPEN!
+                        Intro to CS (CS 103) 01 at Rutgers is OPEN!
                       </p>
                     </div>
                   </div>
