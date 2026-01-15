@@ -136,7 +136,7 @@ export function PricingTiers() {
   return (
     <div className="space-y-4">
       {/* Billing Toggle */}
-      <div className="flex flex-col items-center gap-2 mb-4">
+      <div className="flex flex-col items-center gap-2 mb-8">
         <div className="flex items-center gap-3">
           <span
             className={`text-sm ${billingInterval === "monthly" ? "font-medium" : "text-muted-foreground"}`}
