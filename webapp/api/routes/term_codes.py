@@ -283,6 +283,24 @@ async def fetch_uci_terms() -> Tuple[str, List[dict], Optional[str]]:
         return ("error", [], str(e))
 
 
+async def fetch_uf_terms() -> Tuple[str, List[dict], Optional[str]]:
+    """Fetch term codes from University of Florida."""
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get("https://one.uf.edu/apix/soc/terms")
+            data = response.json()
+
+        terms = []
+        for term in data[:4]:
+            code = str(term.get("term", ""))
+            name = term.get("termName", "")
+            terms.append({"code": code, "description": name})
+
+        return ("success", terms, None) if terms else ("error", [], "No terms found")
+    except Exception as e:
+        return ("error", [], str(e))
+
+
 # College fetch function mapping
 COLLEGE_FETCHERS = {
     "brown": fetch_brown_terms,
@@ -294,6 +312,7 @@ COLLEGE_FETCHERS = {
     "rutgers": fetch_rutgers_terms,
     "upenn": fetch_upenn_terms,
     "uci": fetch_uci_terms,
+    "uf": fetch_uf_terms,
 }
 
 

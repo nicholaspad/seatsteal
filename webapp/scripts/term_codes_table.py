@@ -313,6 +313,28 @@ def fetch_uci_terms() -> List[Tuple[str, str]]:
         return [("ERROR", str(e))]
 
 
+def fetch_uf_terms() -> List[Tuple[str, str]]:
+    """Fetch term codes from University of Florida."""
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "https://one.uf.edu/apix/soc/terms"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        data = json.loads(result.stdout)
+        terms = []
+        for term in data[:4]:
+            code = str(term.get("term", ""))
+            name = term.get("termName", "")
+            terms.append((code, name))
+
+        return terms if terms else [("ERROR", "No terms found")]
+    except Exception as e:
+        return [("ERROR", str(e))]
+
+
 def display_term_codes_table():
     """Fetch and display a formatted table of term codes for all colleges."""
 
@@ -332,6 +354,7 @@ def display_term_codes_table():
         "rutgers": fetch_rutgers_terms,
         "upenn": fetch_upenn_terms,
         "uci": fetch_uci_terms,
+        "uf": fetch_uf_terms,
     }
 
     term_data = {}

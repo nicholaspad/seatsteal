@@ -121,6 +121,35 @@ This document describes the term code formats for each supported college.
 
 ---
 
+## University of Florida
+
+**Format:** 4-digit code (TTTY where TTT=decade, Y=term)
+
+**Term codes:**
+- `1` = Spring
+- `5` = Summer
+- `8` = Fall
+
+**Examples:**
+- `2251` - Spring 2025 (225 + 1)
+- `2258` - Fall 2025 (225 + 8)
+- `2261` - Spring 2026 (226 + 1)
+
+**API Method:** Fetch from public API
+
+```bash
+curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [print(f\"{t['term']} - {t['termName']}\") for t in json.load(sys.stdin)[:4]]"
+```
+
+**Example output:**
+```
+2258 - Fall 2025
+2251 - Spring 2025
+2248 - Summer 2024
+```
+
+---
+
 ## Quick Reference Tool
 
 Run the term codes table script to fetch current term codes for all colleges:
