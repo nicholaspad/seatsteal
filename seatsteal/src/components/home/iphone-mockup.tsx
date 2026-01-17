@@ -38,7 +38,7 @@ export function IPhoneMockup() {
   return (
     <div
       ref={containerRef}
-      className="absolute -bottom-[500px] md:-bottom-[580px] left-1/2 -translate-x-1/2 w-[320px] md:w-[380px] z-20"
+      className="absolute -bottom-[500px] md:-bottom-[580px] left-1/2 -translate-x-1/2 w-[320px] md:w-[380px] z-0"
     >
       {/* iPhone Frame */}
       <div className="relative">
