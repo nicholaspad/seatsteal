@@ -70,56 +70,54 @@ export default function Home() {
           <section className="min-h-screen flex flex-col relative overflow-hidden bg-black">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-black"></div>
 
-            {/* Main content - centered vertically */}
-            <div className="flex-1 flex items-center justify-center">
-              <div className="container mx-auto px-4 text-center space-y-8 relative z-10">
-                <div className="space-y-4">
-                  <h1
-                    className="text-6xl md:text-8xl lg:text-9xl tracking-tight text-white drop-shadow-lg"
-                    style={{ fontWeight: 800 }}
-                  >
-                    Course full?
-                  </h1>
-                  <p className="text-2xl md:text-3xl text-gray-200 drop-shadow-md flex items-center justify-center gap-3">
-                    <span className="relative w-5 h-5">
-                      {/* Radar sweep animation */}
-                      <span className="absolute inset-0 rounded-full bg-green-500/20"></span>
-                      <span className="absolute inset-0 rounded-full bg-gradient-conic from-transparent via-transparent to-green-400 animate-radar"></span>
-                      <span className="absolute inset-[3px] rounded-full bg-black"></span>
-                      <span className="absolute inset-[5px] rounded-full bg-green-400"></span>
-                    </span>
-                    Get notified when a seat opens up.
-                  </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-12">
-                  <Button
-                    asChild
-                    size="lg"
-                    className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
-                  >
-                    <a href="/login">Get started</a>
-                  </Button>
-                  <Button
-                    asChild
-                    size="lg"
-                    variant="outline"
-                    className="text-lg px-6 py-4 border-white bg-black text-white hover:bg-white/10"
-                  >
-                    <a
-                      href="https://forms.gle/nh2T76j8Pysp1rax5"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Request a college
-                    </a>
-                  </Button>
-                </div>
+            {/* Main content - stacked vertically */}
+            <div className="container mx-auto px-4 text-center relative z-10 pt-20 md:pt-32 pb-16">
+              <div className="space-y-4">
+                <h1
+                  className="text-6xl md:text-8xl lg:text-9xl tracking-tight text-white drop-shadow-lg"
+                  style={{ fontWeight: 800 }}
+                >
+                  Course full?
+                </h1>
+                <p className="text-2xl md:text-3xl text-gray-200 drop-shadow-md flex items-center justify-center gap-3">
+                  <span className="relative w-5 h-5">
+                    {/* Radar sweep animation */}
+                    <span className="absolute inset-0 rounded-full bg-green-500/20"></span>
+                    <span className="absolute inset-0 rounded-full bg-gradient-conic from-transparent via-transparent to-green-400 animate-radar"></span>
+                    <span className="absolute inset-[3px] rounded-full bg-black"></span>
+                    <span className="absolute inset-[5px] rounded-full bg-green-400"></span>
+                  </span>
+                  Get notified when a seat opens up.
+                </p>
               </div>
-            </div>
 
-            {/* iPhone Mockup - positioned at bottom, only top visible */}
-            <IPhoneMockup />
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-12 mb-16">
+                <Button
+                  asChild
+                  size="lg"
+                  className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
+                >
+                  <a href="/login">Get started</a>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="text-lg px-6 py-4 border-white bg-black text-white hover:bg-white/10"
+                >
+                  <a
+                    href="https://forms.gle/nh2T76j8Pysp1rax5"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Request a college
+                  </a>
+                </Button>
+              </div>
+
+              {/* iPhone Mockup - positioned below the text */}
+              <IPhoneMockup />
+            </div>
           </section>
 
           {/* Social Proof Stats */}
