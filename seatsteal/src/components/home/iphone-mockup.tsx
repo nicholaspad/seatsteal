@@ -38,16 +38,16 @@ export function IPhoneMockup() {
   return (
     <div
       ref={containerRef}
-      className="absolute -bottom-[500px] md:-bottom-[580px] left-1/2 -translate-x-1/2 w-[320px] md:w-[380px] z-0"
+      className="absolute -bottom-[45vh] md:-bottom-[50vh] left-1/2 -translate-x-1/2 w-[min(320px,28vw)] md:w-[min(380px,30vw)] max-h-[70vh] z-0"
     >
       {/* iPhone Frame */}
-      <div className="relative">
+      <div className="relative h-full">
         {/* Phone body with gradient border for depth */}
-        <div className="relative bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 rounded-[3rem] p-[3px] shadow-2xl shadow-black/50">
+        <div className="relative h-full bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 rounded-[3rem] p-[3px] shadow-2xl shadow-black/50">
           {/* Inner frame */}
-          <div className="bg-black rounded-[2.8rem] overflow-hidden">
+          <div className="bg-black rounded-[2.8rem] overflow-hidden h-full">
             {/* Screen content */}
-            <div className="relative aspect-[9/19.5] overflow-hidden">
+            <div className="relative aspect-[9/19.5] h-full overflow-hidden">
               {/* Dark blue gradient wallpaper */}
               <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950">
                 {/* Subtle gradient orbs for depth */}
