@@ -287,7 +287,14 @@ async def fetch_uf_terms() -> Tuple[str, List[dict], Optional[str]]:
     """Fetch term codes from University of Florida."""
     try:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            response = await client.get("https://one.uf.edu/apix/soc/terms")
+            response = await client.get(
+                "https://one.uf.edu/apix/soc/terms",
+                headers={
+                    "User-Agent": "SeatSteal/1.0",
+                    "Accept": "application/json",
+                },
+            )
+            response.raise_for_status()
             data = response.json()
 
         terms = []
