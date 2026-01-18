@@ -550,10 +550,20 @@ class TestUfScraper:
         scraper = UfScraper(mock_uf_db_session)
         await scraper._ensure_client()
 
-        # Mock two responses with different control numbers
+        # Mock responses for concurrent batch pagination (BATCH_SIZE=5)
+        # First call gets PAGE1, batch calls get PAGE2 and empty responses
         mock_response1 = create_mock_response(SAMPLE_UF_API_RESPONSE_PAGE1)
         mock_response2 = create_mock_response(SAMPLE_UF_API_RESPONSE_PAGE2)
-        scraper.client.get = AsyncMock(side_effect=[mock_response1, mock_response2])
+        mock_response_empty = create_mock_response(SAMPLE_UF_API_RESPONSE_EMPTY)
+        scraper.client.get = AsyncMock(
+            side_effect=[
+                mock_response1,  # Initial call (control=0)
+                mock_response2,  # Batch call 1 (control=12346) - has COP3503
+                mock_response_empty,  # Batch call 2 (control=12347) - empty, signals end
+                mock_response_empty,  # Batch call 3 (control=12348) - empty
+                mock_response_empty,  # Batch call 4 (control=12349) - empty
+            ]
+        )
 
         result = await scraper._fetch_category("CWSP")
 
@@ -562,8 +572,9 @@ class TestUfScraper:
         assert result[0]["code"] == "COP3502"
         assert result[1]["code"] == "COP3503"
 
-        # Should have made two calls (second call stops because control number doesn't change)
-        assert scraper.client.get.call_count == 2
+        # Scraper uses concurrent batch pagination with BATCH_SIZE=5
+        # Makes 1 initial call + up to 4 concurrent calls in batch = 5 total
+        assert scraper.client.get.call_count == 5
 
         # Clean up
         await scraper.client.aclose()
