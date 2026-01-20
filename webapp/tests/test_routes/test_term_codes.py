@@ -15,6 +15,7 @@ from api.routes.term_codes import (
     fetch_umd_terms,
     fetch_rutgers_terms,
     fetch_upenn_terms,
+    fetch_uf_terms,
 )
 
 
@@ -350,6 +351,93 @@ class TestFetchUPennTerms:
             assert any(term["code"] == "202410" for term in terms)
 
 
+class TestFetchUFTerms:
+    """Tests for fetch_uf_terms function."""
+
+    @pytest.mark.unit
+    async def test_fetch_uf_success(self):
+        """Test successful fetching of UF terms."""
+        mock_json = [
+            {"term": "2258", "termName": "Fall 2025"},
+            {"term": "2251", "termName": "Spring 2025"},
+            {"term": "2248", "termName": "Summer 2024"},
+            {"term": "2241", "termName": "Spring 2024"},
+        ]
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_json
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("api.routes.term_codes.httpx.AsyncClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
+                return_value=mock_response
+            )
+
+            status, terms, error = await fetch_uf_terms()
+
+            assert status == "success"
+            assert len(terms) == 4
+            assert error is None
+            assert terms[0]["code"] == "2258"
+            assert terms[0]["description"] == "Fall 2025"
+
+            # Verify headers were set correctly
+            call_args = mock_client.return_value.__aenter__.return_value.get.call_args
+            assert call_args[1]["headers"]["User-Agent"] == "SeatSteal/1.0"
+            assert call_args[1]["headers"]["Accept"] == "application/json"
+
+    @pytest.mark.unit
+    async def test_fetch_uf_empty_response(self):
+        """Test UF terms fetch with empty response."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("api.routes.term_codes.httpx.AsyncClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
+                return_value=mock_response
+            )
+
+            status, terms, error = await fetch_uf_terms()
+
+            assert status == "error"
+            assert terms == []
+            assert error == "No terms found"
+
+    @pytest.mark.unit
+    async def test_fetch_uf_network_error(self):
+        """Test UF terms fetch with network error."""
+        with patch("api.routes.term_codes.httpx.AsyncClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
+                side_effect=Exception("Network error")
+            )
+
+            status, terms, error = await fetch_uf_terms()
+
+            assert status == "error"
+            assert terms == []
+            assert error is not None
+            assert "Network error" in error
+
+    @pytest.mark.unit
+    async def test_fetch_uf_invalid_json(self):
+        """Test UF terms fetch with invalid JSON response."""
+        mock_response = MagicMock()
+        mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("api.routes.term_codes.httpx.AsyncClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
+                return_value=mock_response
+            )
+
+            status, terms, error = await fetch_uf_terms()
+
+            assert status == "error"
+            assert terms == []
+            assert error is not None
+
+
 class TestGetTermCodesEndpoint:
     """Tests for GET /api/admin/term-codes/{short_name} endpoint."""
 
@@ -460,6 +548,8 @@ class TestGetTermCodesEndpoint:
             "umd",
             "rutgers",
             "upenn",
+            "uci",
+            "uf",
         ]
 
         for college in supported_colleges:
