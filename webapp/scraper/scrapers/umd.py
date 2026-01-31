@@ -10,8 +10,7 @@ class UmdScraper(BaseScraper):
     """
     University of Maryland course scraper.
 
-    Scrapes course data from UMD's public API (api.umd.io).
-    Uses optimized batch processing to fetch all 240+ departments efficiently.
+    Scrapes course data from UMD's public umd.io API.
     """
 
     BASE_API_URL = "https://api.umd.io/v1"
@@ -19,7 +18,6 @@ class UmdScraper(BaseScraper):
     def __init__(self, db_session=None):
         super().__init__("umd")
         self.client: Optional[httpx.AsyncClient] = None
-        # Term code format: YYYYTT (e.g., "202601" for Spring 2026)
         self.current_term = get_term_code_from_db(db_session, "umd")
 
     async def _ensure_client(self):
@@ -29,10 +27,8 @@ class UmdScraper(BaseScraper):
                 timeout=30.0,
                 follow_redirects=True,
                 headers={
-                    "User-Agent": "SeatSteal/1.0",
-                    "Accept": "application/json, text/plain, */*",
-                    "Accept-Language": "en-US,en;q=0.5",
-                    "Cache-Control": "no-cache",
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                    "Accept": "application/json",
                 },
             )
 
@@ -57,9 +53,16 @@ class UmdScraper(BaseScraper):
 
         try:
             if department.upper() == "ALL":
-                return await self._fetch_all_courses(limit)
+                # Get all departments first
+                courses_data = await self._fetch_all_courses(limit)
             else:
-                return await self._fetch_department_courses(department, limit)
+                # Get courses for specific department
+                courses_data = await self._fetch_department_courses(
+                    department.upper(), limit
+                )
+
+            logger.info(f"Successfully scraped {len(courses_data)} courses from UMD")
+            return courses_data
 
         except Exception as e:
             logger.error(f"Failed to scrape UMD {department}: {e}")
@@ -73,10 +76,7 @@ class UmdScraper(BaseScraper):
         self, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
-        Fetch all courses from UMD using optimized batch processing.
-
-        Fetches all 240 departments in batches of 50 with 1-second delays.
-        This balances speed with server politeness.
+        Fetch all courses across all departments.
 
         Args:
             limit: Optional limit on number of courses
@@ -85,279 +85,269 @@ class UmdScraper(BaseScraper):
             List of course dictionaries
         """
         try:
-            # Step 1: Get all departments
-            logger.info("Step 1: Fetching all departments...")
-            departments = await self._fetch_departments()
-            logger.info(f"Found {len(departments)} departments to process")
-
-            if len(departments) == 0:
-                logger.warning("No departments found")
-                return []
-
-            # Step 2: Process departments in batches
-            logger.info("Step 2: Fetching sections for all departments...")
-            all_sections = []
-            batch_size = 50  # Process 50 departments at once
-
-            for i in range(0, len(departments), batch_size):
-                batch = departments[i : i + batch_size]
-                batch_num = (i // batch_size) + 1
-                total_batches = (len(departments) + batch_size - 1) // batch_size
-
-                logger.info(
-                    f"Processing department batch {batch_num}/{total_batches} "
-                    f"({len(batch)} departments)"
-                )
-
-                # Create tasks for this batch of departments
-                batch_tasks = [
-                    self._fetch_department_sections(dept["dept_id"]) for dept in batch
-                ]
-
-                # Execute batch concurrently
-                batch_results = await asyncio.gather(
-                    *batch_tasks, return_exceptions=True
-                )
-
-                # Process results and collect sections
-                for j, result in enumerate(batch_results):
-                    dept = batch[j]
-
-                    if isinstance(result, Exception):
-                        logger.warning(
-                            f"Department {dept['dept_id']} failed: {result}"
-                        )
-                    elif result is not None and len(result) > 0:
-                        all_sections.extend(result)
-                        logger.debug(
-                            f"Department {dept['dept_id']}: {len(result)} sections"
-                        )
-
-                # Add delay between batches to be respectful
-                if i + batch_size < len(departments):
-                    await asyncio.sleep(1.0)
-
-            logger.info(
-                f"Extracted {len(all_sections)} sections total from {len(departments)} departments"
-            )
-
-            # Step 3: Group sections by course
-            courses_data = self._group_sections_by_course(all_sections)
-            logger.info(f"Grouped into {len(courses_data)} unique courses")
-
-            # Apply limit if specified
-            if limit:
-                courses_data = courses_data[:limit]
-
-            return courses_data
-
-        except Exception as e:
-            logger.error(f"Error during UMD API course fetch: {e}")
-            raise
-
-    async def _fetch_department_courses(
-        self, department: str, limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Fetch courses for a specific department.
-
-        Args:
-            department: Department code (e.g., 'CMSC', 'MATH')
-            limit: Optional limit on number of courses
-
-        Returns:
-            List of course dictionaries
-        """
-        try:
-            logger.info(f"Fetching sections for department {department}")
-            sections = await self._fetch_department_sections(department)
-
-            if len(sections) == 0:
-                logger.warning(f"No sections found for department {department}")
-                return []
-
-            logger.info(f"Found {len(sections)} sections for department {department}")
-
-            # Group sections by course
-            courses_data = self._group_sections_by_course(sections)
-            logger.info(f"Grouped into {len(courses_data)} unique courses")
-
-            # Apply limit if specified
-            if limit:
-                courses_data = courses_data[:limit]
-
-            return courses_data
-
-        except Exception as e:
-            logger.error(f"Error fetching department {department}: {e}")
-            raise
-
-    async def _fetch_departments(self) -> List[Dict[str, str]]:
-        """
-        Fetch all departments from UMD API.
-
-        Returns:
-            List of department dictionaries with dept_id and department name
-        """
-        try:
-            url = f"{self.BASE_API_URL}/courses/departments"
-            logger.debug(f"Making API request to: {url}")
-
-            response = await self.client.get(url)
-            response.raise_for_status()
-            self.request_count += 1
-
-            departments = self.decode_json_response(response)
-
-            if not departments or not isinstance(departments, list):
-                raise Exception("Invalid response format from UMD departments API")
-
-            logger.info(f"Found {len(departments)} departments")
-            return departments
-
-        except Exception as e:
-            logger.error(f"Error fetching departments: {e}")
-            raise
-
-    async def _fetch_department_sections(
-        self, dept_id: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Fetch all sections for a specific department.
-
-        Args:
-            dept_id: Department ID (e.g., 'CMSC', 'MATH')
-
-        Returns:
-            List of section dictionaries from UMD API
-        """
-        try:
-            url = f"{self.BASE_API_URL}/courses/sections"
-            params = {"semester": self.current_term, "dept_id": dept_id}
-            logger.debug(f"Making API request to: {url} with params {params}")
+            # First get list of all courses
+            logger.info("Fetching list of all courses...")
+            url = f"{self.BASE_API_URL}/courses/list"
+            params = {"semester": self.current_term}
 
             response = await self.client.get(url, params=params)
             response.raise_for_status()
             self.request_count += 1
 
-            sections = self.decode_json_response(response)
+            all_course_ids = self.decode_json_response(response)
+            logger.info(f"Found {len(all_course_ids)} total courses")
 
-            if not isinstance(sections, list):
-                logger.warning(
-                    f"Invalid response format for department {dept_id}: expected list"
-                )
-                return []
+            # Apply limit if specified
+            if limit:
+                all_course_ids = all_course_ids[:limit]
+                logger.info(f"Limited to {len(all_course_ids)} courses")
 
-            return sections
+            # Fetch details for each course in batches
+            courses_data = await self._fetch_courses_batch(all_course_ids)
+
+            return courses_data
 
         except Exception as e:
-            logger.error(f"Error fetching sections for department {dept_id}: {e}")
+            logger.error(f"Error fetching all courses: {e}")
             raise
 
-    def _group_sections_by_course(
-        self, sections: List[Dict[str, Any]]
+    async def _fetch_department_courses(
+        self, dept_id: str, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
-        Group individual sections by course code.
-
-        UMD API returns individual sections, so we need to group them
-        into courses with multiple class sections.
+        Fetch courses for a specific department.
 
         Args:
-            sections: List of section dictionaries from UMD API
+            dept_id: Department ID (e.g., 'CMSC')
+            limit: Optional limit on number of courses
 
         Returns:
-            List of course dictionaries with grouped classes
-        """
-        course_dict: Dict[str, Dict[str, Any]] = {}
-
-        for section in sections:
-            try:
-                # Transform section to class data
-                class_data = self._transform_section(section)
-                if not class_data:
-                    continue
-
-                course_code = class_data["course_code"]
-                title = class_data["title"]
-
-                # Create course entry if it doesn't exist
-                if course_code not in course_dict:
-                    course_dict[course_code] = {
-                        "course_code": course_code,
-                        "title": title,
-                        "classes": [],
-                    }
-
-                # Add class to course
-                course_dict[course_code]["classes"].append(
-                    {
-                        "class_number": class_data["class_number"],
-                        "section": class_data["section"],
-                        "status": class_data["status"],
-                    }
-                )
-
-            except Exception as e:
-                logger.warning(f"Error processing section: {e}")
-                continue
-
-        return list(course_dict.values())
-
-    def _transform_section(
-        self, section: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Transform UMD API section data to standard class dictionary format.
-
-        Args:
-            section: Section data from UMD API
-
-        Returns:
-            Class dictionary or None if invalid data
+            List of course dictionaries
         """
         try:
-            # Validate required fields
-            section_id = section.get("section_id", "")
-            course_code = section.get("course", "")
+            logger.info(f"Fetching courses for department {dept_id}...")
+            url = f"{self.BASE_API_URL}/courses"
+            params = {"semester": self.current_term, "dept_id": dept_id}
 
-            if not section_id or not section_id.strip():
-                logger.warning("Skipping section with empty section_id")
-                return None
+            response = await self.client.get(url, params=params)
+            response.raise_for_status()
+            self.request_count += 1
 
-            if not course_code or not course_code.strip():
-                logger.warning(
-                    f"Skipping section {section_id} with empty course code"
-                )
-                return None
+            courses = self.decode_json_response(response)
 
-            # Calculate enrollment status based on open seats
-            # If open_seats is not provided or invalid, treat as closed for safety
-            try:
-                open_seats = int(section.get("open_seats", 0))
-            except (ValueError, TypeError):
-                logger.warning(
-                    f"Invalid open_seats value for section {section_id}, treating as closed"
-                )
-                open_seats = 0
+            if not courses:
+                logger.warning(f"No courses found for department {dept_id}")
+                return []
 
-            enrollment_status = "open" if open_seats > 0 else "closed"
+            logger.info(f"Found {len(courses)} courses for {dept_id}")
 
-            # Extract section number from section_id (e.g., "CMSC131-0101" -> "0101")
-            section_number = section.get("number", "")
-            if not section_number:
-                # Fallback: extract from section_id
-                parts = section_id.split("-")
-                section_number = parts[1] if len(parts) > 1 else section_id
+            # Apply limit if specified
+            if limit:
+                courses = courses[:limit]
 
-            return {
-                "class_number": section_id,
-                "course_code": course_code,
-                "title": "Untitled Course",  # UMD sections API doesn't include title
-                "section": section_number,
-                "status": enrollment_status,
-            }
+            # Get course IDs and fetch details
+            course_ids = [
+                {"course_id": c["course_id"], "name": c.get("name", "")}
+                for c in courses
+            ]
+            courses_data = await self._fetch_courses_batch(course_ids)
+
+            return courses_data
 
         except Exception as e:
-            logger.warning(f"Error transforming UMD section data: {e}")
+            logger.error(f"Error fetching department {dept_id} courses: {e}")
+            raise
+
+    async def _fetch_courses_batch(
+        self, course_ids: List[Dict[str, str]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch course details and sections with smooth rate limiting.
+        Uses a semaphore to limit concurrency and staggers request start times
+        to spread load evenly and avoid overwhelming the server.
+
+        Args:
+            course_ids: List of course ID dictionaries
+
+        Returns:
+            List of transformed course dictionaries
+        """
+        all_courses = []
+
+        # Rate limiting parameters
+        max_concurrent = 10  # Maximum concurrent requests
+        request_delay = 0.3  # Delay between starting each request (seconds)
+        log_interval = 6  # Log progress every N courses
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+        completed_count = 0
+        total_courses = len(course_ids)
+
+        async def fetch_with_rate_limit(course_info: Dict[str, str], index: int):
+            """Fetch a single course with rate limiting."""
+            nonlocal completed_count
+
+            # Stagger request start times to avoid bursts
+            await asyncio.sleep(index * request_delay)
+
+            async with semaphore:
+                result = await self._fetch_course_with_sections(course_info)
+                completed_count += 1
+
+                # Log progress at intervals
+                if (
+                    completed_count % log_interval == 0
+                    or completed_count == total_courses
+                ):
+                    logger.info(
+                        f"Progress: {completed_count}/{total_courses} courses fetched "
+                        f"({completed_count * 100 // total_courses}%)"
+                    )
+
+                return result
+
+        logger.info(
+            f"Fetching {total_courses} courses with rate limiting "
+            f"(max_concurrent={max_concurrent}, delay={request_delay}s)..."
+        )
+
+        # Create all tasks with staggered delays
+        tasks = [
+            fetch_with_rate_limit(course_info, i)
+            for i, course_info in enumerate(course_ids)
+        ]
+
+        # Execute all tasks
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Collect results
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                course_id = (
+                    course_ids[i].get("course_id", "unknown")
+                    if isinstance(course_ids[i], dict)
+                    else course_ids[i]
+                )
+                logger.warning(f"Course fetch failed for {course_id}: {result}")
+                continue
+            elif result is not None:
+                all_courses.append(result)
+
+        logger.info(f"Successfully fetched {len(all_courses)} courses with sections")
+        return all_courses
+
+    async def _fetch_course_with_sections(
+        self, course_info: Dict[str, str], max_retries: int = 3
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fetch a single course with its sections, with retry logic.
+
+        Args:
+            course_info: Dictionary with course_id and name
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            Transformed course dictionary or None on error
+        """
+        course_id = (
+            course_info["course_id"] if isinstance(course_info, dict) else course_info
+        )
+        course_name = (
+            course_info.get("name", "") if isinstance(course_info, dict) else ""
+        )
+
+        url = f"{self.BASE_API_URL}/courses/sections"
+        params = {"course_id": course_id, "semester": self.current_term}
+        retry_delay = 1.0  # Start with 1 second delay
+
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.get(url, params=params)
+                response.raise_for_status()
+                self.request_count += 1
+
+                sections = self.decode_json_response(response)
+
+                if not sections:
+                    logger.debug(f"No sections found for {course_id}")
+                    return None
+
+                # Transform to standard format
+                course_data = self._transform_course_sections(
+                    course_id, sections, course_name
+                )
+                return course_data
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (500, 502, 503, 504):
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            f"Server error {e.response.status_code} for {course_id} "
+                            f"(attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s..."
+                        )
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        logger.warning(
+                            f"Failed to fetch {course_id} after {max_retries} attempts: {e}"
+                        )
+                else:
+                    logger.warning(f"Error fetching course {course_id}: {e}")
+                return None
+
+            except Exception as e:
+                logger.warning(f"Error fetching course {course_id}: {e}")
+                return None
+
+        return None
+
+    def _transform_course_sections(
+        self, course_id: str, sections: List[Dict[str, Any]], course_title: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Transform UMD API sections to standard course format.
+
+        Args:
+            course_id: Course ID (e.g., 'CMSC131')
+            sections: List of section dictionaries from UMD API
+            course_title: Course title from /courses endpoint
+
+        Returns:
+            Transformed course dictionary
+        """
+        if not sections:
             return None
+
+        course_code = course_id
+
+        classes = []
+        for section in sections:
+            try:
+                # Determine status based on open_seats
+                open_seats = int(section.get("open_seats", 0))
+                if open_seats > 0:
+                    status = "open"
+                else:
+                    status = "closed"
+
+                class_data = {
+                    "class_number": section.get("section_id", ""),
+                    "section": section.get("number", ""),
+                    "status": status,
+                }
+
+                classes.append(class_data)
+
+            except Exception as e:
+                logger.warning(f"Error transforming section: {e}")
+                continue
+
+        if not classes:
+            return None
+
+        return {
+            "course_code": course_code,
+            "title": course_title,
+            "classes": classes,
+        }
