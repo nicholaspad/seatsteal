@@ -33,7 +33,7 @@ SCRAPER_MAP = {
     "upenn": UPennScraper,
     "uci": UciScraper,
     "uf": UfScraper,
-    # "umd": UmdScraper, // Too slow - takes ~30-40 minutes per run
+    "umd": UmdScraper,  # Optimized with batch processing (50 depts at a time)
 }
 
 

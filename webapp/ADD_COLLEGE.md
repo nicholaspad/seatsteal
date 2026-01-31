@@ -2,6 +2,10 @@
 
 This guide documents the complete process for onboarding a new college to the SeatSteal platform.
 
+Prompt: I want to onboard a new college. Please look at ADD_COLLEGE.md for requirements for the college, especially the notes section. Please
+target large colleges with a large userbase opportunity. Please present me with several options. Feel free to send curl requests to test
+APIs.
+
 ---
 
 ## Requirements for New Colleges
@@ -11,6 +15,7 @@ Before adding a college, verify it meets these requirements:
 1. **Publicly accessible API or website** for course catalog data
    - Can be a REST API, GraphQL, or HTML pages to scrape
    - Must not require authentication to access course data
+   - Must be accessible if SeatSteal/1.0 is used as the User-Agent
 
 2. **Enrollment status per class/section**
    - Must indicate whether a class is closed or open, either directly or via seat counts
@@ -25,7 +30,7 @@ Before adding a college, verify it meets these requirements:
 
 
 Notes:
-- Colleges we tried and failed to scrape: UIUC (blocked with 403 errors), UMD (too slow)
+- Colleges we tried and failed to scrape: UIUC (blocked with 403 errors), UMD (too slow), UF (blocked when run on AWS)
 - Feel free to send curl requests to the college's API or website to verify that it meets the requirements.
 - Make sure to target large colleges with a big userbase opportunity.
 - Target American colleges only.
