@@ -74,7 +74,7 @@ class TestSettingsLoading:
     def test_settings_load_from_environment(self, minimal_env):
         """Test loading settings from environment variables"""
         with patch.dict(os.environ, minimal_env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.DATABASE_URL == minimal_env["DATABASE_URL"]
             assert settings.VITE_SUPABASE_URL == minimal_env["VITE_SUPABASE_URL"]
@@ -86,7 +86,7 @@ class TestSettingsLoading:
     def test_settings_defaults(self, minimal_env):
         """Test default values for optional fields"""
         with patch.dict(os.environ, minimal_env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             # Optional fields with defaults
             assert settings.REDIS_URL is None
@@ -110,7 +110,7 @@ class TestSettingsLoading:
         # Missing DATABASE_URL
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValidationError) as exc_info:
-                Settings()
+                Settings(_env_file=None)
 
             errors = exc_info.value.errors()
             error_fields = [e["loc"][0] for e in errors]
@@ -119,7 +119,7 @@ class TestSettingsLoading:
     def test_settings_required_fields_all_present(self, minimal_env):
         """Test successful creation with all required fields"""
         with patch.dict(os.environ, minimal_env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings is not None
             assert settings.DATABASE_URL is not None
@@ -129,7 +129,7 @@ class TestSettingsLoading:
     def test_settings_full_configuration(self, full_env):
         """Test loading complete configuration"""
         with patch.dict(os.environ, full_env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             # Verify all fields loaded
             assert settings.DATABASE_URL == full_env["DATABASE_URL"]
@@ -159,7 +159,7 @@ class TestDatabaseURL:
         for url in test_urls:
             env = {**minimal_env, "DATABASE_URL": url}
             with patch.dict(os.environ, env, clear=True):
-                settings = Settings()
+                settings = Settings(_env_file=None)
                 assert settings.DATABASE_URL == url
 
     def test_async_database_url_conversion(self, minimal_env):
@@ -169,7 +169,7 @@ class TestDatabaseURL:
             "DATABASE_URL": "postgresql://user:pass@localhost:5432/db",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert (
                 settings.async_database_url
@@ -183,7 +183,7 @@ class TestDatabaseURL:
             "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost:5432/db",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert (
                 settings.async_database_url
@@ -197,7 +197,7 @@ class TestDatabaseURL:
             "DATABASE_URL": "postgresql+psycopg2://user:pass@localhost:5432/db",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             # Should return as-is (unknown format)
             assert (
@@ -218,7 +218,7 @@ class TestURLValidation:
         """Test valid HTTPS Supabase URL"""
         env = {**minimal_env, "VITE_SUPABASE_URL": "https://myproject.supabase.co"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.VITE_SUPABASE_URL == "https://myproject.supabase.co"
 
@@ -226,7 +226,7 @@ class TestURLValidation:
         """Test that trailing slashes are removed"""
         env = {**minimal_env, "VITE_SUPABASE_URL": "https://myproject.supabase.co/"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.VITE_SUPABASE_URL == "https://myproject.supabase.co"
 
@@ -235,7 +235,7 @@ class TestURLValidation:
         env = {**minimal_env, "VITE_SUPABASE_URL": "myproject.supabase.co"}
         with patch.dict(os.environ, env, clear=True):
             with pytest.raises(ValidationError) as exc_info:
-                Settings()
+                Settings(_env_file=None)
 
             errors = exc_info.value.errors()
             assert any("http://" in str(e) for e in errors)
@@ -244,7 +244,7 @@ class TestURLValidation:
         """Test valid API base URL"""
         env = {**minimal_env, "VITE_API_BASE_URL": "https://api.example.com"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.VITE_API_BASE_URL == "https://api.example.com"
 
@@ -252,7 +252,7 @@ class TestURLValidation:
         """Test valid frontend URL"""
         env = {**minimal_env, "FRONTEND_URL": "https://example.com"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.FRONTEND_URL == "https://example.com"
 
@@ -265,7 +265,7 @@ class TestURLValidation:
             "FRONTEND_URL": "http://localhost:3000",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.VITE_SUPABASE_URL == "http://localhost:54321"
             assert settings.VITE_API_BASE_URL == "http://localhost:5000"
@@ -284,7 +284,7 @@ class TestEmailValidation:
         """Test valid email address"""
         env = {**minimal_env, "AWS_SES_FROM_EMAIL": "notifications@seatsteal.app"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.AWS_SES_FROM_EMAIL == "notifications@seatsteal.app"
 
@@ -292,7 +292,7 @@ class TestEmailValidation:
         """Test email is converted to lowercase"""
         env = {**minimal_env, "AWS_SES_FROM_EMAIL": "Notifications@SeatSteal.App"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.AWS_SES_FROM_EMAIL == "notifications@seatsteal.app"
 
@@ -301,7 +301,7 @@ class TestEmailValidation:
         env = {**minimal_env, "AWS_SES_FROM_EMAIL": "notificationsseatsteal.app"}
         with patch.dict(os.environ, env, clear=True):
             with pytest.raises(ValidationError) as exc_info:
-                Settings()
+                Settings(_env_file=None)
 
             errors = exc_info.value.errors()
             assert any("email" in str(e).lower() for e in errors)
@@ -311,7 +311,7 @@ class TestEmailValidation:
         env = {**minimal_env, "AWS_SES_FROM_EMAIL": "notifications@seatsteal"}
         with patch.dict(os.environ, env, clear=True):
             with pytest.raises(ValidationError) as exc_info:
-                Settings()
+                Settings(_env_file=None)
 
             errors = exc_info.value.errors()
             assert any("email" in str(e).lower() for e in errors)
@@ -329,7 +329,7 @@ class TestEnvironmentMode:
         """Test development environment mode"""
         env = {**minimal_env, "PYTHON_ENV": "development"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.PYTHON_ENV == "development"
             assert settings.is_development is True
@@ -340,7 +340,7 @@ class TestEnvironmentMode:
         """Test production environment mode"""
         env = {**minimal_env, "PYTHON_ENV": "production"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.PYTHON_ENV == "production"
             assert settings.is_production is True
@@ -351,7 +351,7 @@ class TestEnvironmentMode:
         """Test test environment mode"""
         env = {**minimal_env, "PYTHON_ENV": "test"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.PYTHON_ENV == "test"
             assert settings.is_test is True
@@ -361,7 +361,7 @@ class TestEnvironmentMode:
     def test_environment_default_development(self, minimal_env):
         """Test default environment is development"""
         with patch.dict(os.environ, minimal_env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.PYTHON_ENV == "development"
             assert settings.is_development is True
@@ -371,7 +371,7 @@ class TestEnvironmentMode:
         env = {**minimal_env, "PYTHON_ENV": "staging"}
         with patch.dict(os.environ, env, clear=True):
             with pytest.raises(ValidationError) as exc_info:
-                Settings()
+                Settings(_env_file=None)
 
             errors = exc_info.value.errors()
             assert any("PYTHON_ENV" in str(e) for e in errors)
@@ -394,7 +394,7 @@ class TestServiceEnablement:
             "TWILIO_FROM_NUMBER": "+15551234567",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.twilio_enabled is True
 
@@ -406,7 +406,7 @@ class TestServiceEnablement:
             "TWILIO_FROM_NUMBER": "+15551234567",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.twilio_enabled is False
 
@@ -418,14 +418,14 @@ class TestServiceEnablement:
             "TWILIO_FROM_NUMBER": "+15551234567",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.twilio_enabled is False
 
     def test_twilio_disabled_by_default(self, minimal_env):
         """Test Twilio disabled with default empty credentials"""
         with patch.dict(os.environ, minimal_env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.twilio_enabled is False
 
@@ -438,7 +438,7 @@ class TestServiceEnablement:
             "AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.aws_ses_enabled is True
 
@@ -450,14 +450,14 @@ class TestServiceEnablement:
             "AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.aws_ses_enabled is False
 
     def test_aws_ses_disabled_by_default(self, minimal_env):
         """Test AWS SES disabled with default empty credentials"""
         with patch.dict(os.environ, minimal_env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.aws_ses_enabled is False
 
@@ -474,7 +474,7 @@ class TestEffectiveFrontendURL:
         """Test returns configured URL in production"""
         env = {**minimal_env, "FRONTEND_URL": "https://seatsteal.app"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.effective_frontend_url == "https://seatsteal.app"
 
@@ -487,7 +487,7 @@ class TestEffectiveFrontendURL:
             "VERCEL_GIT_COMMIT_REF": "feature/new-ui",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             expected = (
                 "https://seatsteal-frontend-git-feature-new-ui-seatsteal.vercel.app"
@@ -503,7 +503,7 @@ class TestEffectiveFrontendURL:
             "VERCEL_GIT_COMMIT_REF": "Feature/New_UI-2024",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             # Should sanitize to lowercase with only alphanumeric and hyphens
             expected = "https://seatsteal-frontend-git-feature-new-ui-2024-seatsteal.vercel.app"
@@ -518,7 +518,7 @@ class TestEffectiveFrontendURL:
             "VERCEL_GIT_COMMIT_REF": "main",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             # Should use configured URL, not construct preview URL
             assert settings.effective_frontend_url == "https://seatsteal.app"
@@ -527,7 +527,7 @@ class TestEffectiveFrontendURL:
         """Test returns configured URL when not in Vercel"""
         env = {**minimal_env, "FRONTEND_URL": "https://seatsteal.app"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.effective_frontend_url == "https://seatsteal.app"
 
@@ -544,7 +544,7 @@ class TestStripeConfiguration:
         """Test Stripe secret key is loaded"""
         env = {**minimal_env, "STRIPE_SECRET_KEY": "sk_test_123456789"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.STRIPE_SECRET_KEY == "sk_test_123456789"
 
@@ -552,7 +552,7 @@ class TestStripeConfiguration:
         """Test Stripe webhook secret is loaded"""
         env = {**minimal_env, "STRIPE_WEBHOOK_SECRET": "whsec_test_123456789"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.STRIPE_WEBHOOK_SECRET == "whsec_test_123456789"
 
@@ -566,7 +566,7 @@ class TestStripeConfiguration:
             "STRIPE_PRO_ANNUAL_PRICE_ID": "price_pro_annual",
         }
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.STRIPE_PLUS_PRICE_ID == "price_plus_monthly"
             assert settings.STRIPE_PRO_PRICE_ID == "price_pro_monthly"
@@ -577,7 +577,7 @@ class TestStripeConfiguration:
         """Test Stripe fields are optional (empty defaults)"""
         env = {**minimal_env, "PYTHON_ENV": "test"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.STRIPE_SECRET_KEY == ""
             assert settings.STRIPE_WEBHOOK_SECRET == ""
@@ -595,14 +595,14 @@ class TestRedisConfiguration:
         """Test valid Redis URL"""
         env = {**minimal_env, "REDIS_URL": "redis://localhost:6379"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.REDIS_URL == "redis://localhost:6379"
 
     def test_redis_url_none_by_default(self, minimal_env):
         """Test Redis URL is None by default"""
         with patch.dict(os.environ, minimal_env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.REDIS_URL is None
 
@@ -610,7 +610,7 @@ class TestRedisConfiguration:
         """Test Redis URL with authentication"""
         env = {**minimal_env, "REDIS_URL": "redis://:password@localhost:6379"}
         with patch.dict(os.environ, env, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.REDIS_URL == "redis://:password@localhost:6379"
 

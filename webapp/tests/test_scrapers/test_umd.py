@@ -17,35 +17,36 @@ from tests.test_scrapers.conftest import create_mock_response
 
 
 # Sample UMD API response data
-SAMPLE_UMD_COURSES_LIST = ["CMSC131", "CMSC132", "MATH140", "ENGL101"]
+SAMPLE_UMD_DEPARTMENTS = [
+    {"dept_id": "CMSC", "department": "Computer Science"},
+    {"dept_id": "MATH", "department": "Mathematics"},
+    {"dept_id": "ENGL", "department": "English"},
+    {"dept_id": "PHYS", "department": "Physics"},
+]
 
-SAMPLE_UMD_COURSE_DETAILS = {
-    "course_id": "CMSC131",
-    "name": "Object-Oriented Programming I",
-    "dept_id": "CMSC",
-    "department": "Computer Science",
-    "semester": "202408",
-    "credits": "4",
-    "description": "Introduction to programming and computer science.",
-    "sections": [
-        {
-            "section_id": "CMSC131-0101",
-            "number": "0101",
-            "seats": "30",
-            "open_seats": "5",
-            "waitlist": "0",
-            "instructors": ["John Doe"],
-        },
-        {
-            "section_id": "CMSC131-0102",
-            "number": "0102",
-            "seats": "30",
-            "open_seats": "0",
-            "waitlist": "5",
-            "instructors": ["Jane Smith"],
-        },
-    ],
-}
+# UMD API returns flat list of sections (not nested in courses)
+SAMPLE_UMD_SECTIONS = [
+    {
+        "section_id": "CMSC131-0101",
+        "course": "CMSC131",
+        "number": "0101",
+        "seats": "30",
+        "open_seats": "5",
+        "waitlist": "0",
+        "instructors": ["John Doe"],
+        "semester": "202408",
+    },
+    {
+        "section_id": "CMSC131-0102",
+        "course": "CMSC131",
+        "number": "0102",
+        "seats": "30",
+        "open_seats": "0",
+        "waitlist": "5",
+        "instructors": ["Jane Smith"],
+        "semester": "202408",
+    },
+]
 
 SAMPLE_UMD_DEPARTMENT_COURSES = [
     {
@@ -119,7 +120,7 @@ class TestUmdScraper:
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
         # Mock API responses
-        mock_response = create_mock_response([SAMPLE_UMD_COURSE_DETAILS])
+        mock_response = create_mock_response(SAMPLE_UMD_SECTIONS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -140,10 +141,10 @@ class TestUmdScraper:
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
         # Mock courses list API response
-        mock_list_response = create_mock_response(SAMPLE_UMD_COURSES_LIST)
+        mock_list_response = create_mock_response(SAMPLE_UMD_DEPARTMENTS)
 
         # Mock course details API response
-        mock_details_response = create_mock_response(SAMPLE_UMD_COURSE_DETAILS)
+        mock_details_response = create_mock_response(SAMPLE_UMD_SECTIONS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -168,9 +169,9 @@ class TestUmdScraper:
         """Test that limit parameter restricts number of courses."""
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
-        mock_list_response = create_mock_response(SAMPLE_UMD_COURSES_LIST)
+        mock_list_response = create_mock_response(SAMPLE_UMD_DEPARTMENTS)
 
-        mock_details_response = create_mock_response(SAMPLE_UMD_COURSE_DETAILS)
+        mock_details_response = create_mock_response(SAMPLE_UMD_SECTIONS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -248,9 +249,9 @@ class TestUmdScraper:
         """Test fetching all courses."""
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
-        mock_list_response = create_mock_response(SAMPLE_UMD_COURSES_LIST)
+        mock_list_response = create_mock_response(SAMPLE_UMD_DEPARTMENTS)
 
-        mock_details_response = create_mock_response(SAMPLE_UMD_COURSE_DETAILS)
+        mock_details_response = create_mock_response(SAMPLE_UMD_SECTIONS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -265,9 +266,9 @@ class TestUmdScraper:
 
             courses = await scraper._fetch_all_courses(limit=2)
 
-            # Should have called the list API first
+            # Should have called the departments API first
             first_call = mock_client.get.call_args_list[0]
-            assert "courses/list" in first_call[0][0]
+            assert "courses/departments" in first_call[0][0]
 
     @pytest.mark.unit
     async def test_client_cleanup_on_error(self, mock_umd_db_session):
@@ -294,9 +295,9 @@ class TestUmdScraper:
         scraper = UmdScraper(db_session=mock_umd_db_session)
         initial_count = scraper.request_count
 
-        mock_list_response = create_mock_response(["CMSC131"])
+        mock_list_response = create_mock_response([SAMPLE_UMD_DEPARTMENTS[0]])
 
-        mock_details_response = create_mock_response(SAMPLE_UMD_COURSE_DETAILS)
+        mock_details_response = create_mock_response(SAMPLE_UMD_SECTIONS)
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -312,14 +313,17 @@ class TestUmdScraper:
 
     @pytest.mark.unit
     async def test_empty_course_list(self, mock_umd_db_session):
-        """Test handling of empty course list."""
+        """Test handling of empty department sections."""
         scraper = UmdScraper(db_session=mock_umd_db_session)
 
-        mock_response = create_mock_response([])
+        # Mock departments API
+        mock_dept_response = create_mock_response([SAMPLE_UMD_DEPARTMENTS[0]])
+        # Mock empty sections API
+        mock_sections_response = create_mock_response([])
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
-            mock_client.get.return_value = mock_response
+            mock_client.get.side_effect = [mock_dept_response, mock_sections_response]
             mock_client_class.return_value = mock_client
 
             scraper.client = mock_client
