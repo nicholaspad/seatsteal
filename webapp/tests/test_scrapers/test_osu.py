@@ -19,7 +19,8 @@ SAMPLE_OSU_API_RESPONSE = {
         "courses": [
             {
                 "course": {
-                    "code": "CSE 2221",
+                    "subject": "CSE",
+                    "catalogNumber": "2221",
                     "title": "Software I: Software Components",
                 },
                 "sections": [
@@ -35,7 +36,8 @@ SAMPLE_OSU_API_RESPONSE = {
             },
             {
                 "course": {
-                    "code": "CSE 2231",
+                    "subject": "CSE",
+                    "catalogNumber": "2231",
                     "title": "Software II: Software Development and Design",
                 },
                 "sections": [

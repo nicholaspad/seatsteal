@@ -255,11 +255,16 @@ class OsuScraper(BaseScraper):
         try:
             course_info = raw_course.get("course", {})
             
-            # Get course code (e.g., "ECE 2360")
-            course_code = course_info.get("code", "").strip()
-            if not course_code:
-                logger.warning("Skipping course with missing code")
+            # Get course code (e.g., "ACCTMIS 3400")
+            # OSU API provides subject and catalogNumber separately
+            subject = course_info.get("subject", "").strip()
+            catalog_number = course_info.get("catalogNumber", "").strip()
+            
+            if not subject or not catalog_number:
+                logger.warning(f"Skipping course with missing subject or catalog number: {course_info}")
                 return None
+                
+            course_code = f"{subject} {catalog_number}"
 
             # Get title
             title = course_info.get("title", "").strip()
