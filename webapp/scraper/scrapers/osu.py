@@ -294,11 +294,20 @@ class OsuScraper(BaseScraper):
                 # Choose the longest/most descriptive title
                 best_title = max(titles, key=len) if titles else ""
 
+                # Deduplicate classes by class_number (keep first occurrence)
+                seen_class_numbers = set()
+                unique_classes = []
+                for cls in all_classes:
+                    class_number = cls.get("class_number")
+                    if class_number not in seen_class_numbers:
+                        seen_class_numbers.add(class_number)
+                        unique_classes.append(cls)
+
                 # Create merged course
                 merged_course = {
                     "course_code": course_code,
                     "title": best_title,
-                    "classes": all_classes,
+                    "classes": unique_classes,
                 }
                 deduplicated.append(merged_course)
 
