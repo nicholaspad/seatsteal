@@ -97,7 +97,6 @@ class OsuScraper(BaseScraper):
         while True:
             params = {
                 "q": "",  # Empty query returns all courses
-                "campus": "col",  # Columbus campus
                 "term": self.current_term,
                 "p": str(page),
             }
@@ -152,7 +151,6 @@ class OsuScraper(BaseScraper):
         while True:
             params = {
                 "q": department,
-                "campus": "col",
                 "term": self.current_term,
                 "p": str(page),
             }
