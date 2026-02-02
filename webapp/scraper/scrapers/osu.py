@@ -106,7 +106,7 @@ class OsuScraper(BaseScraper):
         all_courses = []
         page = 1
         empty_pages = 0
-        max_pages = 100  # Safety limit (testing showed ~50 pages needed)
+        max_pages = 50  # API hard limit (returns 503 on page 51)
         
         while page <= max_pages:
             params = {
