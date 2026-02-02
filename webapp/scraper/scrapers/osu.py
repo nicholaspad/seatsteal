@@ -81,8 +81,97 @@ class OsuScraper(BaseScraper):
 
     async def _fetch_all_courses(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Fetch all courses from OSU API (paginated).
+        Fetch all courses from OSU API by iterating through each subject.
+        
+        OSU's API returns more complete results when querying by subject rather 
+        than a single broad query. This method:
+        1. Fetches the list of available subjects
+        2. Queries each subject separately with pagination
+        3. Combines all results
 
+        Args:
+            limit: Optional limit on number of courses
+
+        Returns:
+            List of raw course data
+        """
+        logger.info(f"Fetching all OSU courses by subject (limit: {limit})")
+        
+        # Step 1: Get the list of subjects from the API filters
+        logger.info("Step 1: Fetching subject list from API")
+        params = {"q": "", "term": self.current_term, "p": "1"}
+        response_data = await self._make_api_request(params)
+        
+        filters = response_data.get("data", {}).get("filters", [])
+        subject_filter = next((f for f in filters if f.get("slug") == "subject"), None)
+        
+        if not subject_filter:
+            logger.warning("No subject filter found in API response, falling back to simple query")
+            return await self._fetch_all_courses_simple(limit)
+        
+        subjects = subject_filter.get("items", [])
+        logger.info(f"Found {len(subjects)} subjects to query")
+        
+        # Step 2: Fetch courses for each subject
+        all_courses = []
+        
+        for subj in subjects:
+            subj_code = subj.get("term", "")
+            subj_title = subj.get("title", "")
+            expected_count = subj.get("count", 0)
+            
+            if not subj_code:
+                continue
+            
+            logger.info(f"Fetching courses for subject: {subj_code} ({subj_title}) - expects {expected_count} courses")
+            
+            # Fetch all pages for this subject
+            page = 1
+            subj_courses = []
+            
+            while True:
+                params = {
+                    "q": "",
+                    "subject": subj_code,
+                    "term": self.current_term,
+                    "p": str(page),
+                }
+                
+                response_data = await self._make_api_request(params)
+                courses = response_data.get("data", {}).get("courses", [])
+                
+                if not courses:
+                    break
+                
+                subj_courses.extend(courses)
+                
+                # OSU returns varying page sizes, stop when we get an incomplete page
+                if len(courses) < 30:  # Empirically, full pages are usually 30+
+                    break
+                
+                page += 1
+                
+                # Safety limit
+                if page > 20:
+                    logger.warning(f"Hit page limit for subject {subj_code}")
+                    break
+            
+            logger.info(f"Subject {subj_code}: fetched {len(subj_courses)} courses across {page} page(s)")
+            all_courses.extend(subj_courses)
+            
+            # Check if we've hit the overall limit
+            if limit and len(all_courses) >= limit:
+                logger.info(f"Reached overall course limit of {limit}")
+                all_courses = all_courses[:limit]
+                break
+        
+        logger.info(f"Fetched total of {len(all_courses)} courses from {len(subjects)} subjects")
+        return all_courses
+    
+    async def _fetch_all_courses_simple(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Fallback method: Fetch courses with simple pagination (no subject filtering).
+        
         Args:
             limit: Optional limit on number of courses
 
@@ -92,42 +181,33 @@ class OsuScraper(BaseScraper):
         all_courses = []
         page = 1
         
-        logger.info(f"Fetching all OSU courses (limit: {limit})")
+        logger.info("Using simple pagination fallback")
 
         while True:
             params = {
-                "q": "",  # Empty query returns all courses
+                "q": "",
                 "term": self.current_term,
                 "p": str(page),
             }
 
-            logger.info(f"Fetching OSU page {page}")
             response_data = await self._make_api_request(params)
-            
             courses = response_data.get("data", {}).get("courses", [])
             
             if not courses:
-                logger.info(f"No more courses found at page {page}")
                 break
             
             all_courses.extend(courses)
-            logger.info(f"Fetched {len(courses)} courses from page {page} (total: {len(all_courses)})")
             
-            # Check if we've hit the limit
             if limit and len(all_courses) >= limit:
-                logger.info(f"Reached course limit of {limit}")
                 all_courses = all_courses[:limit]
                 break
             
-            # Check if there are more pages
-            # OSU API returns ~200 courses per page
-            if len(courses) < 200:
-                logger.info(f"Last page reached (only {len(courses)} courses)")
+            if len(courses) < 100:
                 break
             
             page += 1
 
-        logger.info(f"Fetched total of {len(all_courses)} courses from OSU")
+        logger.info(f"Simple fetch: {len(all_courses)} courses")
         return all_courses
 
     async def _fetch_department_courses(
