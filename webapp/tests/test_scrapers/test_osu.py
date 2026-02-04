@@ -147,3 +147,51 @@ def test_transform_section_closed(scraper):
 
     assert class_data is not None
     assert class_data["status"] == "Closed"
+
+
+@pytest.mark.asyncio
+async def test_dual_query_strategy(scraper):
+    """Test that dual-query strategy calls both GRAD and UGRD."""
+    with patch.object(
+        scraper, "_fetch_by_career", new_callable=AsyncMock
+    ) as mock_fetch_career:
+        # Mock both GRAD and UGRD responses
+        grad_courses = [SAMPLE_OSU_API_RESPONSE["data"]["courses"][0]]
+        ugrd_courses = [SAMPLE_OSU_API_RESPONSE["data"]["courses"][1]]
+        
+        # Return different courses for each career
+        mock_fetch_career.side_effect = [grad_courses, ugrd_courses]
+
+        # Call _fetch_all_courses which should query both careers
+        result = await scraper._fetch_all_courses()
+
+        # Verify both GRAD and UGRD were queried
+        assert mock_fetch_career.call_count == 2
+        assert mock_fetch_career.call_args_list[0][0][0] == "GRAD"
+        assert mock_fetch_career.call_args_list[1][0][0] == "UGRD"
+        
+        # Verify results combined both
+        assert len(result) == 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_by_career(scraper):
+    """Test fetching courses for a specific academic career."""
+    with patch.object(
+        scraper, "_make_api_request", new_callable=AsyncMock
+    ) as mock_request:
+        # Mock API response for GRAD career
+        mock_request.return_value = SAMPLE_OSU_API_RESPONSE
+
+        # Fetch GRAD courses
+        result = await scraper._fetch_by_career("GRAD", max_pages=1)
+
+        # Verify request was made with correct parameters
+        mock_request.assert_called_once()
+        call_params = mock_request.call_args[0][0]
+        assert call_params["academic_career"] == "GRAD"
+        assert call_params["q"] == ""
+        assert call_params["p"] == "1"
+        
+        # Verify result
+        assert len(result) == 2
