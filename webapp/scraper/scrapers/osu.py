@@ -9,11 +9,13 @@ class OsuScraper(BaseScraper):
     """
     Ohio State University course scraper.
 
-    Scrapes course data from the OSU Content API using deep pagination.
-    Strategy: Empty query + paginate through ~50 pages to maximize coverage.
+    Scrapes course data from the OSU Content API using dual-query strategy.
+    Strategy: Query GRAD and UGRD separately (50 pages each), then combine.
     
-    Yields ~1,751 unique courses (22.4% of OSU's ~7,801 course catalog).
-    This is 80% better than subject-based querying (~973 courses).
+    Yields ~3,598 unique courses (46% of OSU's ~7,801 course catalog).
+    - GRAD: ~1,806 courses
+    - UGRD: ~1,792 courses
+    - Combined: ~3,598 unique (106% improvement over single query)
 
     Term codes: YYSN format (e.g., "1262" = Spring 2026)
     - YY: year minus 2000 (26 = 2026)
@@ -84,75 +86,97 @@ class OsuScraper(BaseScraper):
 
     async def _fetch_all_courses(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Fetch all courses from OSU API using deep pagination with empty query.
+        Fetch all courses from OSU API using dual-query strategy.
         
-        Testing showed that empty query + deep pagination returns significantly
-        more courses than subject-based queries:
-        - Empty query pagination: ~1,751 unique courses
-        - Subject-based queries: ~973 unique courses
-        - Improvement: +80%
+        Research (2026-02-03) found that querying GRAD and UGRD separately yields
+        significantly more courses than a single empty query:
+        - Empty query: ~1,740 unique courses
+        - GRAD only: ~1,806 unique courses
+        - UGRD only: ~1,792 unique courses
+        - GRAD + UGRD combined: ~3,598 unique courses (+106.8% improvement!)
         
-        This approach queries with an empty search string and paginates deeply
-        to collect as many courses as the API will return.
+        This approach queries academic_career=GRAD and academic_career=UGRD
+        separately (50 pages each), then combines and deduplicates the results.
 
         Args:
             limit: Optional limit on number of courses
 
         Returns:
-            List of raw course data
+            List of raw course data (combined from both queries)
         """
-        logger.info(f"Fetching all OSU courses via pagination (limit: {limit})")
+        logger.info(f"Fetching all OSU courses via dual-query (GRAD + UGRD) (limit: {limit})")
         
-        all_courses = []
+        # Query 1: Graduate courses
+        logger.info("Querying GRAD courses...")
+        grad_courses = await self._fetch_by_career("GRAD", max_pages=50)
+        logger.info(f"GRAD query complete: {len(grad_courses)} raw courses")
+        
+        # Query 2: Undergraduate courses
+        logger.info("Querying UGRD courses...")
+        ugrd_courses = await self._fetch_by_career("UGRD", max_pages=50)
+        logger.info(f"UGRD query complete: {len(ugrd_courses)} raw courses")
+        
+        # Combine both result sets
+        all_courses = grad_courses + ugrd_courses
+        logger.info(f"Combined: {len(all_courses)} raw courses (GRAD + UGRD)")
+        
+        # Apply limit if specified
+        if limit and len(all_courses) > limit:
+            logger.info(f"Applying limit: {limit}")
+            all_courses = all_courses[:limit]
+        
+        return all_courses
+    
+    async def _fetch_by_career(self, career: str, max_pages: int = 50) -> List[Dict[str, Any]]:
+        """
+        Fetch courses for a specific academic career (GRAD or UGRD).
+        
+        Args:
+            career: Academic career code ("GRAD" or "UGRD")
+            max_pages: Maximum pages to fetch (default 50, API limit)
+        
+        Returns:
+            List of raw course data for this career
+        """
+        courses = []
         page = 1
         empty_pages = 0
-        max_pages = 50  # API hard limit (returns 503 on page 51)
         
         while page <= max_pages:
             params = {
                 "q": "",
                 "term": self.current_term,
+                "academic_career": career,
                 "p": str(page),
             }
             
             response_data = await self._make_api_request(params)
-            courses = response_data.get("data", {}).get("courses", [])
+            page_courses = response_data.get("data", {}).get("courses", [])
             
-            if not courses:
+            if not page_courses:
                 empty_pages += 1
-                # Stop after 3 consecutive empty pages (API sometimes skips pages)
                 if empty_pages >= 3:
-                    logger.info(f"Stopping after {empty_pages} consecutive empty pages")
+                    logger.info(f"{career}: Stopping after {empty_pages} consecutive empty pages")
                     break
                 page += 1
                 continue
             
-            # Reset empty page counter when we get results
             empty_pages = 0
-            
-            all_courses.extend(courses)
+            courses.extend(page_courses)
             
             # Log progress every 10 pages
             if page % 10 == 0:
-                logger.info(f"Page {page}: {len(courses)} courses (total: {len(all_courses)} raw)")
+                logger.info(f"{career} page {page}: {len(page_courses)} courses (total: {len(courses)} raw)")
             
-            # Check if we've hit the limit
-            if limit and len(all_courses) >= limit:
-                logger.info(f"Reached course limit of {limit}")
-                all_courses = all_courses[:limit]
-                break
-            
-            # Stop if we get a very small page (likely the last page)
-            if len(courses) < 20:
-                logger.info(f"Page {page}: Small page ({len(courses)} courses), likely end of results")
+            # Stop if small page (likely end of results)
+            if len(page_courses) < 20:
+                logger.info(f"{career} page {page}: Small page ({len(page_courses)} courses), likely end")
                 break
             
             page += 1
         
-        logger.info(
-            f"Pagination complete: fetched {len(all_courses)} raw courses across {page} pages"
-        )
-        return all_courses
+        logger.info(f"{career}: fetched {len(courses)} raw courses across {page - 1} pages")
+        return courses
     
     async def _fetch_department_courses(
         self, department: str, limit: Optional[int] = None
