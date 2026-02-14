@@ -20,7 +20,6 @@ from scraper.scrapers.umd import UmdScraper
 from scraper.scrapers.rutgers import RutgersScraper
 from scraper.scrapers.uci import UciScraper
 from scraper.scrapers.uf import UfScraper
-from scraper.scrapers.osu import OsuScraper
 
 
 # Map college short names to scraper classes
@@ -35,7 +34,6 @@ SCRAPER_MAP = {
     "uci": UciScraper,
     "uf": UfScraper,
     "umd": UmdScraper,  # Optimized with batch processing (50 depts at a time)
-    "osu": OsuScraper,
 }
 
 
@@ -203,31 +201,12 @@ class ScraperService:
                         }
                     )
 
-            # Step 4: Deduplicate class_list before upserting
-            # PostgreSQL's multi-row INSERT with ON CONFLICT will fail if there are
-            # duplicates within the batch itself (even with ON CONFLICT clause)
-            original_count = len(class_list)
-            seen_keys = set()
-            deduplicated_class_list = []
-            
-            for class_item in class_list:
-                key = (class_item["course_id"], class_item["class_number"])
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    deduplicated_class_list.append(class_item)
-            
-            if original_count != len(deduplicated_class_list):
-                logger.info(
-                    f"Deduplicated class_list: {original_count} -> {len(deduplicated_class_list)} "
-                    f"(removed {original_count - len(deduplicated_class_list)} duplicates)"
-                )
-            
-            # Step 5: Batch upsert all classes
-            logger.info(f"Batch upserting {len(deduplicated_class_list)} classes")
-            class_mapping = self._batch_upsert_classes(deduplicated_class_list)
+            # Step 4: Batch upsert all classes
+            logger.info(f"Batch upserting {len(class_list)} classes")
+            class_mapping = self._batch_upsert_classes(class_list)
             classes_saved = len(class_mapping)
 
-            # Step 6: Collect all enrollment data with class_ids
+            # Step 5: Collect all enrollment data with class_ids
             enrollment_data_list = []
             for item in class_to_enrollment_map:
                 class_key = (item["course_id"], item["class_number"])

@@ -27,4 +27,3 @@ htmlcov/
 .env
 */ec2-host
 */ec2-host.json
-.vercel
