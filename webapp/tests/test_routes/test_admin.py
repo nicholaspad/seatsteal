@@ -488,6 +488,7 @@ class TestGetScrapers:
         assert "performanceTrends" in data
         assert "recentActivity" in data
         assert "collegeStats" in data
+        assert "healthAlerts" in data
 
         # Verify overview structure
         overview = data["overview"]
@@ -808,6 +809,71 @@ class TestGetScrapers:
         response = await authenticated_client.get("/api/admin/scrapers")
 
         assert response.status_code == 403
+
+    @pytest.mark.unit
+    async def test_get_scrapers_health_alerts(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        """Test that health alerts detect stale scrapers and partial runs."""
+        # Create a stale scraper (no success, created >2 hours ago)
+        stale_scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+            last_success_at=None,
+            created_at=datetime.now(timezone.utc) - timedelta(hours=3),
+            error_count=5,
+            last_error_message="Test error",
+        )
+        test_db.add(stale_scraper)
+        test_db.commit()
+        test_db.refresh(stale_scraper)
+
+        # Create a partial run log (0 courses)
+        partial_log = ScraperLog(
+            scraper_id=stale_scraper.id,
+            outcome="partial",
+            started_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            completed_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            duration_ms=1000,
+            courses_created=0,
+            classes_created=0,
+            enrollments_saved=0,
+            error_message="Scraper returned 0 courses",
+        )
+        test_db.add(partial_log)
+        test_db.commit()
+
+        response = await admin_client.get("/api/admin/scrapers")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        data = response_json["data"]
+        
+        # Verify health alerts exist
+        assert "healthAlerts" in data
+        health_alerts = data["healthAlerts"]
+        
+        # Verify stale scrapers detection
+        assert "staleScrapers" in health_alerts
+        assert health_alerts["staleCount"] >= 1
+        stale_scraper_found = any(
+            s["scraperId"] == stale_scraper.id 
+            for s in health_alerts["staleScrapers"]
+        )
+        assert stale_scraper_found
+        
+        # Verify partial runs detection
+        assert "partialRuns" in health_alerts
+        assert health_alerts["partialCount"] >= 1
+        partial_run_found = any(
+            r["logId"] == partial_log.id 
+            for r in health_alerts["partialRuns"]
+        )
+        assert partial_run_found
 
 
 class TestGetUsers:

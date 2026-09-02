@@ -151,19 +151,34 @@ class ScraperJob:
                     except Exception as e:
                         logger.warning(f"Failed to update log: {e}")
             else:
+                # Determine outcome: partial (0 courses) vs error (exception/failure)
+                outcome = result.stats.get("outcome", "error")
+                
+                # Only mark scraper as "error" for hard failures, not partials
+                scraper_status = "error" if outcome == "error" else "completed"
                 self.lock.release(
-                    "error", error_message=result.error, duration_ms=duration_ms
+                    scraper_status, error_message=result.error, duration_ms=duration_ms
                 )
-                logger.error(
-                    f"❌ Scraper job for {self.college.name} failed after {duration_ms}ms: {result.error}"
-                )
+                
+                if outcome == "partial":
+                    logger.warning(
+                        f"⚠️  Scraper job for {self.college.name} completed with issues after {duration_ms}ms: {result.error}"
+                    )
+                else:
+                    logger.error(
+                        f"❌ Scraper job for {self.college.name} failed after {duration_ms}ms: {result.error}"
+                    )
 
-                # Update log with error outcome
+                # Update log with appropriate outcome (partial or error)
                 if log_id:
                     try:
                         log_service = ScraperLogService(self.db)
                         await log_service.complete_log(
-                            log_id, outcome="error", error_message=result.error
+                            log_id, 
+                            outcome=outcome, 
+                            error_message=result.error,
+                            courses_created=result.stats.get("courses_saved", 0),
+                            classes_created=result.stats.get("classes_saved", 0),
                         )
                         self.db.commit()
                     except Exception as e:
