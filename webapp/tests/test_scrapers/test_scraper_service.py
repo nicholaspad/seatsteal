@@ -446,6 +446,28 @@ def test_empty_enrollment_list(scraper_service: ScraperService, test_db: Session
     assert inserted == 0
 
 
+@pytest.mark.asyncio
+async def test_zero_courses_marked_as_partial_failure(test_db: Session, test_college: College):
+    """Test that scraping 0 courses returns success=False with outcome='partial'."""
+    service = ScraperService(test_db)
+    
+    # Mock the scraper to return empty course list
+    with patch('scraper.services.scraper_service.SCRAPER_MAP') as mock_scraper_map:
+        mock_scraper_class = MagicMock()
+        mock_scraper_instance = MagicMock()
+        mock_scraper_instance.scrape_courses = MagicMock(return_value=[])
+        mock_scraper_class.return_value = mock_scraper_instance
+        mock_scraper_map.get.return_value = mock_scraper_class
+        
+        result = await service.scrape_college(test_college.short_name, "CS")
+        
+        # Verify partial failure result
+        assert result["success"] is False
+        assert result["outcome"] == "partial"
+        assert result["courses_saved"] == 0
+        assert "0 courses" in result["error"]
+
+
 def test_get_latest_enrollments_empty_list(
     scraper_service: ScraperService, test_db: Session
 ):

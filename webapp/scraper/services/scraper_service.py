@@ -239,6 +239,22 @@ class ScraperService:
                 f"{enrollments_saved} enrollment snapshots in {duration:.2f}s"
             )
 
+            # Detect unhealthy outcomes: zero courses is a partial failure
+            if courses_saved == 0:
+                error_msg = "Scraper returned 0 courses - likely a scraping failure or empty data"
+                logger.warning(f"⚠️  {error_msg} for {college_short_name} {department}")
+                return {
+                    "college": college_short_name,
+                    "department": department,
+                    "courses_saved": 0,
+                    "classes_saved": 0,
+                    "enrollments_saved": 0,
+                    "duration_seconds": duration,
+                    "success": False,
+                    "outcome": "partial",  # Distinguish from hard errors
+                    "error": error_msg,
+                }
+
             return {
                 "college": college_short_name,
                 "department": department,

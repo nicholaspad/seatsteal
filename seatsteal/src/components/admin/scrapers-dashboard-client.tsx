@@ -24,6 +24,8 @@ import {
   Pause,
   CheckCircle2,
   XCircle,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
@@ -104,6 +106,31 @@ interface ScrapersAnalyticsData {
     shortName: string;
     scraperCount: number;
   }>;
+  healthAlerts: {
+    staleScrapers: Array<{
+      scraperId: number;
+      status: string;
+      collegeId: number;
+      collegeName: string;
+      shortName: string;
+      lastSuccessAt: string | null;
+      lastRunAt: string | null;
+      lastErrorMessage: string | null;
+      createdAt: string | null;
+      errorCount: number;
+      alertType: string;
+    }>;
+    partialRuns: Array<{
+      logId: number;
+      scraperId: number;
+      startedAt: string | null;
+      errorMessage: string | null;
+      collegeName: string;
+      shortName: string;
+    }>;
+    staleCount: number;
+    partialCount: number;
+  };
 }
 
 export function ScrapersDashboardClient() {
@@ -304,6 +331,103 @@ export function ScrapersDashboardClient() {
         </div>
       ) : data ? (
         <>
+          {/* Health Alerts Section */}
+          {(data.healthAlerts.staleCount > 0 ||
+            data.healthAlerts.partialCount > 0) && (
+            <div className="space-y-4">
+              {/* Stale Scrapers Alert */}
+              {data.healthAlerts.staleCount > 0 && (
+                <Card className="border-yellow-500 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+                      <Clock className="h-5 w-5" />
+                      Stale Scrapers ({data.healthAlerts.staleCount})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-4">
+                      The following scrapers haven't had a successful run in over
+                      2 hours:
+                    </p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {data.healthAlerts.staleScrapers.map((scraper) => (
+                        <div
+                          key={scraper.scraperId}
+                          className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border"
+                        >
+                          <div>
+                            <p className="font-medium text-sm dark:text-gray-200">
+                              {scraper.shortName}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {scraper.alertType === "never_succeeded"
+                                ? "Never succeeded"
+                                : scraper.lastSuccessAt
+                                  ? `Last success: ${formatLocalDateTime(scraper.lastSuccessAt)}`
+                                  : "No successful runs"}
+                            </p>
+                          </div>
+                          <div className="text-right text-xs">
+                            <p className="text-red-600 dark:text-red-400 font-medium">
+                              Errors: {scraper.errorCount}
+                            </p>
+                            {scraper.lastErrorMessage && (
+                              <p className="text-gray-600 dark:text-gray-400 truncate max-w-xs">
+                                {scraper.lastErrorMessage}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Partial/Unhealthy Runs Alert */}
+              {data.healthAlerts.partialCount > 0 && (
+                <Card className="border-orange-500 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-800 dark:text-orange-200">
+                      <AlertTriangle className="h-5 w-5" />
+                      Unhealthy Runs ({data.healthAlerts.partialCount})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-orange-700 dark:text-orange-300 mb-4">
+                      These scrapers completed but returned 0 courses (possible
+                      scraping failures):
+                    </p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {data.healthAlerts.partialRuns.map((run) => (
+                        <div
+                          key={run.logId}
+                          className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border"
+                        >
+                          <div>
+                            <p className="font-medium text-sm dark:text-gray-200">
+                              {run.shortName}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {run.startedAt
+                                ? formatLocalDateTime(run.startedAt)
+                                : "Unknown time"}
+                            </p>
+                          </div>
+                          {run.errorMessage && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 truncate max-w-xs">
+                              {run.errorMessage}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Scraper Status List */}

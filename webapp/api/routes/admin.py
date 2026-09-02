@@ -872,6 +872,108 @@ async def get_scrapers(
             for row in college_stats_result
         ]
 
+        # Health Alerts: Detect stale scrapers
+        # A scraper is stale if:
+        # 1. Never had a successful run and created >2 hours ago, OR
+        # 2. No successful run in the last 2 hours (for active colleges)
+        stale_threshold = datetime.now(timezone.utc) - timedelta(hours=2)
+        
+        stale_scrapers_query = (
+            select(
+                Scraper.id.label("scraperId"),
+                Scraper.status,
+                Scraper.college_id.label("collegeId"),
+                College.name.label("collegeName"),
+                College.short_name.label("shortName"),
+                Scraper.last_success_at.label("lastSuccessAt"),
+                Scraper.last_run_at.label("lastRunAt"),
+                Scraper.last_error_message.label("lastErrorMessage"),
+                Scraper.created_at.label("createdAt"),
+                Scraper.error_count.label("errorCount"),
+            )
+            .select_from(Scraper)
+            .join(College, Scraper.college_id == College.id)
+            .where(
+                and_(
+                    college_filter,
+                    College.is_active == True,
+                    or_(
+                        # Never had success and created >2 hours ago
+                        and_(
+                            Scraper.last_success_at.is_(None),
+                            Scraper.created_at < stale_threshold,
+                        ),
+                        # Last success was >2 hours ago
+                        Scraper.last_success_at < stale_threshold,
+                    ),
+                )
+            )
+            .order_by(Scraper.last_success_at.asc().nullsfirst())
+        )
+        stale_scrapers_result = db.execute(stale_scrapers_query)
+        stale_scrapers = [
+            {
+                "scraperId": row.scraperId,
+                "status": row.status,
+                "collegeId": row.collegeId,
+                "collegeName": row.collegeName,
+                "shortName": row.shortName,
+                "lastSuccessAt": (
+                    row.lastSuccessAt.isoformat() if row.lastSuccessAt else None
+                ),
+                "lastRunAt": row.lastRunAt.isoformat() if row.lastRunAt else None,
+                "lastErrorMessage": row.lastErrorMessage,
+                "createdAt": row.createdAt.isoformat() if row.createdAt else None,
+                "errorCount": row.errorCount or 0,
+                "alertType": "never_succeeded" if row.lastSuccessAt is None else "stale",
+            }
+            for row in stale_scrapers_result
+        ]
+
+        # Partial/unhealthy runs: scrapers that completed but returned 0 courses
+        partial_runs_query = (
+            select(
+                ScraperLog.id.label("logId"),
+                ScraperLog.scraper_id.label("scraperId"),
+                ScraperLog.started_at.label("startedAt"),
+                ScraperLog.error_message.label("errorMessage"),
+                College.name.label("collegeName"),
+                College.short_name.label("shortName"),
+            )
+            .select_from(ScraperLog)
+            .join(Scraper, ScraperLog.scraper_id == Scraper.id)
+            .join(College, Scraper.college_id == College.id)
+            .where(
+                and_(
+                    ScraperLog.outcome == "partial",
+                    ScraperLog.started_at >= days_ago,
+                    college_filter,
+                    College.is_active == True,
+                )
+            )
+            .order_by(desc(ScraperLog.started_at))
+            .limit(20)
+        )
+        partial_runs_result = db.execute(partial_runs_query)
+        partial_runs = [
+            {
+                "logId": row.logId,
+                "scraperId": row.scraperId,
+                "startedAt": row.startedAt.isoformat() if row.startedAt else None,
+                "errorMessage": row.errorMessage,
+                "collegeName": row.collegeName,
+                "shortName": row.shortName,
+            }
+            for row in partial_runs_result
+        ]
+
+        health_alerts = {
+            "staleScrapers": stale_scrapers,
+            "partialRuns": partial_runs,
+            "staleCount": len(stale_scrapers),
+            "partialCount": len(partial_runs),
+        }
+
         return {
             "success": True,
             "data": {
@@ -891,6 +993,7 @@ async def get_scrapers(
                 "recentActivity": recent_activity,
                 "recentErrorDetails": recent_error_details,
                 "collegeStats": college_stats,
+                "healthAlerts": health_alerts,
             },
         }
 
