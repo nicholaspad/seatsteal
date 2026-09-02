@@ -468,6 +468,44 @@ async def test_zero_courses_marked_as_partial_failure(test_db: Session, test_col
         assert "0 courses" in result["error"]
 
 
+@pytest.mark.asyncio
+async def test_zero_enrollments_marked_as_partial_failure(test_db: Session, test_college: College):
+    """Test that scraping courses but 0 enrollments returns success=False with outcome='partial'."""
+    service = ScraperService(test_db)
+    
+    # Mock the scraper to return courses with missing/invalid enrollment data
+    # This simulates the production failure mode from 2026-02-05
+    with patch('scraper.services.scraper_service.SCRAPER_MAP') as mock_scraper_map:
+        mock_scraper_class = MagicMock()
+        mock_scraper_instance = MagicMock()
+        # Return courses/classes but with missing status data (no enrollments will be created)
+        mock_scraper_instance.scrape_courses = MagicMock(return_value=[
+            {
+                "course_code": "CS 101",
+                "title": "Test Course",
+                "classes": [
+                    {
+                        "class_number": "12345",
+                        "section": "001",
+                        # Missing 'status' field - will result in 0 enrollments
+                    }
+                ]
+            }
+        ])
+        mock_scraper_class.return_value = mock_scraper_instance
+        mock_scraper_map.get.return_value = mock_scraper_class
+        
+        result = await service.scrape_college(test_college.short_name, "CS")
+        
+        # Verify partial failure result
+        assert result["success"] is False
+        assert result["outcome"] == "partial"
+        assert result["courses_saved"] > 0
+        assert result["enrollments_saved"] == 0
+        assert "0 enrollments" in result["error"]
+        assert "seat notifications will not fire" in result["error"]
+
+
 def test_get_latest_enrollments_empty_list(
     scraper_service: ScraperService, test_db: Session
 ):

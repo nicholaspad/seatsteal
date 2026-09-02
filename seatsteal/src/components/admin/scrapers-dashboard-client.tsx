@@ -395,8 +395,8 @@ export function ScrapersDashboardClient() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-orange-700 dark:text-orange-300 mb-4">
-                      These scrapers completed but returned 0 courses (possible
-                      scraping failures):
+                      These scrapers completed but returned 0 courses or 0
+                      enrollments (seat notifications will not fire):
                     </p>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {data.healthAlerts.partialRuns.map((run) => (
