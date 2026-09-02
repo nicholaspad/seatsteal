@@ -66,6 +66,7 @@ class ScraperLogService:
         outcome: str,
         courses_created: int = 0,
         classes_created: int = 0,
+        enrollments_saved: int = 0,
         error_message: Optional[str] = None,
     ):
         """
@@ -76,6 +77,7 @@ class ScraperLogService:
             outcome: Final outcome ('success', 'error', 'partial', 'timeout')
             courses_created: Number of courses created
             classes_created: Number of classes created
+            enrollments_saved: Number of enrollments saved
             error_message: Optional error message if failed
         """
         result = self.db.execute(select(ScraperLog).where(ScraperLog.id == log_id))
@@ -88,6 +90,7 @@ class ScraperLogService:
         log.outcome = outcome
         log.courses_created = courses_created
         log.classes_created = classes_created
+        log.enrollments_saved = enrollments_saved
         log.completed_at = datetime.now()
 
         if log.started_at:
@@ -99,7 +102,7 @@ class ScraperLogService:
 
         logger.debug(
             f"Completed scraper log {log_id}: outcome={outcome}, "
-            f"courses={courses_created}, classes={classes_created}"
+            f"courses={courses_created}, classes={classes_created}, enrollments={enrollments_saved}"
         )
 
     async def get_recent_logs(

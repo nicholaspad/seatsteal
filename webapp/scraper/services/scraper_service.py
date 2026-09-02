@@ -596,7 +596,7 @@ class ScraperService:
             batch_size: Number of records to insert per batch (default: 100)
 
         Returns:
-            Number of enrollments inserted (not counting updates)
+            Total number of enrollments processed (inserts + updates)
         """
         from sqlalchemy import text
 
@@ -688,7 +688,7 @@ class ScraperService:
             f"Batch processing complete: {total_inserted} enrollments inserted, "
             f"{len(to_update_ids)} timestamps updated"
         )
-        return total_inserted
+        return total_inserted + len(to_update_ids)
 
     def _get_latest_enrollments(
         self, class_ids: List[int]

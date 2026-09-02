@@ -869,3 +869,118 @@ class TestScraperJobIntegration:
                     # Verify stats from successful (3rd) attempt
                     assert result.stats["courses_saved"] == 15
                     assert result.stats["classes_saved"] == 75
+
+
+# ============================================================================
+# Enrollment Logging Tests
+# ============================================================================
+
+
+class TestEnrollmentLogging:
+    """Test that enrollments_saved is correctly passed to log service"""
+
+    @pytest.mark.asyncio
+    async def test_enrollments_saved_logged_on_success(
+        self, test_college, mock_db, mock_lock, mock_log_service
+    ):
+        """Test that enrollments_saved is passed to log service on success"""
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = AsyncMock(
+            return_value={
+                "success": True,
+                "courses_saved": 10,
+                "classes_saved": 50,
+                "enrollments_saved": 100,
+            }
+        )
+
+        with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
+                    job = ScraperJob(test_college, mock_db)
+                    result = await job.execute()
+
+                    assert result.success is True
+
+                    # Verify complete_log was called with enrollments_saved
+                    mock_log_service.complete_log.assert_called_once()
+                    call_args = mock_log_service.complete_log.call_args
+                    assert call_args[1]["outcome"] == "success"
+                    assert call_args[1]["courses_created"] == 10
+                    assert call_args[1]["classes_created"] == 50
+                    assert call_args[1]["enrollments_saved"] == 100
+
+    @pytest.mark.asyncio
+    async def test_enrollments_saved_logged_on_partial_failure(
+        self, test_college, mock_db, mock_lock, mock_log_service
+    ):
+        """Test that enrollments_saved is passed to log service on partial failure"""
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = AsyncMock(
+            return_value={
+                "success": False,
+                "outcome": "partial",
+                "error": "0 enrollments saved",
+                "courses_saved": 10,
+                "classes_saved": 50,
+                "enrollments_saved": 0,
+            }
+        )
+
+        with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
+                    job = ScraperJob(test_college, mock_db)
+                    result = await job.execute()
+
+                    assert result.success is False
+
+                    # Verify complete_log was called with enrollments_saved=0
+                    mock_log_service.complete_log.assert_called_once()
+                    call_args = mock_log_service.complete_log.call_args
+                    assert call_args[1]["outcome"] == "partial"
+                    assert call_args[1]["courses_created"] == 10
+                    assert call_args[1]["classes_created"] == 50
+                    assert call_args[1]["enrollments_saved"] == 0
+
+    @pytest.mark.asyncio
+    async def test_enrollments_saved_defaults_to_zero(
+        self, test_college, mock_db, mock_lock, mock_log_service
+    ):
+        """Test that enrollments_saved defaults to 0 if missing from stats"""
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = AsyncMock(
+            return_value={
+                "success": True,
+                "courses_saved": 10,
+                "classes_saved": 50,
+                # enrollments_saved missing
+            }
+        )
+
+        with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
+                    job = ScraperJob(test_college, mock_db)
+                    result = await job.execute()
+
+                    # Verify complete_log was called with enrollments_saved=0 (default)
+                    mock_log_service.complete_log.assert_called_once()
+                    call_args = mock_log_service.complete_log.call_args
+                    assert call_args[1]["enrollments_saved"] == 0
+
