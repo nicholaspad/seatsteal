@@ -146,6 +146,7 @@ class ScraperJob:
                             outcome="success",
                             courses_created=result.stats.get("courses_saved", 0),
                             classes_created=result.stats.get("classes_saved", 0),
+                            enrollments_saved=result.stats.get("enrollments_saved", 0),
                         )
                         self.db.commit()
                     except Exception as e:
@@ -179,6 +180,7 @@ class ScraperJob:
                             error_message=result.error,
                             courses_created=result.stats.get("courses_saved", 0),
                             classes_created=result.stats.get("classes_saved", 0),
+                            enrollments_saved=result.stats.get("enrollments_saved", 0),
                         )
                         self.db.commit()
                     except Exception as e:

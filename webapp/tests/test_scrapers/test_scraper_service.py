@@ -224,8 +224,8 @@ def test_status_unchanged_updates_timestamp(
 
     inserted = scraper_service._batch_insert_enrollments(enrollment_data)
 
-    # Verify NO insertion (0 new records)
-    assert inserted == 0
+    # Verify 1 processed (timestamp update)
+    assert inserted == 1
 
     # Check database - should still have only 1 enrollment
     enrollments = (
@@ -272,8 +272,8 @@ def test_status_unchanged_open_updates_timestamp(
 
     inserted = scraper_service._batch_insert_enrollments(enrollment_data)
 
-    # Verify NO insertion
-    assert inserted == 0
+    # Verify 1 processed (timestamp update)
+    assert inserted == 1
 
     # Check database - should still have only 1 enrollment
     enrollments = (
@@ -365,8 +365,8 @@ def test_batch_with_mixed_scenarios(
 
     inserted = scraper_service._batch_insert_enrollments(enrollment_data)
 
-    # Should have 2 inserts (class1 status change + class3 first time)
-    assert inserted == 2
+    # Should have 3 processed (2 inserts + 1 update)
+    assert inserted == 3
 
     # Verify class1 - should have 2 enrollments (original + new)
     class1_enrollments = (
