@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Gift, Copy, Check } from "lucide-react";
+import { Gift, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 
@@ -40,10 +40,37 @@ export function ReferralCard() {
     }
   };
 
+  const getReferralMessage = () => {
+    if (!referralData) return "";
+    return `I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referral_url}`;
+  };
+
+  const handleShare = async () => {
+    if (!referralData) return;
+
+    const message = getReferralMessage();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Join SeatSteal",
+          text: message,
+        });
+        toast.success("Shared successfully!");
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          toast.error("Failed to share");
+        }
+      }
+    } else {
+      copyToClipboard();
+    }
+  };
+
   const copyToClipboard = async () => {
     if (!referralData) return;
 
-    const message = `I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referral_url}`;
+    const message = getReferralMessage();
 
     try {
       await navigator.clipboard.writeText(message);
@@ -83,23 +110,35 @@ export function ReferralCard() {
       <CardContent className="space-y-3">
         <div className="flex gap-2">
           <Textarea
-            value={`I use SeatSteal to get notifications for course seat openings. Sign up with my referral code and we both get a free week of Pro! ${referralData.referral_url}`}
+            value={getReferralMessage()}
             readOnly
             className="!text-[11px] resize-none text-white"
             rows={3}
           />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyToClipboard}
-            className="px-2 self-start"
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-green-600" />
-            ) : (
-              <Copy className="h-4 w-4" />
+          <div className="flex flex-col gap-2">
+            {"share" in navigator && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleShare}
+                className="px-2"
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
             )}
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyToClipboard}
+              className="px-2"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-600" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground">

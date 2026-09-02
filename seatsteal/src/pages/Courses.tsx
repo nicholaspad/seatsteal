@@ -167,44 +167,13 @@ export default function Courses() {
       ? courses[0].college
       : null;
 
-  // Show loading skeleton while auth is initializing
+  // Show loading skeleton while auth is initializing (first load only)
   if (authLoading) {
     return <RouteAwareSkeleton />;
   }
 
-  // Wait for profile to load before rendering to get correct initial college filter
+  // Wait for profile to load before rendering to get correct initial college filter (first load only)
   if (user && profileLoading) {
-    return <RouteAwareSkeleton />;
-  }
-
-  if (error) {
-    return (
-      <IonPage>
-        <IonContent>
-          <div className="container mx-auto px-4 py-8">
-            <Card className="border-destructive">
-              <CardContent className="pt-6">
-                <div className="text-center py-8">
-                  <h3 className="font-medium text-destructive mb-1">
-                    Error Loading Courses
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">{error}</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => window.location.reload()}
-                  >
-                    Try Again
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
-  }
-
-  if (loading) {
     return <RouteAwareSkeleton />;
   }
 
@@ -247,14 +216,65 @@ export default function Courses() {
             {/* Main Content */}
             <div className="lg:col-span-3 space-y-6">
               {/* Search Summary */}
-              <SearchSummary
-                searchParams={searchParams}
-                totalCourses={totalCourses}
-                selectedCollege={selectedCollege}
-              />
+              {!loading && !error && (
+                <SearchSummary
+                  searchParams={searchParams}
+                  totalCourses={totalCourses}
+                  selectedCollege={selectedCollege}
+                />
+              )}
+
+              {/* Error State */}
+              {error && (
+                <Card className="border-destructive">
+                  <CardContent className="pt-6">
+                    <div className="text-center py-8">
+                      <h3 className="font-medium text-destructive mb-1">
+                        Error Loading Courses
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {error}
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => window.location.reload()}
+                      >
+                        Try Again
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Loading skeleton for results grid only */}
+              {loading && !error && (
+                <div className="space-y-6">
+                  <div className="text-center space-y-2 animate-pulse">
+                    <div className="h-8 w-32 mx-auto bg-muted rounded" />
+                    <div className="h-5 w-64 mx-auto bg-muted rounded" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {Array.from({ length: 6 }, (_, i) => (
+                      <Card key={i}>
+                        <CardContent className="pt-6">
+                          <div className="space-y-3 animate-pulse">
+                            <div className="h-6 w-3/4 bg-muted rounded" />
+                            <div className="h-4 w-full bg-muted rounded" />
+                            <div className="h-4 w-5/6 bg-muted rounded" />
+                            <div className="flex gap-2 pt-2">
+                              <div className="h-6 w-16 bg-muted rounded" />
+                              <div className="h-6 w-20 bg-muted rounded" />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Results */}
-              {courses.length === 0 ? (
+              {!loading && !error && courses.length === 0 && (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-center py-12">
@@ -264,16 +284,37 @@ export default function Courses() {
                       </h3>
                       <p className="text-muted-foreground mb-6">
                         {searchParams.get("q")
-                          ? "Try adjusting your search criteria or filters."
-                          : "No courses are currently available."}
+                          ? "Try adjusting your search criteria or clearing filters."
+                          : profile?.collegeId
+                            ? "No courses available at your college yet."
+                            : "Select a college to see available courses."}
                       </p>
-                      <Button asChild variant="outline">
-                        <Link to="/courses">Clear Filters</Link>
-                      </Button>
+                      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                        {searchParams.get("q") ||
+                        searchParams.get("college") !== "all" ? (
+                          <Button asChild variant="default">
+                            <Link to="/courses">Clear All Filters</Link>
+                          </Button>
+                        ) : null}
+                        {!profile?.collegeId && (
+                          <Button asChild variant="outline">
+                            <Link to="/settings">Select Your College</Link>
+                          </Button>
+                        )}
+                        {profile?.collegeId && courses.length === 0 && (
+                          <Button asChild variant="outline">
+                            <Link to="/courses?college=all">
+                              Browse All Colleges
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              ) : (
+              )}
+
+              {!loading && !error && courses.length > 0 && (
                 <>
                   {isLoggedOut ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

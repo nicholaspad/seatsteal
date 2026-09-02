@@ -15,9 +15,10 @@ import {
 import { EnrollmentBadge } from "@/components/class/enrollment-badge";
 import { CollegeBadge } from "@/components/college/CollegeBadge";
 import { CourseSummaryModal } from "@/components/course/course-summary-modal";
-import { Users, ArrowRight, Sparkles, ExternalLink } from "lucide-react";
+import { Users, ArrowRight, Sparkles, ExternalLink, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSubscriptionTier } from "@/components/providers/SessionProvider";
+import { useShare } from "@/hooks/use-share";
 import type { CourseWithCollege, ClassWithEnrollment } from "@/types/api";
 
 interface CourseCardProps {
@@ -38,7 +39,12 @@ const CourseCard = memo(function CourseCard({
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
 
   const { subscriptionTier: userTier, tierLoading } = useSubscriptionTier();
+  const { shareCourse, loading: shareLoading } = useShare();
   const hasSummaryAccess = userTier === "pro";
+
+  const handleShare = () => {
+    shareCourse(course.courseCode, course.title, `/courses/${course.id}`);
+  };
   // Memoized enrollment status calculations
   const { openClasses, closedClasses, totalClasses } = useMemo(() => {
     const open = classes.filter(
@@ -207,6 +213,21 @@ const CourseCard = memo(function CourseCard({
               </TooltipContent>
             </Tooltip>
           )}
+
+          {/* Share Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShare}
+                disabled={shareLoading}
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Share this course</TooltipContent>
+          </Tooltip>
 
           {/* Classes Button */}
           <Button asChild variant="outline" size="sm" className="flex-1">
