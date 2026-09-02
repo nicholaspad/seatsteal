@@ -21,6 +21,7 @@ import {
   Calendar,
   ExternalLink,
   Sparkles,
+  Share2,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CollegeBadge } from "@/components/college/CollegeBadge";
@@ -31,6 +32,7 @@ import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { UnsubscribeConfirmationModal } from "@/components/ui/unsubscribe-confirmation-modal";
 import { formatLocalDate } from "@/lib/date-utils";
 import { isValidStripeUrl } from "@/lib/security";
+import { useShare } from "@/hooks/use-share";
 import type {
   SubscriptionWithDetails,
   SubscriptionsApiResponse,
@@ -78,6 +80,7 @@ const UserDashboard = memo(function UserDashboard({
   userTier = "free",
 }: UserDashboardProps) {
   const { user, profile } = useSession();
+  const { shareCourse } = useShare();
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithDetails[]>(
     [],
   );
@@ -619,9 +622,13 @@ const UserDashboard = memo(function UserDashboard({
                   {subscriptions.length === 0 ? (
                     <>
                       <BellOff className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-                      <h3 className="text-lg font-medium pb-2">
-                        No Subscriptions Yet
+                      <h3 className="text-lg font-medium mb-2">
+                        Start Watching Your First Course
                       </h3>
+                      <p className="text-muted-foreground max-w-md mx-auto mb-6">
+                        Get instant notifications when seats open up in closed
+                        classes. Never miss your chance to enroll!
+                      </p>
                       <Button
                         className="bg-white text-black hover:bg-white/90 px-6"
                         asChild
@@ -664,7 +671,7 @@ const UserDashboard = memo(function UserDashboard({
               {paginatedSubscriptions.map((subscription) => (
                 <Card key={subscription.id}>
                   <CardContent>
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-lg">
@@ -712,14 +719,31 @@ const UserDashboard = memo(function UserDashboard({
                         </div>
                       </div>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setConfirmUnsubscribe(subscription)}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        Unsubscribe
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            shareCourse(
+                              subscription.class.course.courseCode,
+                              subscription.class.course.title,
+                              `/courses/${subscription.class.course.id}`,
+                            )
+                          }
+                          className="whitespace-nowrap"
+                        >
+                          <Share2 className="h-4 w-4 mr-1" />
+                          Share
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setConfirmUnsubscribe(subscription)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 whitespace-nowrap"
+                        >
+                          Unsubscribe
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

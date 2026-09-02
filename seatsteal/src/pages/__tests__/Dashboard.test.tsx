@@ -220,7 +220,9 @@ describe("Dashboard Page", () => {
       renderAuthenticated(<Dashboard />);
 
       await waitFor(() => {
-        expect(screen.getByText("No Subscriptions Yet")).toBeInTheDocument();
+        expect(
+          screen.getByText("Start Watching Your First Course"),
+        ).toBeInTheDocument();
         expect(screen.getByText("Browse Courses")).toBeInTheDocument();
       });
     });
