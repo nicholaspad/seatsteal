@@ -4,7 +4,7 @@ Scraper job orchestration - Manages scraping execution with locking and retry lo
 
 import time
 import asyncio
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from datetime import datetime
 from loguru import logger
 from sqlalchemy.orm import Session
@@ -218,6 +218,7 @@ class ScraperJob:
     async def _execute_with_retry(self) -> JobResult:
         """Execute with retry logic"""
         last_error: Optional[str] = None
+        last_stats: Optional[Dict[str, Any]] = None
 
         for attempt in range(1, self.config.retry_attempts + 1):
             try:
@@ -234,8 +235,19 @@ class ScraperJob:
                 if stats.get("success", False):
                     return JobResult(success=True, stats=stats)
                 else:
-                    # Scrape failed, treat as error and retry
+                    # Scrape failed
                     last_error = stats.get("error", "Unknown error during scraping")
+                    last_stats = stats
+                    
+                    # Check if this is a partial failure (0 courses/enrollments)
+                    # Partial failures should not be retried - they're expected outcomes
+                    if stats.get("outcome") == "partial":
+                        logger.warning(
+                            f"⚠️  Partial failure for {self.college.name} (attempt {attempt}): {last_error}"
+                        )
+                        return JobResult(success=False, error=last_error, stats=stats)
+                    
+                    # Hard error - log and potentially retry
                     logger.error(
                         f"❌ Attempt {attempt}/{self.config.retry_attempts} failed for {self.college.name}: {last_error}"
                     )
@@ -260,8 +272,11 @@ class ScraperJob:
                     logger.info(f"⏱️  Waiting {delay_ms}ms before retry...")
                     await asyncio.sleep(delay_ms / 1000)
 
+        # All retries exhausted - return failure with stats if available
         return JobResult(
-            success=False, error=last_error or "Unknown error during scraping"
+            success=False, 
+            error=last_error or "Unknown error during scraping",
+            stats=last_stats or {}
         )
 
     def can_run(self) -> bool:
