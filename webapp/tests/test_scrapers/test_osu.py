@@ -11,6 +11,7 @@ webapp_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(webapp_dir))
 
 from scraper.scrapers.osu import OsuScraper
+from models.college import College
 
 
 # Sample OSU API response data with classNumber field
@@ -57,11 +58,22 @@ SAMPLE_OSU_API_RESPONSE = {
 
 @pytest.fixture
 def mock_db_session():
-    """Create a mock database session."""
+    """Create a mock database session for OSU scraper."""
     mock_session = MagicMock()
-    mock_session.execute.return_value.scalar_one_or_none.return_value = MagicMock(
-        term_code="1268"  # Autumn 2026
+    mock_college = College(
+        id=1,
+        name="Ohio State University",
+        short_name="osu",
+        term_code="1268",  # Autumn 2026
+        term_name="Autumn 2026",
+        is_active=True,
     )
+    
+    # Mock the query result
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_college
+    mock_session.execute.return_value = mock_result
+    
     return mock_session
 
 
