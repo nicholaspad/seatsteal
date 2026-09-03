@@ -2,7 +2,7 @@
 
 import pytest
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, AsyncMock, patch
 from sqlalchemy.orm import Session
 
 import sys
@@ -455,7 +455,7 @@ async def test_zero_courses_marked_as_partial_failure(test_db: Session, test_col
     with patch('scraper.services.scraper_service.SCRAPER_MAP') as mock_scraper_map:
         mock_scraper_class = MagicMock()
         mock_scraper_instance = MagicMock()
-        mock_scraper_instance.scrape_courses = MagicMock(return_value=[])
+        mock_scraper_instance.scrape_courses = AsyncMock(return_value=[])
         mock_scraper_class.return_value = mock_scraper_instance
         mock_scraper_map.get.return_value = mock_scraper_class
         
@@ -479,7 +479,7 @@ async def test_zero_enrollments_marked_as_partial_failure(test_db: Session, test
         mock_scraper_class = MagicMock()
         mock_scraper_instance = MagicMock()
         # Return courses/classes but with missing status data (no enrollments will be created)
-        mock_scraper_instance.scrape_courses = MagicMock(return_value=[
+        mock_scraper_instance.scrape_courses = AsyncMock(return_value=[
             {
                 "course_code": "CS 101",
                 "title": "Test Course",
