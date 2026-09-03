@@ -133,10 +133,13 @@ class OsuScraper(BaseScraper):
         """
         Fetch courses for a specific catalog number shard (e.g., 1xxx, 2xxx, etc).
         
+        Uses catalog-number facet query parameter (e.g., catalog-number=1xxx).
+        Example URL: https://content.osu.edu/v2/classes/search?q=&term=1268&catalog-number=1xxx&p=1
+        
         CRITICAL: API returns HTTP 503 on page >= 51, so max_pages is hard limited to 50.
         
         Args:
-            shard: Catalog number prefix digit (1-8)
+            shard: Catalog number prefix digit (1-8) - becomes "1xxx", "2xxx", etc.
             max_pages: Maximum pages to fetch (MUST be <= 50, API limit)
         
         Returns:
@@ -153,8 +156,9 @@ class OsuScraper(BaseScraper):
         
         while page <= max_pages:
             params = {
-                "q": f"{shard}",  # Query by catalog number prefix
+                "q": "",
                 "term": self.current_term,
+                "catalog-number": f"{shard}xxx",  # e.g., "1xxx", "2xxx", ..., "8xxx"
                 "p": str(page),
             }
             

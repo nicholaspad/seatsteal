@@ -212,7 +212,8 @@ async def test_fetch_by_catalog_shard(scraper):
         # Verify request was made with correct parameters
         mock_request.assert_called_once()
         call_params = mock_request.call_args[0][0]
-        assert call_params["q"] == "2"  # Query by catalog number prefix
+        assert call_params["q"] == ""
+        assert call_params["catalog-number"] == "2xxx"  # Catalog number shard
         assert call_params["term"] == "1268"
         assert call_params["p"] == "1"
         
