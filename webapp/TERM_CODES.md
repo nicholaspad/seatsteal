@@ -150,6 +150,27 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 
 ---
 
+## Ohio State University
+
+**Format:** `YYSN` (2-digit year + season + sequence digit)
+
+**Season codes:**
+- `2` - Spring
+- `4` - Summer
+- `6` - Autumn (Fall)
+
+**Examples:**
+- `1268` - Autumn 2026 (26 + 6 + 8)
+- `1262` - Spring 2026 (26 + 2 + 2)
+- `1264` - Summer 2026 (26 + 4 + 4)
+- `1248` - Autumn 2024 (24 + 4 + 8)
+
+**API:** Uses content.osu.edu public API (https://content.osu.edu/v2/classes/search)
+
+**Note:** Term codes follow a YYSN pattern where YY is the year minus 2000, S is the season indicator, and N is typically 2 or 8 (sequence digit, purpose unknown).
+
+---
+
 ## Quick Reference Tool
 
 Run the term codes table script to fetch current term codes for all colleges:
