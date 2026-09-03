@@ -11,17 +11,17 @@ class OsuScraper(BaseScraper):
 
     Scrapes course data from the OSU Content API using catalog-number shard strategy.
     Strategy: Query by catalog number ranges (1xxx-8xxx), max 50 pages per shard.
-    
+
     For Autumn 2026 (term 1268), this yields ~27,982 rows across ~143 pages (~3-4 min).
     Each shard queries courses with catalog numbers starting with that digit (1000-1999, etc).
-    
+
     Term codes: YYSN format (e.g., "1268" = Autumn 2026)
     - YY: year minus 2000 (26 = 2026)
     - S: season indicator (6 = Autumn, 2 = Spring, 4 = Summer)
     - N: term sequence digit (typically 2 or 8)
-    
+
     CRITICAL: API returns HTTP 503 on page >= 51, so max_pages hard limited to 50 per shard.
-    
+
     NOTE: academic_career parameter (GRAD/UGRD) is unreliable - the API ignores it or
     requires hyphenated lowercase form, and even then results exceed the 50-page cap.
     Catalog-number sharding is the preferred reliable strategy.
@@ -88,14 +88,16 @@ class OsuScraper(BaseScraper):
                 await self.client.aclose()
                 self.client = None
 
-    async def _fetch_all_courses(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def _fetch_all_courses(
+        self, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """
         Fetch all courses from OSU API using catalog-number shard strategy.
-        
+
         Queries courses by catalog number ranges (1xxx-8xxx), with max 50 pages per shard.
         This avoids the 50-page API limit per query by splitting the workload across
         multiple targeted queries.
-        
+
         For Autumn 2026 (term 1268): ~27,982 rows across ~143 pages (~3-4 min).
 
         Args:
@@ -104,44 +106,48 @@ class OsuScraper(BaseScraper):
         Returns:
             List of raw course data (combined from all shards)
         """
-        logger.info(f"Fetching all OSU courses via catalog-number shards (limit: {limit})")
-        
+        logger.info(
+            f"Fetching all OSU courses via catalog-number shards (limit: {limit})"
+        )
+
         all_courses = []
-        
+
         # Query by catalog number shards: 1xxx, 2xxx, ..., 8xxx
         # Each shard covers courses with catalog numbers starting with that digit
         for shard in range(1, 9):  # 1-8
             shard_pattern = f"{shard}***"
             logger.info(f"Querying catalog-number shard {shard}xxx...")
-            
+
             shard_courses = await self._fetch_by_catalog_shard(shard, max_pages=50)
             logger.info(f"Shard {shard}xxx complete: {len(shard_courses)} raw courses")
-            
+
             all_courses.extend(shard_courses)
-            
+
             # Check if we've hit the limit
             if limit and len(all_courses) >= limit:
                 logger.info(f"Reached course limit of {limit} after shard {shard}xxx")
                 all_courses = all_courses[:limit]
                 break
-        
+
         logger.info(f"Combined: {len(all_courses)} raw courses from all shards")
-        
+
         return all_courses
-    
-    async def _fetch_by_catalog_shard(self, shard: int, max_pages: int = 50) -> List[Dict[str, Any]]:
+
+    async def _fetch_by_catalog_shard(
+        self, shard: int, max_pages: int = 50
+    ) -> List[Dict[str, Any]]:
         """
         Fetch courses for a specific catalog number shard (e.g., 1xxx, 2xxx, etc).
-        
+
         Uses catalog-number facet query parameter (e.g., catalog-number=1xxx).
         Example URL: https://content.osu.edu/v2/classes/search?q=&term=1268&catalog-number=1xxx&p=1
-        
+
         CRITICAL: API returns HTTP 503 on page >= 51, so max_pages is hard limited to 50.
-        
+
         Args:
             shard: Catalog number prefix digit (1-8) - becomes "1xxx", "2xxx", etc.
             max_pages: Maximum pages to fetch (MUST be <= 50, API limit)
-        
+
         Returns:
             List of raw course data for this shard
         """
@@ -149,11 +155,11 @@ class OsuScraper(BaseScraper):
         if max_pages > 50:
             logger.warning(f"max_pages={max_pages} exceeds API limit, capping at 50")
             max_pages = 50
-        
+
         courses = []
         page = 1
         empty_pages = 0
-        
+
         while page <= max_pages:
             params = {
                 "q": "",
@@ -161,35 +167,43 @@ class OsuScraper(BaseScraper):
                 "catalog-number": f"{shard}xxx",  # e.g., "1xxx", "2xxx", ..., "8xxx"
                 "p": str(page),
             }
-            
+
             response_data = await self._make_api_request(params)
             page_courses = response_data.get("data", {}).get("courses", [])
-            
+
             if not page_courses:
                 empty_pages += 1
                 if empty_pages >= 3:
-                    logger.info(f"Shard {shard}xxx: Stopping after {empty_pages} consecutive empty pages")
+                    logger.info(
+                        f"Shard {shard}xxx: Stopping after {empty_pages} consecutive empty pages"
+                    )
                     break
                 page += 1
                 continue
-            
+
             empty_pages = 0
             courses.extend(page_courses)
-            
+
             # Log progress every 10 pages
             if page % 10 == 0:
-                logger.info(f"Shard {shard}xxx page {page}: {len(page_courses)} courses (total: {len(courses)} raw)")
-            
+                logger.info(
+                    f"Shard {shard}xxx page {page}: {len(page_courses)} courses (total: {len(courses)} raw)"
+                )
+
             # Stop if small page (likely end of results)
             if len(page_courses) < 20:
-                logger.info(f"Shard {shard}xxx page {page}: Small page ({len(page_courses)} courses), likely end")
+                logger.info(
+                    f"Shard {shard}xxx page {page}: Small page ({len(page_courses)} courses), likely end"
+                )
                 break
-            
+
             page += 1
-        
-        logger.info(f"Shard {shard}xxx: fetched {len(courses)} raw courses across {page - 1} pages")
+
+        logger.info(
+            f"Shard {shard}xxx: fetched {len(courses)} raw courses across {page - 1} pages"
+        )
         return courses
-    
+
     async def _fetch_department_courses(
         self, department: str, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
@@ -218,30 +232,31 @@ class OsuScraper(BaseScraper):
 
             logger.info(f"Fetching OSU {department} page {page}")
             response_data = await self._make_api_request(params)
-            
+
             courses = response_data.get("data", {}).get("courses", [])
-            
+
             if not courses:
                 logger.info(f"No more courses found for {department} at page {page}")
                 break
-            
+
             all_courses.extend(courses)
             logger.info(
                 f"Fetched {len(courses)} courses from {department} page {page} "
                 f"(total: {len(all_courses)})"
             )
-            
+
             # Check if we've hit the limit
             if limit and len(all_courses) >= limit:
                 logger.info(f"Reached course limit of {limit}")
                 all_courses = all_courses[:limit]
                 break
-            
-            # Check if there are more pages
-            if len(courses) < 200:
-                logger.info(f"Last page reached (only {len(courses)} courses)")
+
+            # Stop if small page (likely end of results)
+            # OSU API returns ~50-55 courses per page, so <20 indicates final page
+            if len(courses) < 20:
+                logger.info(f"Last page reached (small page: {len(courses)} courses)")
                 break
-            
+
             page += 1
 
         logger.info(f"Fetched total of {len(all_courses)} courses for {department}")
@@ -275,7 +290,9 @@ class OsuScraper(BaseScraper):
             logger.error(f"Error fetching OSU courses: {e}")
             raise
 
-    def _transform_courses(self, raw_courses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _transform_courses(
+        self, raw_courses: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Transform OSU API course data to standard format.
 
@@ -301,7 +318,7 @@ class OsuScraper(BaseScraper):
         courses_data = self._deduplicate_courses(courses_data)
 
         return courses_data
-    
+
     def _deduplicate_courses(
         self, courses: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -319,7 +336,7 @@ class OsuScraper(BaseScraper):
             Deduplicated list of course dictionaries
         """
         from typing import Dict as TypeDict
-        
+
         # Group courses by course_code
         course_map: TypeDict[str, List[Dict[str, Any]]] = {}
         for course in courses:
@@ -392,16 +409,18 @@ class OsuScraper(BaseScraper):
         """
         try:
             course_info = raw_course.get("course", {})
-            
+
             # Get course code (e.g., "ACCTMIS 3400")
             # OSU API provides subject and catalogNumber separately
             subject = course_info.get("subject", "").strip()
             catalog_number = course_info.get("catalogNumber", "").strip()
-            
+
             if not subject or not catalog_number:
-                logger.warning(f"Skipping course with missing subject or catalog number: {course_info}")
+                logger.warning(
+                    f"Skipping course with missing subject or catalog number: {course_info}"
+                )
                 return None
-                
+
             course_code = f"{subject} {catalog_number}"
 
             # Get title
@@ -448,13 +467,13 @@ class OsuScraper(BaseScraper):
             if not class_number:
                 logger.warning("Skipping section with missing classNumber")
                 return None
-            
+
             # Get section code for display/reference
             section_code = section.get("section", "")
 
             # Get enrollment status
             enrollment_status = section.get("enrollmentStatus", "").strip()
-            
+
             # Map status to standard format
             if enrollment_status.lower() == "open":
                 status = "Open"

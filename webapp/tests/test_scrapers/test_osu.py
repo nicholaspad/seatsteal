@@ -13,7 +13,6 @@ sys.path.insert(0, str(webapp_dir))
 from scraper.scrapers.osu import OsuScraper
 from models.college import College
 
-
 # Sample OSU API response data with classNumber field
 SAMPLE_OSU_API_RESPONSE = {
     "data": {
@@ -68,12 +67,12 @@ def mock_db_session():
         term_name="Autumn 2026",
         is_active=True,
     )
-    
+
     # Mock the query result
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = mock_college
     mock_session.execute.return_value = mock_result
-    
+
     return mock_session
 
 
@@ -180,7 +179,7 @@ async def test_catalog_shard_strategy(scraper):
             if shard == 2:
                 return SAMPLE_OSU_API_RESPONSE["data"]["courses"]
             return []
-        
+
         mock_fetch_shard.side_effect = shard_response
 
         # Call _fetch_all_courses which should query shards 1-8
@@ -188,11 +187,11 @@ async def test_catalog_shard_strategy(scraper):
 
         # Verify all 8 shards were queried (1xxx through 8xxx)
         assert mock_fetch_shard.call_count == 8
-        
+
         # Verify shards 1-8 were called
         for i in range(1, 9):
-            assert mock_fetch_shard.call_args_list[i-1][0][0] == i
-        
+            assert mock_fetch_shard.call_args_list[i - 1][0][0] == i
+
         # Verify results from shard 2 were returned
         assert len(result) == 2
 
@@ -216,7 +215,7 @@ async def test_fetch_by_catalog_shard(scraper):
         assert call_params["catalog-number"] == "2xxx"  # Catalog number shard
         assert call_params["term"] == "1268"
         assert call_params["p"] == "1"
-        
+
         # Verify result
         assert len(result) == 2
 
@@ -245,10 +244,75 @@ def test_class_number_from_api_field(scraper):
         "section": "0010",  # This should NOT be used for class_number
         "enrollmentStatus": "Open",
     }
-    
+
     class_data = scraper._transform_section(section_data)
-    
+
     # CRITICAL: Verify classNumber is used for class_number
     assert class_data["class_number"] == "12345"
     # And section code is preserved separately
     assert class_data["section"] == "0010"
+
+
+@pytest.mark.asyncio
+async def test_department_fetch_paginates_past_small_pages(scraper):
+    """Test that department fetch continues paginating when pages return ~50-55 items.
+
+    REGRESSION TEST: Previously stopped when len(courses) < 200, which broke after
+    page 1 since OSU API returns ~50-55 courses per page for departments like CSE.
+    """
+    with patch.object(
+        scraper, "_make_api_request", new_callable=AsyncMock
+    ) as mock_request:
+        # Simulate OSU API behavior for CSE:
+        # - Page 1: 55 courses (typical page size)
+        # - Page 2: 50 courses (still full page)
+        # - Page 3: 15 courses (small page, end of results)
+
+        def mock_api_response(params):
+            page = int(params.get("p", "1"))
+
+            # Create mock course data with unique class numbers per page
+            def make_course(class_num, page_num):
+                return {
+                    "course": {
+                        "subject": "CSE",
+                        "catalogNumber": f"{2000 + class_num}",
+                        "title": f"Course {class_num} Page {page_num}",
+                    },
+                    "sections": [
+                        {
+                            "classNumber": f"{page_num}{class_num:03d}",
+                            "section": "0010",
+                            "enrollmentStatus": "Open",
+                        }
+                    ],
+                }
+
+            if page == 1:
+                # Page 1: 55 courses
+                courses = [make_course(i, page) for i in range(55)]
+            elif page == 2:
+                # Page 2: 50 courses
+                courses = [make_course(i, page) for i in range(50)]
+            elif page == 3:
+                # Page 3: 15 courses (small page, should stop here)
+                courses = [make_course(i, page) for i in range(15)]
+            else:
+                # No page 4+
+                courses = []
+
+            return {"data": {"courses": courses}}
+
+        mock_request.side_effect = mock_api_response
+
+        # Fetch department courses
+        result = await scraper._fetch_department_courses("CSE")
+
+        # Should have fetched 3 pages (55 + 50 + 15 = 120 raw courses)
+        assert mock_request.call_count == 3
+        assert len(result) == 120
+
+        # Verify the pages were requested in order
+        assert mock_request.call_args_list[0][0][0]["p"] == "1"
+        assert mock_request.call_args_list[1][0][0]["p"] == "2"
+        assert mock_request.call_args_list[2][0][0]["p"] == "3"
