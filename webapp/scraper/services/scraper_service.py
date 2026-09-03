@@ -239,8 +239,17 @@ class ScraperService:
                     )
                     continue
 
+                # Skip enrollment creation if status is missing/empty
+                # This prevents "partial failure" scenarios where classes exist but have no enrollment data
+                class_data = item["class_data"]
+                if not class_data.get("status"):
+                    logger.warning(
+                        f"Class {class_key} missing status field, skipping enrollment"
+                    )
+                    continue
+
                 enrollment_data = self._create_enrollment_data(
-                    class_id, college.id, item["class_data"]
+                    class_id, college.id, class_data
                 )
                 enrollment_data_list.append(enrollment_data)
 
