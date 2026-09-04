@@ -122,6 +122,47 @@ source venv/bin/activate
 pytest tests/test_scrapers/test_asu.py -v
 ```
 
+## Live API Fixes (2026-09-04)
+
+**CRITICAL:** Two API contract mismatches discovered during live testing and fixed:
+
+### 1. Subjects Endpoint - Nested Structure
+**Issue:** API returns subjects nested by college group, not a flat list
+```json
+{
+  "LS": [{"SUBJECT": "ABC", "SUBJECTDESCR": "..."}, ...],
+  "BA": [{"SUBJECT": "...", "SUBJECTDESCR": "..."}, ...],
+  ...
+}
+```
+**Impact:** Original code only handled flat list → returned empty subjects → zero courses scraped  
+**Fix:** Iterate all dict values, flatten, and dedupe subjects. Kept flat list fallback for backward compatibility.
+
+### 2. Classes Endpoint - CLAS Wrapper
+**Issue:** Class rows wrap PeopleSoft fields under `CLAS` key
+```json
+{
+  "CLAS": {
+    "SUBJECT": "CSE",
+    "CATALOGNBR": "110",
+    "CLASSNBR": 62688,  // Returns int, not string
+    "CLASSSECTION": "...",
+    "ENRLSTAT": "O"
+  },
+  "seatInfo": {...}
+}
+```
+**Impact:** Original code read from top level → all fields missing → skipped all classes  
+**Fix:** Extract payload from `CLAS` wrapper if present, handle `CLASSNBR` as int. Kept top-level fallback for test fixtures.
+
+### Test Updates
+- **19 tests pass** (up from 14)
+- Added nested subjects fixtures
+- Added CLAS wrapper fixtures  
+- Added backward compatibility tests
+- Added full integration test
+- **Coverage: 80%** (up from 79%)
+
 ## Known Limitations / Future Work
 
 1. **No campus filtering** in v1 — fetches all ASU campuses
