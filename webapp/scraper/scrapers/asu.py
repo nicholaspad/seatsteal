@@ -23,7 +23,9 @@ class AsuScraper(BaseScraper):
     - X: semester indicator (7 = Fall, 1 = Spring, 4 = Summer)
     """
 
-    BASE_API_URL = "https://eadvs-cscc-catalog-api.apps.asu.edu/catalog-microservices/api/v1"
+    BASE_API_URL = (
+        "https://eadvs-cscc-catalog-api.apps.asu.edu/catalog-microservices/api/v1"
+    )
     MAX_PAGES_PER_SUBJECT = 50  # Safety cap for pagination
 
     def __init__(self, db_session=None):
@@ -71,9 +73,7 @@ class AsuScraper(BaseScraper):
 
             # Filter by department if not ALL
             if department.upper() != "ALL":
-                subjects = [
-                    s for s in subjects if s.upper() == department.upper()
-                ]
+                subjects = [s for s in subjects if s.upper() == department.upper()]
                 if not subjects:
                     logger.warning(
                         f"No subject found matching department: {department}"
@@ -91,7 +91,7 @@ class AsuScraper(BaseScraper):
                     f"Subject {subject}: {len(subject_classes)} classes "
                     f"(total: {len(all_raw_classes)})"
                 )
-                
+
                 # Check limit
                 if limit and len(all_raw_classes) >= limit:
                     logger.info(f"Reached limit of {limit} classes")
@@ -168,9 +168,7 @@ class AsuScraper(BaseScraper):
 
         while page <= self.MAX_PAGES_PER_SUBJECT:
             try:
-                classes_data = await self._fetch_classes_page(
-                    subject, scroll_id
-                )
+                classes_data = await self._fetch_classes_page(subject, scroll_id)
 
                 classes = classes_data.get("classes", [])
                 if not classes:
@@ -288,20 +286,22 @@ class AsuScraper(BaseScraper):
         courses_dict: Dict[str, Dict[str, Any]] = {}
         for class_data in transformed_classes:
             course_code = class_data["course_code"]
-            
+
             if course_code not in courses_dict:
                 courses_dict[course_code] = {
                     "course_code": course_code,
                     "title": class_data["title"],
                     "classes": [],
                 }
-            
+
             # Add class to course
-            courses_dict[course_code]["classes"].append({
-                "class_number": class_data["class_number"],
-                "section": class_data["section"],
-                "status": class_data["status"],
-            })
+            courses_dict[course_code]["classes"].append(
+                {
+                    "class_number": class_data["class_number"],
+                    "section": class_data["section"],
+                    "status": class_data["status"],
+                }
+            )
 
         # Convert to list and deduplicate classes within each course
         courses_data = []
@@ -314,7 +314,7 @@ class AsuScraper(BaseScraper):
                 if class_number not in seen_class_numbers:
                     seen_class_numbers.add(class_number)
                     unique_classes.append(cls)
-            
+
             course["classes"] = unique_classes
             courses_data.append(course)
 

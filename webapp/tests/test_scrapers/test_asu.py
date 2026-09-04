@@ -200,7 +200,9 @@ async def test_fetch_subject_classes_pagination(scraper):
         # Verify pagination
         assert mock_fetch_page.call_count == 2
         assert mock_fetch_page.call_args_list[0][0][0] == "CSE"
-        assert mock_fetch_page.call_args_list[0][0][1] is None  # First call: no scrollId
+        assert (
+            mock_fetch_page.call_args_list[0][0][1] is None
+        )  # First call: no scrollId
         assert (
             mock_fetch_page.call_args_list[1][0][1] == "scroll123"
         )  # Second call: with scrollId
@@ -436,7 +438,7 @@ def test_term_code_format(scraper):
     """Test that term code follows 2YYX format."""
     # Term code should be 2267 (Fall 2026)
     assert scraper.current_term == "2267"
-    
+
     # Verify it's a 4-digit string starting with 2
     assert len(scraper.current_term) == 4
     assert scraper.current_term.startswith("2")

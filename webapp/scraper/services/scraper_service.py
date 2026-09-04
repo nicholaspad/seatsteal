@@ -23,7 +23,6 @@ from scraper.scrapers.uf import UfScraper
 from scraper.scrapers.osu import OsuScraper
 from scraper.scrapers.asu import AsuScraper
 
-
 # Map college short names to scraper classes
 SCRAPER_MAP = {
     "cornell": CornellScraper,
@@ -211,19 +210,19 @@ class ScraperService:
             original_count = len(class_list)
             seen_keys = set()
             deduplicated_class_list = []
-            
+
             for class_item in class_list:
                 key = (class_item["course_id"], class_item["class_number"])
                 if key not in seen_keys:
                     seen_keys.add(key)
                     deduplicated_class_list.append(class_item)
-            
+
             if original_count != len(deduplicated_class_list):
                 logger.info(
                     f"Deduplicated class_list: {original_count} -> {len(deduplicated_class_list)} "
                     f"(removed {original_count - len(deduplicated_class_list)} duplicates)"
                 )
-            
+
             # Step 5: Batch upsert all classes
             logger.info(f"Batch upserting {len(deduplicated_class_list)} classes")
             class_mapping = self._batch_upsert_classes(deduplicated_class_list)
@@ -278,7 +277,7 @@ class ScraperService:
                     "outcome": "partial",  # Distinguish from hard errors
                     "error": error_msg,
                 }
-            
+
             if enrollments_saved == 0:
                 error_msg = (
                     f"Scraper returned {courses_saved} courses but 0 enrollments - "
@@ -509,8 +508,7 @@ class ScraperService:
             values_clause = ", ".join(placeholders)
 
             # Build the multi-row INSERT ... ON CONFLICT query with RETURNING
-            query = text(
-                f"""
+            query = text(f"""
                 INSERT INTO courses (college_id, course_code, title, is_active, created_at, updated_at)
                 VALUES {values_clause}
                 ON CONFLICT (college_id, course_code)
@@ -519,8 +517,7 @@ class ScraperService:
                     is_active = EXCLUDED.is_active,
                     updated_at = EXCLUDED.updated_at
                 RETURNING id, course_code
-                """
-            )
+                """)
 
             # Execute single query for entire batch and collect results (with retry)
             result = self._execute_with_retry(query, params)
@@ -578,8 +575,7 @@ class ScraperService:
             values_clause = ", ".join(placeholders)
 
             # Build the multi-row INSERT ... ON CONFLICT query with RETURNING
-            query = text(
-                f"""
+            query = text(f"""
                 INSERT INTO classes (course_id, class_number, section_code, is_active, created_at, updated_at)
                 VALUES {values_clause}
                 ON CONFLICT (course_id, class_number)
@@ -588,8 +584,7 @@ class ScraperService:
                     is_active = EXCLUDED.is_active,
                     updated_at = EXCLUDED.updated_at
                 RETURNING class_id, course_id, class_number
-                """
-            )
+                """)
 
             # Execute single query for entire batch and collect results (with retry)
             result = self._execute_with_retry(query, params)
@@ -732,14 +727,12 @@ class ScraperService:
 
         # Use DISTINCT ON to get the most recent enrollment per class
         # This is a PostgreSQL-specific feature that's very efficient
-        query = text(
-            """
+        query = text("""
             SELECT DISTINCT ON (class_id) class_id, id, enrollment_status
             FROM enrollments
             WHERE class_id = ANY(:class_ids)
             ORDER BY class_id, scraped_at DESC
-        """
-        )
+        """)
 
         result = self._execute_with_retry(query, {"class_ids": class_ids})
 
@@ -779,13 +772,11 @@ class ScraperService:
         for i in range(0, len(enrollment_ids), batch_size):
             batch_ids = enrollment_ids[i : i + batch_size]
 
-            query = text(
-                """
+            query = text("""
                 UPDATE enrollments
                 SET scraped_at = :scraped_at
                 WHERE id = ANY(:enrollment_ids)
-            """
-            )
+            """)
 
             result = self._execute_with_retry(
                 query, {"scraped_at": scraped_at, "enrollment_ids": batch_ids}
