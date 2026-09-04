@@ -13,38 +13,34 @@ sys.path.insert(0, str(webapp_dir))
 from scraper.scrapers.asu import AsuScraper
 from models.college import College
 
-# Sample ASU API response data - nested by college group (real API structure)
+# Sample ASU API response data from live Scraper Watch (term 2267)
+# Subjects: nested by college group with SUBJECT and SUBJECTDESCR keys
 SAMPLE_SUBJECTS_RESPONSE_NESTED = {
     "LS": [
+        {"SUBJECT": "ABS", "SUBJECTDESCR": "Applied Biological Sciences"},
         {"SUBJECT": "CSE", "SUBJECTDESCR": "Computer Science"},
-        {"SUBJECT": "MAT", "SUBJECTDESCR": "Mathematics"},
     ],
     "BA": [
+        {"SUBJECT": "ACC", "SUBJECTDESCR": "Accountancy"},
         {"SUBJECT": "FIN", "SUBJECTDESCR": "Finance"},
-        {"SUBJECT": "MKT", "SUBJECTDESCR": "Marketing"},
     ],
-    "EN": [
-        {"SUBJECT": "ENG", "SUBJECTDESCR": "Engineering"},
+    "AS": [
+        {"SUBJECT": "AFR", "SUBJECTDESCR": "African and African American Studies"},
     ],
 }
 
-# Flat list fallback (for backward compatibility)
-SAMPLE_SUBJECTS_RESPONSE_FLAT = [
-    {"subject": "CSE"},
-    {"subject": "MAT"},
-    {"subject": "ENG"},
-]
-
-# Sample classes with CLAS wrapper (real API structure)
+# Sample classes with CLAS wrapper (exact live API structure from Scraper Watch)
+# Class rows wrap PeopleSoft fields under CLAS key, with seatInfo sibling
 SAMPLE_CLASSES_RESPONSE_PAGE1 = {
     "classes": [
         {
             "CLAS": {
                 "SUBJECT": "CSE",
-                "CATALOGNBR": "110",
-                "COURSETITLELONG": "Principles of Programming",
-                "CLASSNBR": 63179,  # Real API returns int
+                "CATALOGNBR": "100",
+                "CLASSNBR": "62688",  # Live API: string "62688"
                 "CLASSSECTION": "2101",
+                "TITLE": "Prin of Programming with C++",
+                "COURSETITLELONG": "Principles of Programming with C++",
                 "ENRLSTAT": "O",
             },
             "seatInfo": {},
@@ -52,10 +48,11 @@ SAMPLE_CLASSES_RESPONSE_PAGE1 = {
         {
             "CLAS": {
                 "SUBJECT": "CSE",
-                "CATALOGNBR": "110",
-                "COURSETITLELONG": "Principles of Programming",
-                "CLASSNBR": 63180,
+                "CATALOGNBR": "100",
+                "CLASSNBR": "62689",
                 "CLASSSECTION": "2102",
+                "TITLE": "Prin of Programming with C++",
+                "COURSETITLELONG": "Principles of Programming with C++",
                 "ENRLSTAT": "C",
             },
             "seatInfo": {},
@@ -64,9 +61,10 @@ SAMPLE_CLASSES_RESPONSE_PAGE1 = {
             "CLAS": {
                 "SUBJECT": "CSE",
                 "CATALOGNBR": "205",
-                "TITLE": "Computer Organization",
-                "CLASSNBR": 63181,
+                "CLASSNBR": "63000",
                 "CLASSSECTION": "3101",
+                "TITLE": "Computer Organization",
+                "COURSETITLELONG": "Computer Organization and Architecture",
                 "ENRLSTAT": "O",
             },
             "seatInfo": {},
@@ -81,9 +79,10 @@ SAMPLE_CLASSES_RESPONSE_PAGE2 = {
             "CLAS": {
                 "SUBJECT": "CSE",
                 "CATALOGNBR": "310",
-                "COURSETITLELONG": "Data Structures and Algorithms",
-                "CLASSNBR": 63182,
+                "CLASSNBR": "63100",
                 "CLASSSECTION": "4101",
+                "TITLE": "Data Structures and Algorithms",
+                "COURSETITLELONG": "Data Structures and Algorithms",
                 "ENRLSTAT": "O",
             },
             "seatInfo": {},
@@ -92,22 +91,25 @@ SAMPLE_CLASSES_RESPONSE_PAGE2 = {
     "scrollId": None,  # No more pages
 }
 
-# Unwrapped fixtures for backward compatibility tests
+# Unwrapped fixtures ONLY for backward compatibility tests
+# (Real API never returns this format - only for legacy code paths)
 SAMPLE_CLASSES_UNWRAPPED = [
     {
         "SUBJECT": "CSE",
-        "CATALOGNBR": "110",
-        "COURSETITLELONG": "Principles of Programming",
-        "CLASSNBR": "63179",
+        "CATALOGNBR": "100",
+        "CLASSNBR": "62688",
         "CLASSSECTION": "2101",
+        "TITLE": "Prin of Programming with C++",
+        "COURSETITLELONG": "Principles of Programming with C++",
         "ENRLSTAT": "O",
     },
     {
         "SUBJECT": "CSE",
-        "CATALOGNBR": "110",
-        "COURSETITLELONG": "Principles of Programming",
-        "CLASSNBR": "63180",
+        "CATALOGNBR": "100",
+        "CLASSNBR": "62689",
         "CLASSSECTION": "2102",
+        "TITLE": "Prin of Programming with C++",
+        "COURSETITLELONG": "Principles of Programming with C++",
         "ENRLSTAT": "C",
     },
 ]
@@ -167,14 +169,14 @@ async def test_scrape_all_courses(scraper):
         courses = await scraper.scrape_courses("ALL")
 
         # Verify results
-        assert len(courses) == 3  # CSE 110, CSE 205, CSE 310
-        assert courses[0]["course_code"] == "CSE 110"
-        assert courses[0]["title"] == "Principles of Programming"
+        assert len(courses) == 3  # CSE 100, CSE 205, CSE 310
+        assert courses[0]["course_code"] == "CSE 100"
+        assert courses[0]["title"] == "Principles of Programming with C++"
         assert len(courses[0]["classes"]) == 2
-        assert courses[0]["classes"][0]["class_number"] == "63179"
+        assert courses[0]["classes"][0]["class_number"] == "62688"
         assert courses[0]["classes"][0]["section"] == "2101"
         assert courses[0]["classes"][0]["status"] == "Open"
-        assert courses[0]["classes"][1]["class_number"] == "63180"
+        assert courses[0]["classes"][1]["class_number"] == "62689"
         assert courses[0]["classes"][1]["status"] == "Closed"
 
 
@@ -200,7 +202,7 @@ async def test_scrape_department_courses(scraper):
         mock_fetch_classes.assert_called_once_with("CSE")
 
         # Verify results
-        assert len(courses) == 2  # CSE 110, CSE 205
+        assert len(courses) == 2  # CSE 100, CSE 205
 
 
 @pytest.mark.asyncio
@@ -227,35 +229,12 @@ async def test_fetch_subjects_nested(scraper):
         assert call_args[1]["params"]["term"] == "2267"
 
         # Verify results - should flatten and dedupe
-        assert len(subjects) == 5  # CSE, MAT, FIN, MKT, ENG
+        assert len(subjects) == 5  # ABS, CSE, ACC, FIN, AFR
+        assert "ABS" in subjects
         assert "CSE" in subjects
-        assert "MAT" in subjects
+        assert "ACC" in subjects
         assert "FIN" in subjects
-        assert "MKT" in subjects
-        assert "ENG" in subjects
-
-    await scraper.client.aclose()
-
-
-@pytest.mark.asyncio
-async def test_fetch_subjects_flat_fallback(scraper):
-    """Test fetching subjects with flat list structure (backward compatibility)."""
-    await scraper._ensure_client()
-
-    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
-        # Mock HTTP response with flat list
-        import json
-
-        mock_response = MagicMock()
-        mock_response.content = json.dumps(SAMPLE_SUBJECTS_RESPONSE_FLAT).encode()
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
-
-        # Fetch subjects
-        subjects = await scraper._fetch_subjects()
-
-        # Verify results
-        assert subjects == ["CSE", "MAT", "ENG"]
+        assert "AFR" in subjects
 
     await scraper.client.aclose()
 
@@ -354,12 +333,12 @@ def test_transform_classes(scraper):
     # Should group into 3 unique courses
     assert len(courses) == 3
 
-    # Find CSE 110 course
-    cse110 = next(c for c in courses if c["course_code"] == "CSE 110")
-    assert cse110["title"] == "Principles of Programming"
-    assert len(cse110["classes"]) == 2
-    assert cse110["classes"][0]["class_number"] == "63179"
-    assert cse110["classes"][1]["class_number"] == "63180"
+    # Find CSE 100 course
+    cse100 = next(c for c in courses if c["course_code"] == "CSE 100")
+    assert cse100["title"] == "Principles of Programming with C++"
+    assert len(cse100["classes"]) == 2
+    assert cse100["classes"][0]["class_number"] == "62688"
+    assert cse100["classes"][1]["class_number"] == "62689"
 
 
 def test_transform_single_class_with_clas_wrapper(scraper):
@@ -368,22 +347,22 @@ def test_transform_single_class_with_clas_wrapper(scraper):
     class_data = scraper._transform_single_class(raw_class)
 
     assert class_data is not None
-    assert class_data["course_code"] == "CSE 110"
-    assert class_data["title"] == "Principles of Programming"
-    assert class_data["class_number"] == "63179"  # Converted from int to string
+    assert class_data["course_code"] == "CSE 100"
+    assert class_data["title"] == "Principles of Programming with C++"
+    assert class_data["class_number"] == "62688"
     assert class_data["section"] == "2101"
     assert class_data["status"] == "Open"
 
 
 def test_transform_single_class_unwrapped(scraper):
-    """Test transformation of unwrapped class (backward compatibility)."""
+    """Test transformation of unwrapped class (backward compatibility only)."""
     raw_class = SAMPLE_CLASSES_UNWRAPPED[0]
     class_data = scraper._transform_single_class(raw_class)
 
     assert class_data is not None
-    assert class_data["course_code"] == "CSE 110"
-    assert class_data["title"] == "Principles of Programming"
-    assert class_data["class_number"] == "63179"
+    assert class_data["course_code"] == "CSE 100"
+    assert class_data["title"] == "Principles of Programming with C++"
+    assert class_data["class_number"] == "62688"
     assert class_data["section"] == "2101"
     assert class_data["status"] == "Open"
 
@@ -394,12 +373,14 @@ def test_enrlstat_mapping_with_clas_wrapper(scraper):
     raw_class_open = {
         "CLAS": {
             "SUBJECT": "CSE",
-            "CATALOGNBR": "110",
+            "CATALOGNBR": "100",
             "TITLE": "Test Course",
-            "CLASSNBR": 12345,
+            "COURSETITLELONG": "Test Course Long",
+            "CLASSNBR": "12345",
             "CLASSSECTION": "01",
             "ENRLSTAT": "O",
-        }
+        },
+        "seatInfo": {},
     }
     class_open = scraper._transform_single_class(raw_class_open)
     assert class_open["status"] == "Open"
@@ -408,12 +389,14 @@ def test_enrlstat_mapping_with_clas_wrapper(scraper):
     raw_class_closed = {
         "CLAS": {
             "SUBJECT": "CSE",
-            "CATALOGNBR": "110",
+            "CATALOGNBR": "100",
             "TITLE": "Test Course",
-            "CLASSNBR": 12346,
+            "COURSETITLELONG": "Test Course Long",
+            "CLASSNBR": "12346",
             "CLASSSECTION": "02",
             "ENRLSTAT": "C",
-        }
+        },
+        "seatInfo": {},
     }
     class_closed = scraper._transform_single_class(raw_class_closed)
     assert class_closed["status"] == "Closed"
@@ -422,12 +405,14 @@ def test_enrlstat_mapping_with_clas_wrapper(scraper):
     raw_class_unknown = {
         "CLAS": {
             "SUBJECT": "CSE",
-            "CATALOGNBR": "110",
+            "CATALOGNBR": "100",
             "TITLE": "Test Course",
-            "CLASSNBR": 12347,
+            "COURSETITLELONG": "Test Course Long",
+            "CLASSNBR": "12347",
             "CLASSSECTION": "03",
             "ENRLSTAT": "X",
-        }
+        },
+        "seatInfo": {},
     }
     class_unknown = scraper._transform_single_class(raw_class_unknown)
     assert class_unknown["status"] == "Closed"
@@ -438,35 +423,39 @@ def test_classnbr_identity(scraper):
     raw_class = {
         "CLAS": {
             "SUBJECT": "CSE",
-            "CATALOGNBR": "110",
+            "CATALOGNBR": "100",
             "TITLE": "Test Course",
-            "CLASSNBR": 99999,  # Real API returns int
+            "COURSETITLELONG": "Test Course Long",
+            "CLASSNBR": "99999",  # Live API returns string
             "CLASSSECTION": "ABC",  # This is the section code
             "ENRLSTAT": "O",
-        }
+        },
+        "seatInfo": {},
     }
     class_data = scraper._transform_single_class(raw_class)
 
-    # Verify CLASSNBR is used for class_number (converted to string), not section
+    # Verify CLASSNBR is used for class_number, not section
     assert class_data["class_number"] == "99999"
     assert class_data["section"] == "ABC"
 
 
-def test_classnbr_int_to_string_conversion(scraper):
-    """Test that integer CLASSNBR from API is converted to string."""
+def test_classnbr_string_from_live_api(scraper):
+    """Test that string CLASSNBR from live API is handled correctly."""
     raw_class = {
         "CLAS": {
             "SUBJECT": "CSE",
-            "CATALOGNBR": "110",
-            "TITLE": "Test Course",
-            "CLASSNBR": 62688,  # Real API returns int, not string
-            "CLASSSECTION": "01",
+            "CATALOGNBR": "100",
+            "TITLE": "Prin of Programming with C++",
+            "COURSETITLELONG": "Principles of Programming with C++",
+            "CLASSNBR": "62688",  # Live API returns string
+            "CLASSSECTION": "2101",
             "ENRLSTAT": "O",
-        }
+        },
+        "seatInfo": {},
     }
     class_data = scraper._transform_single_class(raw_class)
 
-    # Verify int is converted to string
+    # Verify string is preserved
     assert class_data["class_number"] == "62688"
     assert isinstance(class_data["class_number"], str)
 
@@ -477,31 +466,33 @@ def test_title_fallback(scraper):
     raw_class_long = {
         "CLAS": {
             "SUBJECT": "CSE",
-            "CATALOGNBR": "110",
-            "COURSETITLELONG": "Long Title",
-            "TITLE": "Short Title",
-            "CLASSNBR": 12345,
+            "CATALOGNBR": "100",
+            "COURSETITLELONG": "Principles of Programming with C++",
+            "TITLE": "Prin of Programming with C++",
+            "CLASSNBR": "12345",
             "CLASSSECTION": "01",
             "ENRLSTAT": "O",
-        }
+        },
+        "seatInfo": {},
     }
     class_long = scraper._transform_single_class(raw_class_long)
-    assert class_long["title"] == "Long Title"
+    assert class_long["title"] == "Principles of Programming with C++"
 
     # Test fallback to TITLE when COURSETITLELONG is empty
     raw_class_short = {
         "CLAS": {
             "SUBJECT": "CSE",
-            "CATALOGNBR": "110",
+            "CATALOGNBR": "100",
             "COURSETITLELONG": "",
-            "TITLE": "Short Title",
-            "CLASSNBR": 12345,
+            "TITLE": "Prin of Programming with C++",
+            "CLASSNBR": "12345",
             "CLASSSECTION": "01",
             "ENRLSTAT": "O",
-        }
+        },
+        "seatInfo": {},
     }
     class_short = scraper._transform_single_class(raw_class_short)
-    assert class_short["title"] == "Short Title"
+    assert class_short["title"] == "Prin of Programming with C++"
 
 
 def test_deduplicate_classes_by_class_number(scraper):
@@ -510,32 +501,38 @@ def test_deduplicate_classes_by_class_number(scraper):
         {
             "CLAS": {
                 "SUBJECT": "CSE",
-                "CATALOGNBR": "110",
+                "CATALOGNBR": "100",
                 "TITLE": "Test Course",
-                "CLASSNBR": 12345,  # Duplicate
+                "COURSETITLELONG": "Test Course Long",
+                "CLASSNBR": "12345",  # Duplicate
                 "CLASSSECTION": "01",
                 "ENRLSTAT": "O",
-            }
+            },
+            "seatInfo": {},
         },
         {
             "CLAS": {
                 "SUBJECT": "CSE",
-                "CATALOGNBR": "110",
+                "CATALOGNBR": "100",
                 "TITLE": "Test Course",
-                "CLASSNBR": 12345,  # Duplicate
+                "COURSETITLELONG": "Test Course Long",
+                "CLASSNBR": "12345",  # Duplicate
                 "CLASSSECTION": "02",
                 "ENRLSTAT": "C",
-            }
+            },
+            "seatInfo": {},
         },
         {
             "CLAS": {
                 "SUBJECT": "CSE",
-                "CATALOGNBR": "110",
+                "CATALOGNBR": "100",
                 "TITLE": "Test Course",
-                "CLASSNBR": 12346,  # Unique
+                "COURSETITLELONG": "Test Course Long",
+                "CLASSNBR": "12346",  # Unique
                 "CLASSSECTION": "03",
                 "ENRLSTAT": "O",
-            }
+            },
+            "seatInfo": {},
         },
     ]
 
@@ -574,15 +571,15 @@ def test_term_code_format(scraper):
 
 def test_subjects_deduplication(scraper):
     """Test that duplicate subjects across college groups are deduplicated."""
-    # Create nested structure with duplicate subjects
+    # Create nested structure with duplicate subjects (matching live API format)
     nested_response = {
         "LS": [
             {"SUBJECT": "CSE", "SUBJECTDESCR": "Computer Science"},
-            {"SUBJECT": "MAT", "SUBJECTDESCR": "Mathematics"},
+            {"SUBJECT": "ABS", "SUBJECTDESCR": "Applied Biological Sciences"},
         ],
-        "EN": [
+        "BA": [
             {"SUBJECT": "CSE", "SUBJECTDESCR": "Computer Science"},  # Duplicate
-            {"SUBJECT": "ENG", "SUBJECTDESCR": "Engineering"},
+            {"SUBJECT": "ACC", "SUBJECTDESCR": "Accountancy"},
         ],
     }
 
@@ -603,35 +600,35 @@ def test_subjects_deduplication(scraper):
     # Should have 3 unique subjects (CSE deduplicated)
     assert len(subjects) == 3
     assert "CSE" in subjects
-    assert "MAT" in subjects
-    assert "ENG" in subjects
+    assert "ABS" in subjects
+    assert "ACC" in subjects
     assert subjects.count("CSE") == 1  # Only one instance
 
 
 @pytest.mark.asyncio
 async def test_full_integration_nested_subjects_and_clas_wrapper(scraper):
-    """Integration test: nested subjects + CLAS wrapper classes."""
+    """Integration test: nested subjects + CLAS wrapper classes (live API shapes)."""
     with patch.object(
         scraper, "_fetch_subjects", new_callable=AsyncMock
     ) as mock_fetch_subjects, patch.object(
         scraper, "_fetch_subject_classes", new_callable=AsyncMock
     ) as mock_fetch_classes:
-        # Mock nested subjects response
-        mock_fetch_subjects.return_value = ["CSE", "MAT"]
+        # Mock nested subjects response (live API format)
+        mock_fetch_subjects.return_value = ["CSE", "ABS"]
 
-        # Mock classes with CLAS wrapper
+        # Mock classes with CLAS wrapper (live API format)
         mock_fetch_classes.return_value = SAMPLE_CLASSES_RESPONSE_PAGE1["classes"]
 
         # Scrape courses
         courses = await scraper.scrape_courses("ALL")
 
         # Verify results
-        assert len(courses) == 2  # CSE 110 and CSE 205
-        assert courses[0]["course_code"] == "CSE 110"
+        assert len(courses) == 2  # CSE 100 and CSE 205
+        assert courses[0]["course_code"] == "CSE 100"
         assert len(courses[0]["classes"]) == 2
 
-        # Verify CLASSNBR converted from int to string
-        assert courses[0]["classes"][0]["class_number"] == "63179"
+        # Verify CLASSNBR from CLAS wrapper (string from live API)
+        assert courses[0]["classes"][0]["class_number"] == "62688"
         assert isinstance(courses[0]["classes"][0]["class_number"], str)
 
         # Verify ENRLSTAT mapping
