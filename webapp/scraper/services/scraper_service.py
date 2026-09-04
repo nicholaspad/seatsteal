@@ -21,6 +21,7 @@ from scraper.scrapers.rutgers import RutgersScraper
 from scraper.scrapers.uci import UciScraper
 from scraper.scrapers.uf import UfScraper
 from scraper.scrapers.osu import OsuScraper
+from scraper.scrapers.asu import AsuScraper
 
 
 # Map college short names to scraper classes
@@ -36,6 +37,7 @@ SCRAPER_MAP = {
     "uf": UfScraper,
     "umd": UmdScraper,  # Optimized with batch processing (50 depts at a time)
     "osu": OsuScraper,  # Catalog-number shard strategy (1xxx-8xxx)
+    "asu": AsuScraper,  # ScrollId-based pagination with subject-first strategy
 }
 
 

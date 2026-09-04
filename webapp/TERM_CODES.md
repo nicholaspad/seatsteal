@@ -171,6 +171,29 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 
 ---
 
+## Arizona State University
+
+**Format:** `2YYX` (4-digit STRM format)
+
+**Pattern:**
+- `2YY` - 200 + (year minus 2000), e.g., 226 for 2026
+- `X` - Semester indicator:
+  - `1` = Spring
+  - `4` = Summer
+  - `7` = Fall
+
+**Examples:**
+- `2267` - Fall 2026 (226 + 7)
+- `2261` - Spring 2026 (226 + 1)
+- `2264` - Summer 2026 (226 + 4)
+- `2257` - Fall 2025 (225 + 7)
+
+**API:** Uses eAdvs-CSCC Catalog API (https://eadvs-cscc-catalog-api.apps.asu.edu/catalog-microservices/api/v1)
+
+**Note:** API requires `Authorization: Bearer null` header (returns 401 without it).
+
+---
+
 ## Quick Reference Tool
 
 Run the term codes table script to fetch current term codes for all colleges:
