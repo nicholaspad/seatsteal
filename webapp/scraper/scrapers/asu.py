@@ -121,8 +121,15 @@ class AsuScraper(BaseScraper):
         """
         Fetch available subjects for the current term.
 
+        API returns subjects nested by college group:
+        {
+          "LS": [{"SUBJECT": "ABC", "SUBJECTDESCR": "..."}, ...],
+          "BA": [{"SUBJECT": "...", "SUBJECTDESCR": "..."}, ...],
+          ...
+        }
+
         Returns:
-            List of subject codes (e.g., ['CSE', 'MATH', 'ENG'])
+            List of unique subject codes (e.g., ['CSE', 'MATH', 'ENG'])
         """
         try:
             url = f"{self.BASE_API_URL}/search/subjects"
@@ -136,14 +143,35 @@ class AsuScraper(BaseScraper):
 
             # Extract subject codes from response
             subjects = []
-            if isinstance(data, list):
+            seen = set()  # Track seen subjects for deduplication
+
+            if isinstance(data, dict):
+                # Nested structure: iterate all college groups (dict values)
+                for college_group in data.values():
+                    if isinstance(college_group, list):
+                        for item in college_group:
+                            if isinstance(item, dict):
+                                # Try uppercase SUBJECT first, fallback to lowercase
+                                subject = item.get("SUBJECT") or item.get("subject")
+                                if subject and subject not in seen:
+                                    seen.add(subject)
+                                    subjects.append(subject)
+            elif isinstance(data, list):
+                # Flat list fallback (for older API versions or test fixtures)
                 for item in data:
                     if isinstance(item, dict):
-                        subject = item.get("subject") or item.get("code")
-                        if subject:
+                        subject = (
+                            item.get("SUBJECT")
+                            or item.get("subject")
+                            or item.get("code")
+                        )
+                        if subject and subject not in seen:
+                            seen.add(subject)
                             subjects.append(subject)
                     elif isinstance(item, str):
-                        subjects.append(item)
+                        if item not in seen:
+                            seen.add(item)
+                            subjects.append(item)
 
             logger.info(f"Fetched {len(subjects)} subjects from ASU API")
             return subjects
@@ -330,6 +358,21 @@ class AsuScraper(BaseScraper):
         """
         Transform a single ASU class to include course and class info.
 
+        API returns classes with PeopleSoft fields wrapped under "CLAS":
+        {
+          "CLAS": {
+            "SUBJECT": "CSE",
+            "CATALOGNBR": "110",
+            "CLASSNBR": 62688,
+            "CLASSSECTION": "...",
+            "TITLE": "...",
+            "COURSETITLELONG": "...",
+            "ENRLSTAT": "O"
+          },
+          "seatInfo": {...},
+          ...
+        }
+
         Args:
             raw_class: Raw class data from API
 
@@ -337,13 +380,22 @@ class AsuScraper(BaseScraper):
             Dictionary with course_code, title, class_number, section, status
         """
         try:
+            # Extract payload from CLAS wrapper if present, otherwise use top-level
+            # (supports both live API structure and unwrapped test fixtures)
+            payload = (
+                raw_class.get("CLAS")
+                if isinstance(raw_class.get("CLAS"), dict)
+                else raw_class
+            )
+
             # Build course_code from SUBJECT and CATALOGNBR
-            subject = raw_class.get("SUBJECT", "").strip()
-            catalog_nbr = raw_class.get("CATALOGNBR", "").strip()
+            subject = payload.get("SUBJECT", "").strip()
+            catalog_nbr = payload.get("CATALOGNBR", "").strip()
 
             if not subject or not catalog_nbr:
                 logger.warning(
-                    f"Skipping class with missing subject or catalog number: {raw_class}"
+                    f"Skipping class with missing subject or catalog number: "
+                    f"{payload.get('CLASSNBR', 'unknown')}"
                 )
                 return None
 
@@ -351,21 +403,24 @@ class AsuScraper(BaseScraper):
 
             # Get title (prefer COURSETITLELONG, fallback to TITLE)
             title = (
-                raw_class.get("COURSETITLELONG", "").strip()
-                or raw_class.get("TITLE", "").strip()
+                payload.get("COURSETITLELONG", "").strip()
+                or payload.get("TITLE", "").strip()
             )
 
-            # Get class number (CLASSNBR)
-            class_number = str(raw_class.get("CLASSNBR", "")).strip()
+            # Get class number (CLASSNBR) - handle both int and string
+            class_number_raw = payload.get("CLASSNBR", "")
+            class_number = str(class_number_raw).strip()
             if not class_number:
-                logger.warning(f"Skipping class with missing CLASSNBR: {raw_class}")
+                logger.warning(
+                    f"Skipping class with missing CLASSNBR: " f"{subject} {catalog_nbr}"
+                )
                 return None
 
             # Get section (CLASSSECTION)
-            section = str(raw_class.get("CLASSSECTION", "")).strip()
+            section = str(payload.get("CLASSSECTION", "")).strip()
 
             # Get enrollment status (ENRLSTAT)
-            enrl_stat = raw_class.get("ENRLSTAT", "").strip().upper()
+            enrl_stat = payload.get("ENRLSTAT", "").strip().upper()
 
             # Map ENRLSTAT to status
             if enrl_stat == "O":
