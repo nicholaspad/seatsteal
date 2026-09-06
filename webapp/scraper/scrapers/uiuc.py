@@ -46,10 +46,15 @@ class UiucScraper(BaseScraper):
         self.client: Optional[httpx.AsyncClient] = None
         self.current_term = get_term_code_from_db(db_session, "uiuc")
         self.request_count = 0
-        self.request_budget = 0  # Will be calculated dynamically
+        # Initialize with discovery budget (generous allowance for subjects index + all subject summaries)
+        # Will be replaced with derived hard budget after discovery completes
+        # Assumes ~200 subjects max × 4 attempts + subjects index = ~800 attempts
+        self.request_budget = 1000
         self.budget_lock = asyncio.Lock()  # Synchronize budget checks
         self.failed_courses = 0  # Track failures for material partial detection
-        logger.info(f"Initialized UIUC scraper with term: {self.current_term}")
+        logger.info(
+            f"Initialized UIUC scraper with term: {self.current_term}, discovery budget: {self.request_budget}"
+        )
 
     async def _ensure_client(self):
         """Ensure HTTP client is initialized"""
@@ -221,18 +226,24 @@ class UiucScraper(BaseScraper):
         """
         Calculate dynamic request budget based on discovered work.
 
+        Replaces initial discovery budget with derived hard budget.
+        Accounts for requests already consumed during discovery phase.
+
         Budget formula:
         - Base overhead (subjects index XML + margin)
         - Subject XMLs (one per subject)
         - Course HTMLs (one per course)
-        - Retry allowance (30% multiplier for retries/failures)
+        - Retry multiplier (1.5× = 50% allowance for retries)
 
         Args:
             num_subjects: Number of subjects to fetch
             num_courses: Number of courses to fetch
 
         Sets:
-            self.request_budget: Total allowed requests
+            self.request_budget: Total allowed requests (derived hard budget)
+
+        Raises:
+            RuntimeError: If discovery already exceeded the derived budget
         """
         base_budget = (
             self.BUDGET_BASE_OVERHEAD
@@ -240,12 +251,27 @@ class UiucScraper(BaseScraper):
             + (num_courses * self.BUDGET_PER_COURSE_HTML)
         )
 
-        # Apply retry multiplier
-        self.request_budget = int(base_budget * self.BUDGET_RETRY_MULTIPLIER)
+        # Apply retry multiplier (up to 4 attempts per logical fetch)
+        # 1.5× allows for ~1.5 attempts per fetch on average
+        new_budget = int(base_budget * self.BUDGET_RETRY_MULTIPLIER)
+
+        # Check if discovery phase already exceeded derived budget
+        if self.request_count > new_budget:
+            error_msg = (
+                f"Discovery phase consumed {self.request_count} requests, "
+                f"exceeding derived budget {new_budget} (base: {base_budget})"
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        # Replace discovery budget with derived hard budget
+        old_budget = self.request_budget
+        self.request_budget = new_budget
 
         logger.info(
             f"Calculated request budget: {self.request_budget} "
-            f"(base: {base_budget}, subjects: {num_subjects}, courses: {num_courses})"
+            f"(base: {base_budget}, subjects: {num_subjects}, courses: {num_courses}, "
+            f"current: {self.request_count}/{old_budget} discovery → {self.request_count}/{new_budget} derived)"
         )
 
     async def _check_and_increment_budget(self):
@@ -437,17 +463,17 @@ class UiucScraper(BaseScraper):
             )
 
             # Check material failure threshold (>20% failure rate: failed + empty)
-            if total_courses > 10:  # Only enforce for meaningful sample size
-                total_failures = courses_failed + courses_empty_success
-                fail_rate = total_failures / total_courses
-                if fail_rate > 0.2:
-                    error_msg = (
-                        f"Material partial failure: {total_failures}/{total_courses} "
-                        f"courses failed ({fail_rate:.1%}) - "
-                        f"{courses_failed} exceptions + {courses_empty_success} empty-success"
-                    )
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+            # Apply to all runs, including small ones (no exemption for ≤10 courses)
+            total_failures = courses_failed + courses_empty_success
+            fail_rate = total_failures / total_courses
+            if fail_rate > 0.2:
+                error_msg = (
+                    f"Material partial failure: {total_failures}/{total_courses} "
+                    f"courses failed ({fail_rate:.1%}) - "
+                    f"{courses_failed} exceptions + {courses_empty_success} empty-success"
+                )
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
             # Rate limiting between batches
             await asyncio.sleep(0.2)
@@ -460,7 +486,8 @@ class UiucScraper(BaseScraper):
             f"{len(all_classes)} total class rows"
         )
 
-        if total_failures > 0 and total_courses > 10:
+        # Final warning if high failure rate (applies to all sizes)
+        if total_failures > 0:
             fail_rate = total_failures / total_courses
             if fail_rate > 0.2:
                 logger.warning(
@@ -526,16 +553,41 @@ class UiucScraper(BaseScraper):
             logger.debug(f"Empty tbody for {subject} {course_id}")
             return []
 
-        for row in tbody.find_all("tr"):
+        # Track parsing to distinguish malformed from valid empty
+        rows = tbody.find_all("tr")
+        if not rows:
+            # Valid empty: tbody exists but no rows
+            logger.debug(f"Empty tbody (no rows) for {subject} {course_id}")
+            return []
+
+        classes = []
+        parse_failures = 0
+
+        for row in rows:
             try:
                 class_data = self._parse_class_row(row, course_code, title)
                 if class_data:
                     classes.append(class_data)
+                else:
+                    # Row was skipped (e.g., insufficient columns)
+                    parse_failures += 1
             except Exception as e:
-                logger.warning(f"Error parsing class row for {course_code}: {e}")
-                continue
+                # Row parsing failed due to exception
+                parse_failures += 1
+                logger.warning(
+                    f"Error parsing class row for {course_code}: {e} (row {parse_failures})"
+                )
 
-        logger.debug(f"Parsed {len(classes)} classes from {subject} {course_id} HTML")
+        # If we had rows but all failed to parse, this is malformed HTML (not valid empty)
+        if rows and len(classes) == 0 and parse_failures > 0:
+            raise ValueError(
+                f"All {parse_failures} rows failed to parse for {subject} {course_id} (malformed HTML)"
+            )
+
+        logger.debug(
+            f"Parsed {len(classes)} classes from {subject} {course_id} HTML "
+            f"({parse_failures} parse failures)"
+        )
         return classes
 
     def _parse_class_row(

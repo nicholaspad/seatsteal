@@ -1340,3 +1340,131 @@ def test_xml_deduplication_subjects(scraper):
     # Should have only 2 unique subjects (CS deduplicated)
     assert len(subjects) == 2
     assert subjects.count("CS") == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_budget_nonzero(scraper):
+    """Test that discovery budget is non-zero before first request."""
+    # Scraper should initialize with discovery budget > 0
+    assert scraper.request_budget > 0
+    assert scraper.request_budget == 1000  # Initial discovery budget
+
+    await scraper._ensure_client()
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        # Mock subjects XML response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = SAMPLE_SUBJECTS_XML.encode()
+        mock_response.headers = {"Content-Length": str(len(SAMPLE_SUBJECTS_XML))}
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        # Should be able to fetch subjects without budget error
+        subjects = await scraper._fetch_subjects("2026", "fall")
+        assert len(subjects) > 0
+        # Request count should have been incremented
+        assert scraper.request_count > 0
+        assert scraper.request_count <= scraper.request_budget
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_malformed_rows_raise_not_empty_success(scraper):
+    """Test that courses with all malformed rows raise ValueError, not empty success."""
+    await scraper._ensure_client()
+
+    # Read malformed HTML fixture (all rows fail to parse)
+    fixture_path = Path(__file__).parent / "fixtures" / "uiuc" / "malformed_rows.html"
+    with open(fixture_path, "r") as f:
+        malformed_html = f.read()
+
+    with patch.object(
+        scraper, "_fetch_with_retry", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_response = MagicMock()
+        mock_response.content = malformed_html.encode()
+        mock_fetch.return_value = mock_response
+
+        # Should raise ValueError for all-malformed rows, not return []
+        with pytest.raises(ValueError, match="All .* rows failed to parse.*malformed"):
+            await scraper._fetch_course_html("2026", "fall", "CS", "999")
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_material_partial_small_run(scraper):
+    """Test that material-partial threshold applies to small runs (≤10 courses)."""
+    await scraper._ensure_client()
+
+    # Create 5 courses (small run), 2 will fail (40% failure rate > 20%)
+    course_ids = [(f"CS", f"{i:03d}") for i in range(5)]
+
+    with patch.object(
+        scraper, "_fetch_with_retry", new_callable=AsyncMock
+    ) as mock_fetch:
+
+        def make_response(course_id):
+            mock_response = MagicMock()
+            # Course 001 and 003 fail (40%)
+            if course_id in ["001", "003"]:
+                # Return malformed HTML that will raise ValueError
+                mock_response.content = (
+                    b"""
+<!DOCTYPE html>
+<html>
+<head><title>CS """
+                    + course_id.encode()
+                    + b"""</title></head>
+<body>
+    <h1 class="fw-bold">CS """
+                    + course_id.encode()
+                    + b"""</h1>
+    <div class="app-label">Test Course</div>
+    <table id="schedule-course-table">
+        <tbody>
+            <tr><td>ONLY_ONE_CELL</td></tr>
+        </tbody>
+    </table>
+</body>
+</html>
+                """
+                )
+            else:
+                # Valid HTML with one class
+                mock_response.content = f"""
+<!DOCTYPE html>
+<html>
+<head><title>CS {course_id}</title></head>
+<body>
+    <h1 class="fw-bold">CS {course_id}</h1>
+    <div class="app-label">Test Course</div>
+    <table id="schedule-course-table">
+        <tbody>
+            <tr>
+                <td></td>
+                <td><i aria-label="Section Open"></i></td>
+                <td></td>
+                <td>{course_id}99</td>
+                <td>AL1</td>
+                <td></td>
+                <td><dl><dt>Availability</dt><dd>Open</dd></dl></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>
+                """.encode()
+            return mock_response
+
+        # Mock returns different responses based on course_id
+        mock_fetch.side_effect = lambda url: make_response(url.split("/")[-1])
+
+        # Should raise RuntimeError due to >20% failure rate (2/5 = 40%)
+        # Even though total_courses = 5 ≤ 10, material-partial should still apply
+        with pytest.raises(RuntimeError, match="Material partial failure.*2/5"):
+            await scraper._fetch_courses_concurrent("2026", "fall", course_ids)
+
+    await scraper.client.aclose()
