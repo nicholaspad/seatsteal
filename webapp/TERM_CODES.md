@@ -194,6 +194,34 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 
 ---
 
+## Purdue University
+
+**Format:** `YYYYTT` (6-digit Banner code)
+
+**Pattern:**
+- `YYYY` - 4-digit year
+- `TT` - Term code:
+  - `10` = Fall
+  - `13` = Winter (intersession)
+  - `20` = Spring
+  - `30` = Summer
+
+**Examples:**
+- `202710` - Fall 2026
+- `202713` - Winter 2026 (intersession)
+- `202620` - Spring 2026
+- `202530` - Summer 2025
+
+**Source:** Uses official Banner self-service HTML pages (https://selfservice.mypurdue.purdue.edu/prod/)
+
+**Method:** Banner term picker → POST course search by subject → parse CRN list → fetch detail pages for seat availability
+
+**Important Notes:**
+- **Term selection**: Banner term picker shows terms with and without "(View only)" suffix. Only terms WITHOUT "(View only)" are registerable. The scraper should use registerable terms.
+- **Purdue.io API**: A public API exists at purdue.io but it is catalog-only (no real-time seat availability). Must use official Banner self-service for Open/Closed status.
+
+---
+
 ## Quick Reference Tool
 
 Run the term codes table script to fetch current term codes for all colleges:
