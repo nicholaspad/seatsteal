@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<courses>
+    <course id="124" name="Introduction to CS">
+        <section id="A">
+            <statusCode>A</statusCode>
+            <sectionStatusCode>A</sectionStatusCode>
+        </section>
+    </course>
+    <course id="173" name="Discrete Structures">
+        <section id="B">
+            <statusCode>A</statusCode>
+            <sectionStatusCode>A</sectionStatusCode>
+        </section>
+    </course>
+</courses>

@@ -360,7 +360,10 @@ def mock_db_session():
 @pytest.fixture
 def scraper(mock_db_session):
     """Create a UIUC scraper instance."""
-    return UiucScraper(db_session=mock_db_session)
+    scraper_instance = UiucScraper(db_session=mock_db_session)
+    # Set a default budget for unit tests (avoid budget exhaustion in individual method tests)
+    scraper_instance.request_budget = 1000
+    return scraper_instance
 
 
 def test_parse_term_code_fall_2026(scraper):
@@ -624,7 +627,7 @@ async def test_statuscode_not_used_for_availability(scraper):
     # This test verifies we use HTML Availability field, not XML statusCode
     # The fixture includes statusCode="A" but Availability dd says "Closed"
     assert scraper._map_availability_status("Closed") == "Closed"
-    
+
     # Verify the status mapping doesn't depend on any XML field
     # (The actual HTML parsing test is covered by other test cases)
 
@@ -916,12 +919,25 @@ async def test_request_budget_exceeded(scraper):
     """Test that request budget is enforced (raises exception)."""
     await scraper._ensure_client()
 
-    # Set request count to max
-    scraper.request_count = scraper.MAX_REQUESTS
+    # Set a very small budget
+    scraper.request_budget = 2
+    scraper.request_count = 1  # Already used 1
 
-    # Try to fetch course HTML (should raise RuntimeError)
-    with pytest.raises(RuntimeError, match="Request budget exhausted"):
-        await scraper._fetch_course_html("2026", "fall", "CS", "100")
+    with patch.object(
+        scraper, "_fetch_with_retry", new_callable=AsyncMock
+    ) as mock_fetch:
+        # Mock HTTP response
+        mock_response = MagicMock()
+        mock_response.content = SAMPLE_COURSE_HTML_OPEN.encode()
+        mock_fetch.return_value = mock_response
+
+        # First request should succeed (count goes from 1 to 2)
+        classes = await scraper._fetch_course_html("2026", "fall", "CS", "124")
+        assert len(classes) > 0  # Just verify we got classes
+
+        # Second request should fail (would go from 2 to 3, exceeding budget of 2)
+        with pytest.raises(RuntimeError, match="Request budget exhausted"):
+            await scraper._fetch_course_html("2026", "fall", "CS", "124")
 
     await scraper.client.aclose()
 
@@ -990,21 +1006,138 @@ async def test_fetch_course_html_403_fails_immediately(scraper):
 
 @pytest.mark.asyncio
 async def test_material_partial_failure(scraper):
-    """Test that material partial failure (>20% fail rate) raises exception."""
-    # Test the fail-loud behavior by checking the threshold logic
-    # In _fetch_courses_concurrent, >20% fail rate should raise RuntimeError
-    
-    # Verify the threshold constant
-    FAIL_THRESHOLD = 0.2
-    total_courses = 50
-    failed_courses = 15  # 30% fail rate
-    
-    fail_rate = failed_courses / total_courses
-    assert fail_rate > FAIL_THRESHOLD  # 0.3 > 0.2
-    
-    # Actual integration test would require mocking many course fetches,
-    # which is covered by the scraper's internal logic
-    # This test verifies the threshold calculation
+    """Test that material partial failure (>20% empty-success rate) raises exception."""
+    await scraper._ensure_client()
+
+    # Create scenario with >20% empty success (malformed courses)
+    # 50 courses total, 15 empty-success = 30% fail rate
+    course_ids = [(f"CS", f"{i:03d}") for i in range(50)]
+
+    # Mock _fetch_course_html to return empty lists for some courses
+    call_count = 0
+
+    async def mock_fetch_html(year, season, subject, course_id):
+        nonlocal call_count
+        call_count += 1
+        # Every 3rd course returns empty (causes empty-success)
+        if call_count % 3 == 0:
+            return []  # Empty-success (malformed/no sections)
+        else:
+            # Return valid class
+            return [
+                {
+                    "crn": f"{call_count:05d}",
+                    "course_code": f"{subject} {course_id}",
+                    "section": "AL1",
+                    "title": "Test Course",
+                    "instructor": "Test Prof",
+                    "status": "Open",
+                }
+            ]
+
+    with patch.object(scraper, "_fetch_course_html", new=mock_fetch_html):
+        # Should raise RuntimeError due to >20% empty-success rate
+        with pytest.raises(RuntimeError, match="Material partial failure"):
+            await scraper._fetch_courses_concurrent("2026", "fall", course_ids)
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_course_html_crosslist_aria_fallback_fixture(scraper):
+    """Test restricted CrossListOpen with aria-only fallback using fixture file."""
+    # Read fixture file
+    fixture_path = (
+        Path(__file__).parent / "fixtures" / "uiuc" / "cs225_crosslist_aria.html"
+    )
+    with open(fixture_path, "r") as f:
+        html = f.read()
+
+    await scraper._ensure_client()
+
+    with patch.object(
+        scraper, "_fetch_with_retry", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_response = MagicMock()
+        mock_response.content = html.encode()
+        mock_fetch.return_value = mock_response
+
+        classes = await scraper._fetch_course_html("2026", "fall", "CS", "225")
+
+        assert len(classes) == 1
+        cls = classes[0]
+        assert cls["class_number"] == "55555"
+        assert cls["course_code"] == "CS 225"
+        assert cls["section"] == "AL1"
+        assert cls["title"] == "Data Structures"
+        assert cls["status"] == "Open"  # CrossListOpen (Restricted) → Open
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_xml_integration_with_namespace(scraper):
+    """Integration test for XML parsing with namespaces."""
+    await scraper._ensure_client()
+
+    # XML with namespace
+    xml_with_ns = """<?xml version="1.0"?>
+    <ns:subjects xmlns:ns="http://example.com/ns">
+        <ns:subject id="CS" name="Computer Science"/>
+        <ns:subject id="MATH" name="Mathematics"/>
+        <ns:subject id="MATH" name="Mathematics (duplicate)"/>
+    </ns:subjects>
+    """
+
+    with patch.object(
+        scraper, "_fetch_with_retry", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_response = MagicMock()
+        mock_response.content = xml_with_ns.encode()
+        mock_fetch.return_value = mock_response
+
+        subjects = await scraper._fetch_subjects("2026", "fall")
+
+        # Should handle namespace and deduplicate MATH
+        assert len(subjects) == 2
+        assert "CS" in subjects
+        assert "MATH" in subjects
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_xml_course_id_deduplication(scraper):
+    """Integration test for course ID deduplication in XML."""
+    await scraper._ensure_client()
+
+    # XML with duplicate course IDs
+    xml_with_dupes = """<?xml version="1.0" encoding="UTF-8"?>
+    <courses>
+        <course id="124" name="Intro CS"/>
+        <course id="225" name="Data Structures"/>
+        <course id="124" name="Intro CS (duplicate)"/>
+        <course id="374" name="Theory"/>
+        <course id="225" name="Data Structures (duplicate)"/>
+    </courses>
+    """
+
+    with patch.object(
+        scraper, "_fetch_with_retry", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_response = MagicMock()
+        mock_response.content = xml_with_dupes.encode()
+        mock_fetch.return_value = mock_response
+
+        course_ids = await scraper._fetch_subject_courses("2026", "fall", "CS")
+
+        # Should deduplicate: 124, 225, 374 (unique 3, not 5)
+        assert len(course_ids) == 3
+        assert "124" in course_ids
+        assert "225" in course_ids
+        assert "374" in course_ids
+
+    await scraper.client.aclose()
 
 
 def test_xml_namespace_safe_subjects(scraper):

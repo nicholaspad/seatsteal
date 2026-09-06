@@ -30,14 +30,22 @@ class UiucScraper(BaseScraper):
 
     BASE_URL = "https://courses.illinois.edu"
     MAX_CONCURRENT_COURSES = 4  # Bounded concurrency for course page fetches
-    MAX_REQUESTS = 10000  # Request budget to prevent runaway scraping
     RETRY_BACKOFF_DELAYS = [2, 4, 8]  # Exponential backoff for retries (seconds)
+
+    # Budget multipliers for calculating dynamic request budget
+    BUDGET_PER_SUBJECT_XML = 1  # 1 request per subject XML fetch
+    BUDGET_PER_COURSE_HTML = 1  # 1 request per course HTML page
+    BUDGET_RETRY_MULTIPLIER = 1.3  # 30% allowance for retries
+    BUDGET_BASE_OVERHEAD = 2  # Base: subjects index XML + margin
 
     def __init__(self, db_session=None):
         super().__init__("uiuc")
         self.client: Optional[httpx.AsyncClient] = None
         self.current_term = get_term_code_from_db(db_session, "uiuc")
         self.request_count = 0
+        self.request_budget = 0  # Will be calculated dynamically
+        self.budget_lock = asyncio.Lock()  # Synchronize budget checks
+        self.failed_courses = 0  # Track failures for material partial detection
         logger.info(f"Initialized UIUC scraper with term: {self.current_term}")
 
     async def _ensure_client(self):
@@ -108,6 +116,15 @@ class UiucScraper(BaseScraper):
                     logger.info(f"Reached limit of {limit} courses")
                     all_course_ids = all_course_ids[:limit]
                     break
+
+            # Calculate dynamic request budget based on discovered work
+            planned_courses = len(all_course_ids)
+            self._calculate_request_budget(len(subjects), planned_courses)
+            logger.info(
+                f"Request budget: {self.request_budget} "
+                f"(planned: {len(subjects)} subjects + {planned_courses} courses, "
+                f"current: {self.request_count})"
+            )
 
             # Fetch course details from HTML with bounded concurrency
             logger.info(
@@ -197,6 +214,56 @@ class UiucScraper(BaseScraper):
 
         return year, season
 
+    def _calculate_request_budget(self, num_subjects: int, num_courses: int):
+        """
+        Calculate dynamic request budget based on discovered work.
+
+        Budget formula:
+        - Base overhead (subjects index XML + margin)
+        - Subject XMLs (one per subject)
+        - Course HTMLs (one per course)
+        - Retry allowance (30% multiplier for retries/failures)
+
+        Args:
+            num_subjects: Number of subjects to fetch
+            num_courses: Number of courses to fetch
+
+        Sets:
+            self.request_budget: Total allowed requests
+        """
+        base_budget = (
+            self.BUDGET_BASE_OVERHEAD
+            + (num_subjects * self.BUDGET_PER_SUBJECT_XML)
+            + (num_courses * self.BUDGET_PER_COURSE_HTML)
+        )
+
+        # Apply retry multiplier
+        self.request_budget = int(base_budget * self.BUDGET_RETRY_MULTIPLIER)
+
+        logger.info(
+            f"Calculated request budget: {self.request_budget} "
+            f"(base: {base_budget}, subjects: {num_subjects}, courses: {num_courses})"
+        )
+
+    async def _check_and_increment_budget(self):
+        """
+        Check request budget and increment counter atomically.
+
+        Uses lock to synchronize budget checks across concurrent tasks.
+
+        Raises:
+            RuntimeError: If budget would be exceeded
+        """
+        async with self.budget_lock:
+            if self.request_count >= self.request_budget:
+                logger.error(
+                    f"Request budget exhausted: {self.request_count}/{self.request_budget}"
+                )
+                raise RuntimeError(
+                    f"Request budget exhausted ({self.request_count}/{self.request_budget})"
+                )
+            self.request_count += 1
+
     async def _fetch_subjects(self, year: str, season: str) -> List[str]:
         """
         Fetch available subjects from UIUC XML index.
@@ -212,8 +279,8 @@ class UiucScraper(BaseScraper):
         """
         url = f"{self.BASE_URL}/cisapp/explorer/schedule/{year}/{season}.xml"
 
+        await self._check_and_increment_budget()
         response = await self._fetch_with_retry(url)
-        self.request_count += 1
 
         # Parse XML with namespace safety
         root = ET.fromstring(response.content)
@@ -253,8 +320,8 @@ class UiucScraper(BaseScraper):
         """
         url = f"{self.BASE_URL}/cisapp/explorer/schedule/{year}/{season}/{subject}.xml"
 
+        await self._check_and_increment_budget()
         response = await self._fetch_with_retry(url)
-        self.request_count += 1
 
         # Parse XML with namespace safety
         root = ET.fromstring(response.content)
@@ -281,8 +348,8 @@ class UiucScraper(BaseScraper):
         """
         Fetch course details from HTML with bounded concurrency.
 
-        Fail-loud strategy: Track failures and abort on material partial failure,
-        401/403, or budget exhaustion. Do NOT swallow exceptions into empty success.
+        Fail-loud strategy: Track failures (exceptions AND empty-success) and abort
+        on material partial failure, 401/403, or budget exhaustion.
 
         Args:
             year: Year string
@@ -293,14 +360,15 @@ class UiucScraper(BaseScraper):
             List of raw class data dictionaries
 
         Raises:
-            RuntimeError: On material partial failure (>20% fail rate)
+            RuntimeError: On material partial failure (>20% fail rate or empty-success rate)
             httpx.HTTPStatusError: On 401/403 auth errors
             RuntimeError: On request budget exhaustion
         """
         all_classes = []
         semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_COURSES)
-        failed_courses = 0
         total_courses = len(course_ids)
+        courses_with_classes = 0
+        courses_empty_success = 0  # Track courses that return [] (malformed/no rows)
 
         async def fetch_one(subject: str, course_id: str):
             async with semaphore:
@@ -322,27 +390,38 @@ class UiucScraper(BaseScraper):
                 logger.error(f"Critical error during batch fetch: {e}")
                 raise
 
-            # Collect successful results, track failures
-            for result in batch_results:
+            # Collect results and track empty-success (malformed/no classes)
+            for idx, result in enumerate(batch_results):
                 if isinstance(result, list):
-                    all_classes.extend(result)
+                    if len(result) > 0:
+                        # Success with classes
+                        all_classes.extend(result)
+                        courses_with_classes += 1
+                    else:
+                        # Empty success - malformed HTML or no sections offered
+                        courses_empty_success += 1
+                        subject, course_id = batch[idx]
+                        logger.warning(
+                            f"Empty-success course: {subject} {course_id} (no classes parsed)"
+                        )
                 else:
-                    # This shouldn't happen with our current implementation
-                    failed_courses += 1
-                    logger.warning(f"Unexpected non-list result: {result}")
+                    # Should never happen - indicates bug in implementation
+                    courses_empty_success += 1
+                    logger.error(f"Unexpected non-list result: {result}")
 
             logger.debug(
                 f"Processed batch {i // batch_size + 1}: "
-                f"{len(batch)} courses (total classes: {len(all_classes)})"
+                f"{len(batch)} courses "
+                f"(classes: {len(all_classes)}, with_data: {courses_with_classes}, empty: {courses_empty_success})"
             )
 
-            # Check material failure threshold (>20% fail rate)
+            # Check material failure threshold (>20% empty-success rate)
             if total_courses > 10:  # Only enforce for meaningful sample size
-                fail_rate = failed_courses / total_courses
-                if fail_rate > 0.2:
+                empty_rate = courses_empty_success / total_courses
+                if empty_rate > 0.2:
                     error_msg = (
-                        f"Material partial failure: {failed_courses}/{total_courses} "
-                        f"courses failed ({fail_rate:.1%})"
+                        f"Material partial failure: {courses_empty_success}/{total_courses} "
+                        f"courses empty-success ({empty_rate:.1%})"
                     )
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
@@ -350,11 +429,20 @@ class UiucScraper(BaseScraper):
             # Rate limiting between batches
             await asyncio.sleep(0.2)
 
-        # Final failure check
-        if failed_courses > 0:
-            logger.warning(
-                f"Completed with {failed_courses}/{total_courses} course failures"
-            )
+        # Final summary
+        logger.info(
+            f"Completed course fetch: {courses_with_classes} courses with classes, "
+            f"{courses_empty_success} empty-success, "
+            f"{len(all_classes)} total class rows"
+        )
+
+        if courses_empty_success > 0 and total_courses > 10:
+            empty_rate = courses_empty_success / total_courses
+            if empty_rate > 0.2:
+                logger.warning(
+                    f"High empty-success rate: {empty_rate:.1%} "
+                    f"({courses_empty_success}/{total_courses})"
+                )
 
         return all_classes
 
@@ -381,13 +469,10 @@ class UiucScraper(BaseScraper):
         """
         url = f"{self.BASE_URL}/schedule/{year}/{season}/{subject}/{course_id}"
 
-        # Check request budget BEFORE making request
-        if self.request_count >= self.MAX_REQUESTS:
-            logger.error(f"Request budget exhausted ({self.MAX_REQUESTS})")
-            raise RuntimeError("Request budget exhausted")
+        # Check request budget atomically BEFORE making request
+        await self._check_and_increment_budget()
 
         response = await self._fetch_with_retry(url)
-        self.request_count += 1
 
         # Parse HTML
         soup = BeautifulSoup(response.content, "lxml")
