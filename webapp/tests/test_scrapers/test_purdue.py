@@ -335,19 +335,58 @@ async def test_scraper_initialization(scraper):
 
 
 @pytest.mark.asyncio
-async def test_all_department_rejected(scraper):
-    """Test that department='ALL' is rejected with clear error (full catalog exceeds budget)."""
+async def test_all_department_maps_to_allowlist(scraper):
+    """
+    Test that department='ALL' maps to allowlist (e.g., CS) instead of full 159-subject catalog.
+    Production compatibility: run_scraper.py defaults subject='ALL' for all colleges.
+    """
     await scraper._ensure_client()
 
-    with pytest.raises(ValueError) as exc_info:
-        await scraper.scrape_courses("ALL")
-    
-    error_msg = str(exc_info.value)
-    assert "does not support department='ALL'" in error_msg
-    assert "21k CRNs" in error_msg
-    assert "exceeds budget" in error_msg
-    assert "3000 requests" in error_msg
-    assert "CS" in error_msg  # Should mention allowed departments
+    # Mock responses for CS scraping (since ALL maps to ["CS"])
+    with patch.object(
+        scraper, "_make_request_with_retry", new_callable=AsyncMock
+    ) as mock_request:
+        # Mock picker response
+        picker_response = MagicMock()
+        picker_response.text = SAMPLE_TERM_PICKER_HTML
+        picker_response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
+        picker_response.raise_for_status = MagicMock()
+
+        # Mock subjects response
+        subjects_response = MagicMock()
+        subjects_response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
+        subjects_response.raise_for_status = MagicMock()
+
+        # Mock course list response
+        course_list_response = MagicMock()
+        course_list_response.content = (
+            SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode("utf-8")
+        )
+        course_list_response.raise_for_status = MagicMock()
+
+        # Mock detail responses
+        detail_response = MagicMock()
+        detail_response.content = SAMPLE_COURSE_DETAIL_HTML.encode("utf-8")
+        detail_response.raise_for_status = MagicMock()
+
+        mock_request.side_effect = [
+            picker_response,
+            subjects_response,
+            course_list_response,
+            detail_response,
+            detail_response,
+        ]
+
+        # Scrape with department='ALL' - should map to allowlist (CS)
+        courses = await scraper.scrape_courses("ALL", limit=None)
+
+        # Verify:
+        # 1. Should succeed (not raise)
+        # 2. Should return CS courses (not empty, not full catalog)
+        assert len(courses) > 0, "ALL should map to CS and return courses"
+        assert all(
+            c["subject"] == "CS" for c in courses
+        ), "ALL should only scrape CS (allowlist)"
 
 
 @pytest.mark.asyncio

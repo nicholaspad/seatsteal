@@ -81,16 +81,23 @@ class PurdueScraper(BaseScraper):
             f"Scraping Purdue {department} courses (limit: {limit}, term: {self.current_term})"
         )
 
-        # REJECT ALL: Full catalog scraping is not supported (exceeds budget)
+        # Map ALL to allowlist expansion (production compatibility)
+        # run_scraper.py loop defaults subject="ALL" for all colleges
         if department.upper() == "ALL":
-            raise ValueError(
-                f"Purdue scraper does not support department='ALL' (full catalog). "
-                f"Full catalog (~21k CRNs) exceeds budget (3000 requests). "
-                f"Allowed departments: {', '.join(self.ALLOWED_DEPARTMENTS)}. "
-                f"Use a specific department from the allowlist."
+            logger.info(
+                f"ALL mapped to allowlist {self.ALLOWED_DEPARTMENTS} "
+                f"(never fans out to full 159-subject catalog)"
             )
+            # Scrape only allowlisted departments (currently just CS)
+            # Return combined results from all allowlisted departments
+            all_courses = []
+            for allowed_dept in self.ALLOWED_DEPARTMENTS:
+                logger.info(f"Scraping allowlisted department: {allowed_dept}")
+                dept_courses = await self.scrape_courses(allowed_dept, limit)
+                all_courses.extend(dept_courses)
+            return all_courses
 
-        # ENFORCE ALLOWLIST: Only CS is allowed in production
+        # ENFORCE ALLOWLIST: Only allowlisted departments (reject non-allowlisted named departments)
         if department.upper() not in [d.upper() for d in self.ALLOWED_DEPARTMENTS]:
             raise ValueError(
                 f"Purdue scraper only supports allowlisted departments: {', '.join(self.ALLOWED_DEPARTMENTS)}. "
