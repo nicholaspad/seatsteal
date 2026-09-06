@@ -150,22 +150,26 @@ class PurdueScraper(BaseScraper):
 
             # Deduplicate by CRN before detail fetches
             unique_crns = self._deduplicate_crns(all_crn_entries)
+            original_unique_count = len(unique_crns)
             logger.info(
                 f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
-                f"{len(all_crn_entries)} raw entries → {len(unique_crns)} unique CRNs"
+                f"{len(all_crn_entries)} raw entries → {original_unique_count} unique CRNs"
             )
 
-            # Apply limit before preflight and detail fetches if specified
-            original_unique_count = len(unique_crns)
-            if limit and len(unique_crns) > limit:
-                unique_crns = unique_crns[:limit]
-                logger.info(
-                    f"CARDINALITY: Limited to {len(unique_crns)} unique CRNs before detail fetches "
-                    f"(was {original_unique_count} before limit)"
+            # Check if limit would truncate (fail loud unless explicit acknowledgment)
+            # This prevents silent partial success where truncated results appear as full scrape
+            if limit and original_unique_count > limit:
+                raise PurdueBudgetExceededError(
+                    f"LIMIT TRUNCATION: {original_unique_count} unique CRNs > limit={limit}. "
+                    f"Failing loud to prevent silent partial success. "
+                    f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                    f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs. "
+                    f"To scrape bounded subset, reduce subject scope (use specific department, not ALL). "
+                    f"Never return truncated results as unqualified success."
                 )
 
             # Check if detail fetches would exceed budget (worst-case estimate with all retries)
-            projected_detail_requests = len(unique_crns) * (1 + self.MAX_RETRIES)
+            projected_detail_requests = original_unique_count * (1 + self.MAX_RETRIES)
             if (
                 self.total_request_count + projected_detail_requests
                 > self.MAX_TOTAL_REQUESTS
@@ -175,8 +179,7 @@ class PurdueScraper(BaseScraper):
                     f"{self.total_request_count} + {projected_detail_requests} (projected) > "
                     f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
                     f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
-                    f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs (before limit), "
-                    f"{len(unique_crns)} unique CRNs (after limit), "
+                    f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs, "
                     f"{projected_detail_requests} projected detail requests. "
                     f"This is a non-retryable error - reduce scope or increase budget."
                 )
