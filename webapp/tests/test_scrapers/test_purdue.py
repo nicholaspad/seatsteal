@@ -813,13 +813,12 @@ async def test_budget_preflight_uses_worst_case_estimate(scraper):
 
 
 @pytest.mark.asyncio
-async def test_limit_applied_before_preflight(scraper):
-    """Test that limit is applied before preflight budget check."""
+async def test_limit_truncation_fails_loud(scraper):
+    """Test that limit truncation fails loud to prevent silent partial success."""
     await scraper._ensure_client()
 
-    # Set up scenario: 161 listing + 2000 CRNs but limit=100
-    # Without limit-before-preflight: 161 + (2000 * 4) = 8161 > 3000 -> FAIL
-    # With limit-before-preflight: 161 + (100 * 4) = 561 < 3000 -> PASS
+    # Set up scenario: 2000 CRNs but limit=100
+    # Should FAIL with truncation error (not silently truncate)
     scraper.total_request_count = 161
     scraper.MAX_TOTAL_REQUESTS = 3000
 
@@ -834,17 +833,16 @@ async def test_limit_applied_before_preflight(scraper):
             mock_subjects.return_value = ["CS"]
             with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
                 mock_crns.return_value = all_crn_entries
-                with patch.object(scraper, "_fetch_details_and_group", new_callable=AsyncMock) as mock_details:
-                    mock_details.return_value = []
 
-                    # This should NOT raise because limit=100 is applied before preflight
+                # Should raise PurdueBudgetExceededError for truncation
+                with pytest.raises(PurdueBudgetExceededError) as exc_info:
                     await scraper.scrape_courses("CS", limit=100)
-                    
-                    # Verify details were called with limited set
-                    assert mock_details.called
-                    # Check that only 100 CRNs were passed to details
-                    call_args = mock_details.call_args[0][0]
-                    assert len(call_args) == 100
+                
+                error_msg = str(exc_info.value)
+                assert "LIMIT TRUNCATION" in error_msg or "truncat" in error_msg.lower()
+                assert "2000" in error_msg  # Total CRNs
+                assert "100" in error_msg  # Limit
+                assert "silent partial success" in error_msg.lower()
 
 
 @pytest.mark.asyncio
