@@ -366,7 +366,7 @@ async def test_all_department_maps_to_allowlist(scraper):
 
         # Mock detail responses
         detail_response = MagicMock()
-        detail_response.content = SAMPLE_COURSE_DETAIL_HTML.encode("utf-8")
+        detail_response.content = SAMPLE_DETAIL_OPEN_HTML.encode("utf-8")
         detail_response.raise_for_status = MagicMock()
 
         mock_request.side_effect = [
