@@ -12,14 +12,14 @@ class PurdueScraper(BaseScraper):
     Purdue University course scraper.
 
     Scrapes course data from Purdue's Banner self-service system.
-    Strategy: Fetch subjects for term → for each subject POST course search → 
+    Strategy: Fetch subjects for term → for each subject POST course search →
     parse CRN list → deduplicate → fetch detail pages for seat counts.
 
     Term codes: YYYYTT Banner format (e.g., "202710" = Fall 2026)
     - YYYY: 4-digit year
     - TT: Term code (10 = Fall, 20 = Spring, 30 = Summer)
 
-    CRITICAL: 
+    CRITICAL:
     - Deduplicate by CRN before detail fetches
     - Use bounded concurrency (2-4) for detail pages
     - Never POST registration actions
@@ -136,7 +136,7 @@ class PurdueScraper(BaseScraper):
         """
         try:
             url = f"{self.BASE_URL}/bwckgens.p_proc_term_date"
-            
+
             # POST to get subject list for term
             form_data = {
                 "p_calling_proc": "bwckschd.p_disp_dyn_sched",
@@ -222,7 +222,7 @@ class PurdueScraper(BaseScraper):
 
             # Parse section anchors: "Title - CRN - SUBJECT NUMBER - SECTION"
             crn_entries = []
-            
+
             # Find all course title links
             for anchor in soup.find_all("a"):
                 onclick = anchor.get("onclick", "")
@@ -234,22 +234,24 @@ class PurdueScraper(BaseScraper):
                     if len(parts) >= 4:
                         # Extract CRN (second part)
                         crn = parts[1].strip()
-                        
+
                         # Extract SUBJECT NUMBER (third part)
                         subject_number = parts[2].strip()
-                        
+
                         # Extract section (fourth part)
                         section = parts[3].strip()
-                        
+
                         # Title is first part
                         title = parts[0].strip()
-                        
-                        crn_entries.append({
-                            "crn": crn,
-                            "course_code": subject_number,  # e.g., "CS 18000"
-                            "title": title,
-                            "section": section,
-                        })
+
+                        crn_entries.append(
+                            {
+                                "crn": crn,
+                                "course_code": subject_number,  # e.g., "CS 18000"
+                                "title": title,
+                                "section": section,
+                            }
+                        )
 
             logger.debug(f"Subject {subject}: parsed {len(crn_entries)} CRN entries")
             return crn_entries
@@ -307,33 +309,33 @@ class PurdueScraper(BaseScraper):
 
         # Fetch detail pages with bounded concurrency (4 concurrent requests)
         semaphore = asyncio.Semaphore(4)
-        
+
         async def fetch_with_semaphore(entry):
             async with semaphore:
                 return await self._fetch_crn_detail(entry)
 
         logger.info(f"Fetching {len(crn_entries)} detail pages with concurrency=4...")
-        
+
         # Process in batches for progress logging
         batch_size = 50
         all_classes = []
-        
+
         for i in range(0, len(crn_entries), batch_size):
             batch = crn_entries[i : i + batch_size]
             batch_tasks = [fetch_with_semaphore(entry) for entry in batch]
             batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-            
+
             for result in batch_results:
                 if isinstance(result, Exception):
                     logger.warning(f"Detail fetch failed: {result}")
                 elif result:
                     all_classes.append(result)
-            
+
             logger.info(
                 f"Progress: {min(i + batch_size, len(crn_entries))}/{len(crn_entries)} "
                 f"details fetched"
             )
-            
+
             # Rate limiting between batches
             if i + batch_size < len(crn_entries):
                 await asyncio.sleep(0.3)
@@ -405,7 +407,7 @@ class PurdueScraper(BaseScraper):
 
             # Parse "Registration Availability" section for remaining seats
             status = "Closed"  # Default conservative
-            
+
             # Find the table with caption "Registration Availability"
             for table in soup.find_all("table", {"class": "datadisplaytable"}):
                 caption = table.find("caption")
@@ -415,12 +417,12 @@ class PurdueScraper(BaseScraper):
                         # Check for header cells
                         headers = row.find_all("th")
                         data_cells = row.find_all("td")
-                        
+
                         # Try th/td pattern first
                         if len(headers) >= 1 and len(data_cells) >= 1:
                             label = headers[0].get_text(strip=True)
                             value = data_cells[0].get_text(strip=True)
-                            
+
                             if label == "Seats":
                                 # Parse remaining seats (format: "Capacity: X, Actual: Y, Remaining: Z")
                                 remaining_text = value.split("Remaining:")
@@ -439,7 +441,7 @@ class PurdueScraper(BaseScraper):
                         elif len(data_cells) >= 2:
                             label = data_cells[0].get_text(strip=True)
                             value = data_cells[1].get_text(strip=True)
-                            
+
                             if label == "Seats":
                                 # Parse remaining seats (format: "Capacity: X, Actual: Y, Remaining: Z")
                                 remaining_text = value.split("Remaining:")

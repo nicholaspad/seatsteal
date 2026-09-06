@@ -173,13 +173,13 @@ async def test_fetch_subject_crns(scraper):
         crn_entries = await scraper._fetch_subject_crns("CS")
 
         assert len(crn_entries) == 3
-        
+
         # Check first entry
         assert crn_entries[0]["crn"] == "12345"
         assert crn_entries[0]["course_code"] == "CS 18000"
         assert crn_entries[0]["title"] == "Intro to Programming"
         assert crn_entries[0]["section"] == "001"
-        
+
         # Check third entry
         assert crn_entries[2]["crn"] == "67890"
         assert crn_entries[2]["course_code"] == "CS 25100"
@@ -191,7 +191,12 @@ async def test_deduplicate_crns(scraper):
     crn_entries = [
         {"crn": "12345", "course_code": "CS 18000", "title": "Intro", "section": "001"},
         {"crn": "12346", "course_code": "CS 18000", "title": "Intro", "section": "002"},
-        {"crn": "12345", "course_code": "CS 18000", "title": "Intro", "section": "003"},  # Duplicate
+        {
+            "crn": "12345",
+            "course_code": "CS 18000",
+            "title": "Intro",
+            "section": "003",
+        },  # Duplicate
         {"crn": "67890", "course_code": "CS 25100", "title": "Data", "section": "001"},
     ]
 
@@ -201,7 +206,7 @@ async def test_deduplicate_crns(scraper):
     assert unique_entries[0]["crn"] == "12345"
     assert unique_entries[1]["crn"] == "12346"
     assert unique_entries[2]["crn"] == "67890"
-    
+
     # Verify first occurrence is kept (section 001, not 003)
     assert unique_entries[0]["section"] == "001"
 
@@ -289,29 +294,47 @@ async def test_scrape_courses_all(scraper):
     await scraper._ensure_client()
 
     # Mock the internal methods
-    with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects, \
-         patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns, \
-         patch.object(scraper, "_fetch_details_and_group", new_callable=AsyncMock) as mock_details:
+    with patch.object(
+        scraper, "_fetch_subjects", new_callable=AsyncMock
+    ) as mock_subjects, patch.object(
+        scraper, "_fetch_subject_crns", new_callable=AsyncMock
+    ) as mock_crns, patch.object(
+        scraper, "_fetch_details_and_group", new_callable=AsyncMock
+    ) as mock_details:
 
         mock_subjects.return_value = ["CS", "MA"]
         mock_crns.side_effect = [
             [
-                {"crn": "12345", "course_code": "CS 18000", "title": "Intro", "section": "001"},
+                {
+                    "crn": "12345",
+                    "course_code": "CS 18000",
+                    "title": "Intro",
+                    "section": "001",
+                },
             ],
             [
-                {"crn": "67890", "course_code": "MA 16100", "title": "Calculus", "section": "001"},
+                {
+                    "crn": "67890",
+                    "course_code": "MA 16100",
+                    "title": "Calculus",
+                    "section": "001",
+                },
             ],
         ]
         mock_details.return_value = [
             {
                 "course_code": "CS 18000",
                 "title": "Intro",
-                "classes": [{"class_number": "12345", "section": "001", "status": "Open"}],
+                "classes": [
+                    {"class_number": "12345", "section": "001", "status": "Open"}
+                ],
             },
             {
                 "course_code": "MA 16100",
                 "title": "Calculus",
-                "classes": [{"class_number": "67890", "section": "001", "status": "Closed"}],
+                "classes": [
+                    {"class_number": "67890", "section": "001", "status": "Closed"}
+                ],
             },
         ]
 
@@ -327,19 +350,30 @@ async def test_scrape_courses_single_department(scraper):
     """Test scraping courses for a single department."""
     await scraper._ensure_client()
 
-    with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects, \
-         patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns, \
-         patch.object(scraper, "_fetch_details_and_group", new_callable=AsyncMock) as mock_details:
+    with patch.object(
+        scraper, "_fetch_subjects", new_callable=AsyncMock
+    ) as mock_subjects, patch.object(
+        scraper, "_fetch_subject_crns", new_callable=AsyncMock
+    ) as mock_crns, patch.object(
+        scraper, "_fetch_details_and_group", new_callable=AsyncMock
+    ) as mock_details:
 
         mock_subjects.return_value = ["CS", "MA", "ECE"]
         mock_crns.return_value = [
-            {"crn": "12345", "course_code": "CS 18000", "title": "Intro", "section": "001"},
+            {
+                "crn": "12345",
+                "course_code": "CS 18000",
+                "title": "Intro",
+                "section": "001",
+            },
         ]
         mock_details.return_value = [
             {
                 "course_code": "CS 18000",
                 "title": "Intro",
-                "classes": [{"class_number": "12345", "section": "001", "status": "Open"}],
+                "classes": [
+                    {"class_number": "12345", "section": "001", "status": "Open"}
+                ],
             },
         ]
 
@@ -356,11 +390,14 @@ async def test_request_budget_exceeded_fails_loud(scraper):
     """Test that exceeding request budget raises exception (no fake-success partial)."""
     await scraper._ensure_client()
 
-    with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects, \
-         patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+    with patch.object(
+        scraper, "_fetch_subjects", new_callable=AsyncMock
+    ) as mock_subjects, patch.object(
+        scraper, "_fetch_subject_crns", new_callable=AsyncMock
+    ) as mock_crns:
 
         mock_subjects.return_value = ["CS"]
-        
+
         # Create more CRNs than MAX_DETAIL_REQUESTS (2000)
         excessive_crns = [
             {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
@@ -386,13 +423,18 @@ async def test_detail_request_counter_increments(scraper):
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        crn_entry = {"crn": "12345", "course_code": "CS 18000", "title": "Intro", "section": "001"}
+        crn_entry = {
+            "crn": "12345",
+            "course_code": "CS 18000",
+            "title": "Intro",
+            "section": "001",
+        }
 
         assert scraper.detail_request_count == 0
-        
+
         await scraper._fetch_crn_detail(crn_entry)
         assert scraper.detail_request_count == 1
-        
+
         await scraper._fetch_crn_detail(crn_entry)
         assert scraper.detail_request_count == 2
 
@@ -426,9 +468,9 @@ async def test_crn_is_used_as_class_number(scraper):
 async def test_term_code_from_db(mock_db_session):
     """Test that term code is fetched from database, not hardcoded."""
     scraper = PurdueScraper(db_session=mock_db_session)
-    
+
     # Should get term from mock_db_session
     assert scraper.current_term == "202710"
-    
+
     # Verify no hardcoded term in production code path
     # (This is validated by the scraper using get_term_code_from_db in __init__)
