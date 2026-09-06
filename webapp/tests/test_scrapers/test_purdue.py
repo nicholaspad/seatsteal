@@ -1062,3 +1062,66 @@ async def test_term_code_from_db(mock_db_session):
     # (This is validated by the scraper using get_term_code_from_db in __init__)
 
 
+@pytest.mark.asyncio
+async def test_budget_exceeded_consumes_one_attempt_not_three():
+    """
+    Test service/job boundary: budget_exceeded outcome consumes ONE attempt, not three.
+    Regression test proving non-retryable wiring works end-to-end.
+    """
+    from scraper.scraper_job import ScraperJob, JobConfig
+    from scraper.services.scraper_service import ScraperService
+    from unittest.mock import AsyncMock, MagicMock, patch
+    
+    # Create mock college and db session
+    mock_college = MagicMock()
+    mock_college.id = 20
+    mock_college.name = "Purdue University"
+    mock_college.short_name = "purdue"
+    mock_college.is_active = True
+    
+    mock_db = MagicMock()
+    
+    # Track how many times scrape_college is called
+    attempt_count = 0
+    
+    async def mock_scrape_college(*args, **kwargs):
+        nonlocal attempt_count
+        attempt_count += 1
+        # Simulate budget exceeded error
+        return {
+            "college": "purdue",
+            "department": "ALL",
+            "courses_saved": 0,
+            "classes_saved": 0,
+            "enrollments_saved": 0,
+            "duration_seconds": 0.1,
+            "success": False,
+            "outcome": "budget_exceeded",  # Non-retryable outcome
+            "error": "Request budget would be exceeded by details: 161 + 85548 > 3000",
+        }
+    
+    # Create job with 3 retry attempts (default)
+    config = JobConfig(subject="ALL", limit=None, retry_attempts=3)
+    job = ScraperJob(mock_college, mock_db, config)
+    
+    # Mock the lock and log service
+    with patch.object(job.lock, 'acquire', return_value=MagicMock(success=True)):
+        with patch.object(job.lock, 'release'):
+            with patch.object(job.lock, 'get_scraper_id', return_value=1):
+                with patch('scraper.scraper_job.ScraperLogService') as mock_log_service:
+                    mock_log_service_instance = AsyncMock()
+                    mock_log_service_instance.start_log = AsyncMock(return_value=1)
+                    mock_log_service_instance.complete_log = AsyncMock()
+                    mock_log_service.return_value = mock_log_service_instance
+                    
+                    # Patch ScraperService.scrape_college to return budget_exceeded
+                    with patch.object(ScraperService, 'scrape_college', side_effect=mock_scrape_college):
+                        result = await job.execute()
+    
+    # CRITICAL: Should have called scrape_college ONCE, not three times
+    # budget_exceeded outcome should prevent retry
+    assert attempt_count == 1, f"Expected 1 attempt, got {attempt_count}. budget_exceeded should not retry!"
+    assert result.success is False
+    assert "budget" in result.error.lower()
+
+
