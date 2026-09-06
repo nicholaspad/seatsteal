@@ -320,7 +320,7 @@ class PurdueScraper(BaseScraper):
 
             soup = BeautifulSoup(response.content, "lxml")
 
-            # Parse section links - extract CRN from href (robust against hyphenated titles)
+            # Parse section links and their meeting times
             crn_entries = []
 
             # Find all course detail links
@@ -338,6 +338,10 @@ class PurdueScraper(BaseScraper):
                     parsed = self._parse_section_text_robust(text, crn)
 
                     if parsed:
+                        # Parse meeting times for this section
+                        meeting_times = self._parse_meeting_times(anchor)
+                        parsed["meeting_times"] = meeting_times
+
                         crn_entries.append(parsed)
 
             logger.debug(f"Subject {subject}: parsed {len(crn_entries)} CRN entries")
@@ -413,6 +417,92 @@ class PurdueScraper(BaseScraper):
             "title": title,
             "section": section,
         }
+
+    def _parse_meeting_times(self, section_anchor) -> List[Dict[str, str]]:
+        """
+        Parse Scheduled Meeting Times table for a section from listing HTML.
+
+        Looks for the meeting times table following the section anchor and extracts
+        structured meeting information.
+
+        Args:
+            section_anchor: BeautifulSoup anchor element for the section
+
+        Returns:
+            List of meeting time dicts with fields: type, time, days, where,
+            date_range, schedule_type, instructors (whatever columns Banner provides)
+        """
+        meeting_times = []
+
+        try:
+            # Navigate to parent row/cell and find the meeting times table
+            # Banner typically places meeting info in a table after the course link
+            parent_td = section_anchor.find_parent("td")
+            if not parent_td:
+                return meeting_times
+
+            # Look for "Scheduled Meeting Times" table in the same row or nearby
+            # Find the table with caption containing "Scheduled Meeting Times"
+            parent_tr = section_anchor.find_parent("tr")
+            if parent_tr:
+                # Check if next rows contain meeting times table
+                for sibling in parent_tr.find_next_siblings("tr", limit=5):
+                    table = sibling.find("table", {"class": "datadisplaytable"})
+                    if table:
+                        caption = table.find("caption")
+                        if caption and "Scheduled Meeting Times" in caption.get_text():
+                            # Parse the meeting times table
+                            meeting_times = self._parse_meeting_times_table(table)
+                            break
+
+        except Exception as e:
+            logger.debug(f"Could not parse meeting times: {e}")
+
+        return meeting_times
+
+    def _parse_meeting_times_table(self, table) -> List[Dict[str, str]]:
+        """
+        Parse the Scheduled Meeting Times table rows.
+
+        Args:
+            table: BeautifulSoup table element
+
+        Returns:
+            List of meeting time dicts with structured fields
+        """
+        meeting_times = []
+
+        try:
+            # Find header row to identify columns
+            header_row = table.find("tr")
+            if not header_row:
+                return meeting_times
+
+            # Extract header names
+            headers = []
+            for th in header_row.find_all("th"):
+                header_text = th.get_text(strip=True)
+                headers.append(header_text)
+
+            # Parse data rows
+            for row in table.find_all("tr")[1:]:  # Skip header row
+                cells = row.find_all("td")
+                if len(cells) >= len(headers):
+                    meeting = {}
+                    for i, header in enumerate(headers):
+                        if i < len(cells):
+                            cell_text = cells[i].get_text(strip=True)
+                            # Normalize header names to snake_case keys
+                            key = header.lower().replace(" ", "_")
+                            meeting[key] = cell_text
+
+                    if meeting:  # Only add non-empty meetings
+                        meeting_times.append(meeting)
+
+        except Exception as e:
+            logger.debug(f"Error parsing meeting times table: {e}")
+
+        return meeting_times
 
     def _deduplicate_crns(
         self, crn_entries: List[Dict[str, str]]

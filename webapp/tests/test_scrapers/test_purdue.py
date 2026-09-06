@@ -48,7 +48,90 @@ SAMPLE_SUBJECTS_HTML = """
 </html>
 """
 
-# Sample Banner HTML for course list with hyphenated title and hrefs
+# Sample Banner HTML for course list with hyphenated title, hrefs, and meeting times
+SAMPLE_COURSE_LIST_WITH_MEETING_TIMES_HTML = """
+<html>
+<body>
+<table class="datadisplaytable">
+    <tr>
+        <td>
+            <a href="/prod/bwckschd.p_disp_detail_sched?term_in=202710&crn_in=12345">
+                Object-Oriented Programming - 12345 - CS 18000 - 001
+            </a>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <table class="datadisplaytable" summary="This table lists the scheduled meeting times and assigned instructors for this class..">
+                <caption class="captiontext">Scheduled Meeting Times</caption>
+                <tr>
+                    <th class="ddheader">Type</th>
+                    <th class="ddheader">Time</th>
+                    <th class="ddheader">Days</th>
+                    <th class="ddheader">Where</th>
+                    <th class="ddheader">Date Range</th>
+                    <th class="ddheader">Schedule Type</th>
+                    <th class="ddheader">Instructors</th>
+                </tr>
+                <tr>
+                    <td class="dddefault">Lecture</td>
+                    <td class="dddefault">10:30 am - 11:20 am</td>
+                    <td class="dddefault">MWF</td>
+                    <td class="dddefault">WTHR 200</td>
+                    <td class="dddefault">08/19/2026 - 12/13/2026</td>
+                    <td class="dddefault">Lecture</td>
+                    <td class="dddefault">John Smith (P)</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <a href="/prod/bwckschd.p_disp_detail_sched?term_in=202710&crn_in=12346">
+                Data Structures - 12346 - CS 25100 - 002
+            </a>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <table class="datadisplaytable" summary="This table lists the scheduled meeting times and assigned instructors for this class..">
+                <caption class="captiontext">Scheduled Meeting Times</caption>
+                <tr>
+                    <th class="ddheader">Type</th>
+                    <th class="ddheader">Time</th>
+                    <th class="ddheader">Days</th>
+                    <th class="ddheader">Where</th>
+                    <th class="ddheader">Date Range</th>
+                    <th class="ddheader">Schedule Type</th>
+                    <th class="ddheader">Instructors</th>
+                </tr>
+                <tr>
+                    <td class="dddefault">Lecture</td>
+                    <td class="dddefault">1:30 pm - 2:20 pm</td>
+                    <td class="dddefault">TR</td>
+                    <td class="dddefault">MATH 175</td>
+                    <td class="dddefault">08/19/2026 - 12/13/2026</td>
+                    <td class="dddefault">Lecture</td>
+                    <td class="dddefault">Jane Doe (P)</td>
+                </tr>
+                <tr>
+                    <td class="dddefault">Laboratory</td>
+                    <td class="dddefault">3:30 pm - 4:20 pm</td>
+                    <td class="dddefault">W</td>
+                    <td class="dddefault">HAAS G056</td>
+                    <td class="dddefault">08/19/2026 - 12/13/2026</td>
+                    <td class="dddefault">Laboratory</td>
+                    <td class="dddefault">Lab Assistant (P)</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>
+"""
+
+# Sample Banner HTML for course list with hyphenated title and hrefs (simpler version)
 SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML = """
 <html>
 <body>
@@ -421,6 +504,60 @@ async def test_parse_hyphenated_title_robust(scraper):
     assert parsed2["title"] == "Data Structures - Analysis and Implementation"
     assert parsed2["course_code"] == "CS 25100"
     assert parsed2["section"] == "002"
+
+
+@pytest.mark.asyncio
+async def test_parse_scheduled_meeting_times(scraper):
+    """Test parsing Scheduled Meeting Times from listing HTML."""
+    await scraper._ensure_client()
+
+    with patch.object(
+        scraper, "_make_request_with_retry", new_callable=AsyncMock
+    ) as mock_request:
+        mock_response = MagicMock()
+        mock_response.content = SAMPLE_COURSE_LIST_WITH_MEETING_TIMES_HTML.encode(
+            "utf-8"
+        )
+        mock_request.return_value = mock_response
+
+        crn_entries = await scraper._fetch_subject_crns("CS")
+
+        assert len(crn_entries) == 2
+
+        # Check first CRN has meeting times
+        first_entry = crn_entries[0]
+        assert first_entry["crn"] == "12345"
+        assert "meeting_times" in first_entry
+        assert len(first_entry["meeting_times"]) == 1
+
+        # Verify meeting time fields
+        meeting = first_entry["meeting_times"][0]
+        assert meeting["type"] == "Lecture"
+        assert meeting["time"] == "10:30 am - 11:20 am"
+        assert meeting["days"] == "MWF"
+        assert meeting["where"] == "WTHR 200"
+        assert meeting["date_range"] == "08/19/2026 - 12/13/2026"
+        assert meeting["schedule_type"] == "Lecture"
+        assert meeting["instructors"] == "John Smith (P)"
+
+        # Check second CRN has multiple meeting times (lecture + lab)
+        second_entry = crn_entries[1]
+        assert second_entry["crn"] == "12346"
+        assert "meeting_times" in second_entry
+        assert len(second_entry["meeting_times"]) == 2
+
+        # Verify lecture meeting
+        lecture = second_entry["meeting_times"][0]
+        assert lecture["type"] == "Lecture"
+        assert lecture["time"] == "1:30 pm - 2:20 pm"
+        assert lecture["days"] == "TR"
+
+        # Verify lab meeting
+        lab = second_entry["meeting_times"][1]
+        assert lab["type"] == "Laboratory"
+        assert lab["time"] == "3:30 pm - 4:20 pm"
+        assert lab["days"] == "W"
+        assert lab["where"] == "HAAS G056"
 
 
 @pytest.mark.asyncio
