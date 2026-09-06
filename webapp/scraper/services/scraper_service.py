@@ -22,12 +22,8 @@ from scraper.scrapers.uci import UciScraper
 from scraper.scrapers.uf import UfScraper
 from scraper.scrapers.osu import OsuScraper
 from scraper.scrapers.asu import AsuScraper
-<<<<<<< HEAD
-from scraper.scrapers.purdue import PurdueScraper
-from scraper.scrapers.uiuc import UiucScraper
-=======
 from scraper.scrapers.purdue import PurdueScraper, PurdueBudgetExceededError
->>>>>>> 98a1807 (Fix all three blockers for Purdue scraper)
+from scraper.scrapers.uiuc import UiucScraper
 
 # Map college short names to scraper classes
 SCRAPER_MAP = {
