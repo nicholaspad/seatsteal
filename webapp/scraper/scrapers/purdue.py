@@ -106,7 +106,9 @@ class PurdueScraper(BaseScraper):
 
             # Fetch subjects for the term
             subjects = await self._fetch_subjects()
-            logger.info(f"Found {len(subjects)} subjects for term {self.current_term}")
+            logger.info(
+                f"CARDINALITY: Discovered {len(subjects)} total subjects for term {self.current_term}"
+            )
 
             # Filter by department if not ALL
             if department.upper() != "ALL":
@@ -116,17 +118,21 @@ class PurdueScraper(BaseScraper):
                         f"No subject found matching department: {department}"
                     )
                     return []
-                logger.info(f"Filtered to subject: {subjects[0]}")
+                logger.info(
+                    f"CARDINALITY: Filtered to {len(subjects)} subject(s) for department {department}: {subjects}"
+                )
 
             # Collect all CRN entries from subject searches
             all_crn_entries = []
+            listing_requests = 0
             for subject in subjects:
                 logger.info(f"Fetching course list for subject: {subject}")
+                listing_requests += 1
                 crn_entries = await self._fetch_subject_crns(subject)
                 all_crn_entries.extend(crn_entries)
                 logger.info(
-                    f"Subject {subject}: {len(crn_entries)} sections "
-                    f"(total: {len(all_crn_entries)})"
+                    f"Subject {subject}: {len(crn_entries)} raw entries "
+                    f"(total raw: {len(all_crn_entries)}, listing requests: {listing_requests})"
                 )
 
                 # Check request budget after each subject
@@ -134,6 +140,8 @@ class PurdueScraper(BaseScraper):
                     raise PurdueBudgetExceededError(
                         f"Request budget exceeded during listing: {self.total_request_count} > "
                         f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                        f"CARDINALITY: {len(subjects)} subjects requested, {listing_requests} listing requests, "
+                        f"{len(all_crn_entries)} raw entries so far. "
                         f"This is a non-retryable error - reduce scope or increase budget."
                     )
 
@@ -143,33 +151,49 @@ class PurdueScraper(BaseScraper):
             # Deduplicate by CRN before detail fetches
             unique_crns = self._deduplicate_crns(all_crn_entries)
             logger.info(
-                f"Deduplicated: {len(all_crn_entries)} sections → {len(unique_crns)} unique CRNs"
+                f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                f"{len(all_crn_entries)} raw entries → {len(unique_crns)} unique CRNs"
             )
 
             # Apply limit before preflight and detail fetches if specified
+            limited_crns_count = len(unique_crns)
             if limit and len(unique_crns) > limit:
                 unique_crns = unique_crns[:limit]
-                logger.info(f"Limited to {limit} unique CRNs before detail fetches")
+                limited_crns_count = len(unique_crns)
+                logger.info(
+                    f"CARDINALITY: Limited to {limited_crns_count} unique CRNs before detail fetches "
+                    f"(was {len(unique_crns)} before limit)"
+                )
 
             # Check if detail fetches would exceed budget (worst-case estimate with all retries)
-            estimated_detail_requests = len(unique_crns) * (1 + self.MAX_RETRIES)
+            projected_detail_requests = limited_crns_count * (1 + self.MAX_RETRIES)
             if (
-                self.total_request_count + estimated_detail_requests
+                self.total_request_count + projected_detail_requests
                 > self.MAX_TOTAL_REQUESTS
             ):
                 raise PurdueBudgetExceededError(
                     f"Request budget would be exceeded by details: "
-                    f"{self.total_request_count} + {estimated_detail_requests} (estimated) > "
+                    f"{self.total_request_count} + {projected_detail_requests} (projected) > "
                     f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                    f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                    f"{len(all_crn_entries)} raw entries, {len(unique_crns)} unique CRNs (before limit), "
+                    f"{limited_crns_count} unique CRNs (after limit), "
+                    f"{projected_detail_requests} projected detail requests. "
                     f"This is a non-retryable error - reduce scope or increase budget."
                 )
 
             # Fetch detail pages with bounded concurrency and fail-loud on errors
+            initial_request_count = self.total_request_count
             courses_data = await self._fetch_details_and_group(unique_crns)
+            actual_detail_requests = self.total_request_count - initial_request_count
 
             logger.info(
-                f"Successfully scraped {len(courses_data)} courses from Purdue "
-                f"({len(unique_crns)} sections processed, {self.total_request_count} total requests)"
+                f"Successfully scraped {len(courses_data)} courses from Purdue. "
+                f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                f"{len(all_crn_entries)} raw entries, {len(unique_crns)} unique CRNs, "
+                f"{projected_detail_requests} projected detail requests, "
+                f"{actual_detail_requests} actual detail requests, "
+                f"{self.total_request_count} total requests"
             )
             return courses_data
 
