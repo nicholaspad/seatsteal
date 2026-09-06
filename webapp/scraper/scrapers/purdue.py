@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional, Set, Tuple
 import asyncio
+import re
 import httpx
 from bs4 import BeautifulSoup
 from scraper.base import BaseScraper
@@ -12,7 +13,7 @@ class PurdueScraper(BaseScraper):
     Purdue University course scraper.
 
     Scrapes course data from Purdue's Banner self-service system.
-    Strategy: Fetch subjects for term → for each subject POST course search →
+    Strategy: Validate term via picker → Fetch subjects → POST course search →
     parse CRN list → deduplicate → fetch detail pages for seat counts.
 
     Term codes: YYYYTT Banner format (e.g., "202710" = Fall 2026)
@@ -20,12 +21,14 @@ class PurdueScraper(BaseScraper):
     - TT: Term code (10 = Fall, 13 = Winter, 20 = Spring, 30 = Summer)
 
     CRITICAL:
+    - Validate DB term exists in picker (prefer registerable)
+    - Extract CRN from href query (not text split - handles hyphenated titles)
     - Deduplicate by CRN before detail fetches
     - Use bounded concurrency (4) for detail pages
     - Retry with backoff on 429/5xx and transient transport errors
     - Fail loud on any detail fetch failure (no partial success)
     - Never POST registration actions
-    - Parse SEPARATE Capacity/Actual/Remaining cells in seat table
+    - Parse SEPARATE Capacity/Actual/Remaining cells for Seats AND Waitlist Seats
     """
 
     BASE_URL = "https://selfservice.mypurdue.purdue.edu/prod"
@@ -72,6 +75,9 @@ class PurdueScraper(BaseScraper):
         await self._ensure_client()
 
         try:
+            # CRITICAL: Validate term via picker before scraping
+            await self._validate_term_via_picker()
+
             # Fetch subjects for the term
             subjects = await self._fetch_subjects()
             logger.info(f"Found {len(subjects)} subjects for term {self.current_term}")
@@ -142,6 +148,49 @@ class PurdueScraper(BaseScraper):
                 await self.client.aclose()
                 self.client = None
 
+    async def _validate_term_via_picker(self):
+        """
+        Validate current term by fetching and parsing term picker.
+        Ensures DB term exists in picker and is preferably registerable.
+
+        Raises:
+            Exception: If term not found in picker or validation fails
+        """
+        try:
+            url = f"{self.BASE_URL}/bwckschd.p_disp_dyn_sched"
+            response = await self._make_request_with_retry("GET", url)
+
+            # Parse available terms
+            terms = self.parse_term_picker(response.text)
+            logger.info(f"Found {len(terms)} terms in picker")
+
+            # Find our term in picker
+            term_match = None
+            for term in terms:
+                if term["code"] == self.current_term:
+                    term_match = term
+                    break
+
+            if not term_match:
+                raise Exception(
+                    f"Term {self.current_term} not found in picker. "
+                    f"Available terms: {[t['code'] for t in terms[:5]]}"
+                )
+
+            if not term_match["registerable"]:
+                logger.warning(
+                    f"Term {self.current_term} ({term_match['name']}) is marked '(View only)' "
+                    "but proceeding as configured in DB"
+                )
+            else:
+                logger.info(
+                    f"Term {self.current_term} ({term_match['name']}) validated as registerable"
+                )
+
+        except Exception as e:
+            logger.error(f"Term validation failed: {e}")
+            raise
+
     def parse_term_picker(self, html_content: str) -> List[Dict[str, Any]]:
         """
         Parse term picker HTML to extract available terms.
@@ -181,7 +230,7 @@ class PurdueScraper(BaseScraper):
 
     async def _fetch_subjects(self) -> List[str]:
         """
-        Fetch available subjects for the current term from the term picker page.
+        Fetch available subjects for the current term.
 
         Returns:
             List of subject codes (e.g., ['CS', 'MA', 'ECE'])
@@ -231,24 +280,25 @@ class PurdueScraper(BaseScraper):
             subject: Subject code (e.g., 'CS')
 
         Returns:
-            List of dicts with CRN, course_code, title, section info
+            List of dicts with CRN, course_code, title, section, meeting_times info
         """
         try:
             url = f"{self.BASE_URL}/bwckschd.p_get_crse_unsec"
 
             # Banner multi-select requires dummy seeds before real values
+            # Use % for "all" where accepted by Banner
             form_data = {
                 "term_in": self.current_term,
                 "sel_subj": ["dummy", subject],  # Banner pattern: dummy + value
                 "sel_day": "dummy",
-                "sel_schd": "dummy",
-                "sel_insm": "dummy",
-                "sel_camp": "dummy",
-                "sel_levl": "dummy",
-                "sel_sess": "dummy",
-                "sel_instr": "dummy",
-                "sel_ptrm": "dummy",
-                "sel_attr": "dummy",
+                "sel_schd": "%",  # All schedules
+                "sel_insm": "%",  # All instructional methods
+                "sel_camp": "%",  # All campuses
+                "sel_levl": "%",  # All levels
+                "sel_sess": "%",  # All sessions
+                "sel_instr": "%",  # All instructors
+                "sel_ptrm": "%",  # All parts of term
+                "sel_attr": "%",  # All attributes
                 "sel_crse": "",  # Empty for all courses
                 "sel_title": "",
                 "sel_from_cred": "",
@@ -270,38 +320,25 @@ class PurdueScraper(BaseScraper):
 
             soup = BeautifulSoup(response.content, "lxml")
 
-            # Parse section links via href (more stable than onclick)
+            # Parse section links - extract CRN from href (robust against hyphenated titles)
             crn_entries = []
 
             # Find all course detail links
             for anchor in soup.find_all("a", href=True):
                 href = anchor.get("href", "")
                 if "bwckschd.p_disp_detail_sched" in href:
-                    # Extract link text: "Title - CRN - SUBJECT NUMBER - SECTION"
+                    # Extract CRN from href query parameter (robust)
+                    crn = self._extract_crn_from_href(href)
+                    if not crn:
+                        logger.warning(f"Could not extract CRN from href: {href}")
+                        continue
+
+                    # Parse link text robustly: "Title - CRN - SUBJECT NUMBER - SECTION"
                     text = anchor.get_text(strip=True)
-                    parts = [p.strip() for p in text.split("-")]
+                    parsed = self._parse_section_text_robust(text, crn)
 
-                    if len(parts) >= 4:
-                        # Extract CRN (second part)
-                        crn = parts[1].strip()
-
-                        # Extract SUBJECT NUMBER (third part)
-                        subject_number = parts[2].strip()
-
-                        # Extract section (fourth part)
-                        section = parts[3].strip()
-
-                        # Title is first part
-                        title = parts[0].strip()
-
-                        crn_entries.append(
-                            {
-                                "crn": crn,
-                                "course_code": subject_number,  # e.g., "CS 18000"
-                                "title": title,
-                                "section": section,
-                            }
-                        )
+                    if parsed:
+                        crn_entries.append(parsed)
 
             logger.debug(f"Subject {subject}: parsed {len(crn_entries)} CRN entries")
             return crn_entries
@@ -309,6 +346,73 @@ class PurdueScraper(BaseScraper):
         except Exception as e:
             logger.error(f"Error fetching subject CRNs for {subject}: {e}")
             raise
+
+    def _extract_crn_from_href(self, href: str) -> Optional[str]:
+        """
+        Extract CRN from detail link href query parameter.
+
+        Args:
+            href: Link href (e.g., "/prod/bwckschd.p_disp_detail_sched?term_in=202710&crn_in=12345")
+
+        Returns:
+            CRN string or None
+        """
+        # Match crn_in= query parameter
+        match = re.search(r"crn_in=(\d+)", href)
+        if match:
+            return match.group(1)
+        return None
+
+    def _parse_section_text_robust(
+        self, text: str, crn: str
+    ) -> Optional[Dict[str, str]]:
+        """
+        Parse section link text robustly, handling hyphenated titles.
+
+        Expected format: "Title - CRN - SUBJECT NUMBER - SECTION"
+        But title can contain hyphens, so we work backwards from known CRN.
+
+        Args:
+            text: Link text
+            crn: CRN extracted from href (ground truth)
+
+        Returns:
+            Dict with crn, course_code, title, section, or None if parse fails
+        """
+        # Find CRN position (we know it from href)
+        crn_pattern = f" - {re.escape(crn)} - "
+        match = re.search(crn_pattern, text)
+
+        if not match:
+            logger.warning(
+                f"Could not find CRN {crn} in expected format in text: {text}"
+            )
+            return None
+
+        # Split at CRN position
+        title = text[: match.start()].strip()
+        remainder = text[match.end() :].strip()
+
+        # Remainder should be "SUBJECT NUMBER - SECTION"
+        # Split on last " - " to get section
+        parts = remainder.rsplit(" - ", 1)
+        if len(parts) == 2:
+            course_code = parts[0].strip()
+            section = parts[1].strip()
+        else:
+            # Fallback: take first part as course_code, unknown section
+            course_code = remainder.strip()
+            section = "001"
+            logger.warning(
+                f"Could not parse section from remainder '{remainder}', using default"
+            )
+
+        return {
+            "crn": crn,
+            "course_code": course_code,  # e.g., "CS 18000"
+            "title": title,
+            "section": section,
+        }
 
     def _deduplicate_crns(
         self, crn_entries: List[Dict[str, str]]
@@ -375,8 +479,7 @@ class PurdueScraper(BaseScraper):
         for i in range(0, len(crn_entries), batch_size):
             batch = crn_entries[i : i + batch_size]
             batch_tasks = [fetch_with_semaphore(entry) for entry in batch]
-            # DO NOT use return_exceptions=True - let exceptions propagate
-            # But we need to catch them to provide better error messages
+
             try:
                 batch_results = await asyncio.gather(*batch_tasks)
 
@@ -470,100 +573,102 @@ class PurdueScraper(BaseScraper):
 
             soup = BeautifulSoup(response.content, "lxml")
 
-            # Parse "Registration Availability" section with SEPARATE cells
-            status = self._parse_seat_availability(soup, crn)
+            # Parse seat availability (main Seats and Waitlist Seats)
+            seat_info = self._parse_seat_availability(soup, crn)
 
             return {
                 "class_number": crn,  # CRN is the class_number
                 "course_code": crn_entry.get("course_code", ""),
                 "title": crn_entry.get("title", ""),
                 "section": crn_entry.get("section", ""),
-                "status": status,
+                "status": seat_info["status"],
             }
 
         except Exception as e:
             logger.error(f"Error fetching detail for CRN {crn}: {e}")
             return None
 
-    def _parse_seat_availability(self, soup: BeautifulSoup, crn: str) -> str:
+    def _parse_seat_availability(self, soup: BeautifulSoup, crn: str) -> Dict[str, Any]:
         """
         Parse seat availability from Banner detail page.
-        Expects SEPARATE cells: Capacity | Actual | Remaining
+        Parses BOTH main Seats and Waitlist Seats with separate Capacity/Actual/Remaining cells.
 
         Args:
             soup: BeautifulSoup parsed HTML
             crn: CRN for logging
 
         Returns:
-            "Open" if remaining > 0, else "Closed"
+            Dict with 'status' (Open/Closed based on main Seats Remaining)
         """
         status = "Closed"  # Default conservative
+        seats_remaining = None
+        waitlist_capacity = None
+        waitlist_remaining = None
 
-        # Find the table with caption "Registration Availability"
+        # Find the Registration Availability table
         for table in soup.find_all("table", {"class": "datadisplaytable"}):
             caption = table.find("caption")
             if not caption or "Registration Availability" not in caption.get_text():
                 continue
 
-            # Look for "Seats" row with separate Capacity/Actual/Remaining cells
-            for row in table.find_all("tr"):
+            # Parse rows for Seats and Waitlist Seats
+            rows = table.find_all("tr")
+
+            for row in rows:
                 cells = row.find_all(["th", "td"])
+                if len(cells) < 4:
+                    continue
 
-                # Check if this is the header row (Capacity | Actual | Remaining)
-                if len(cells) >= 3:
-                    cell_texts = [c.get_text(strip=True) for c in cells]
+                # Check first cell for row type
+                first_cell_text = cells[0].get_text(strip=True)
 
-                    # Look for row with "Seats" label
-                    if "Seats" in cell_texts:
-                        # Find the Remaining cell
-                        for i, text in enumerate(cell_texts):
-                            if text == "Remaining":
-                                # Next row should have the values
-                                next_row = row.find_next_sibling("tr")
-                                if next_row:
-                                    value_cells = next_row.find_all("td")
-                                    if len(value_cells) > i:
-                                        remaining_text = value_cells[i].get_text(
-                                            strip=True
-                                        )
-                                        try:
-                                            remaining = int(remaining_text)
-                                            status = (
-                                                "Open" if remaining > 0 else "Closed"
-                                            )
-                                            logger.debug(
-                                                f"CRN {crn}: {remaining} remaining seats → {status}"
-                                            )
-                                            return status
-                                        except ValueError:
-                                            logger.warning(
-                                                f"CRN {crn}: Could not parse remaining seats from '{remaining_text}'"
-                                            )
+                if first_cell_text == "Seats":
+                    # Main Seats row: extract Remaining (4th cell)
+                    try:
+                        seats_remaining = int(cells[3].get_text(strip=True))
+                        logger.debug(
+                            f"CRN {crn}: Main seats remaining = {seats_remaining}"
+                        )
+                    except (ValueError, IndexError) as e:
+                        logger.warning(
+                            f"CRN {crn}: Could not parse main seats remaining: {e}"
+                        )
 
-                # Also try simpler pattern: row with "Seats" text followed by cells
-                if len(cells) >= 4:
-                    # Pattern: <th>Seats</th><td>XX</td><td>YY</td><td>ZZ</td>
-                    # where cells are Capacity, Actual, Remaining
-                    first_cell = cells[0].get_text(strip=True)
-                    if first_cell == "Seats" and len(cells) >= 4:
-                        try:
-                            remaining = int(cells[3].get_text(strip=True))
-                            status = "Open" if remaining > 0 else "Closed"
-                            logger.debug(
-                                f"CRN {crn}: {remaining} remaining seats → {status}"
-                            )
-                            return status
-                        except (ValueError, IndexError) as e:
-                            logger.warning(
-                                f"CRN {crn}: Could not parse remaining from cells: {e}"
-                            )
+                elif first_cell_text == "Waitlist Seats":
+                    # Waitlist Seats row: extract Capacity and Remaining
+                    try:
+                        waitlist_capacity = int(cells[1].get_text(strip=True))
+                        waitlist_remaining = int(cells[3].get_text(strip=True))
+                        logger.debug(
+                            f"CRN {crn}: Waitlist capacity={waitlist_capacity}, "
+                            f"remaining={waitlist_remaining}"
+                        )
+                    except (ValueError, IndexError) as e:
+                        logger.warning(
+                            f"CRN {crn}: Could not parse waitlist seats: {e}"
+                        )
 
-        # If we didn't find Remaining, log warning and keep Closed
-        logger.warning(
-            f"CRN {crn}: Could not find 'Remaining' cell in seat table, "
-            "defaulting to Closed (never invent Open)"
-        )
-        return status
+        # Determine status based on main Seats Remaining (NOT waitlist)
+        if seats_remaining is not None:
+            status = "Open" if seats_remaining > 0 else "Closed"
+            logger.debug(
+                f"CRN {crn}: {seats_remaining} main seats remaining → {status}"
+            )
+        else:
+            logger.warning(
+                f"CRN {crn}: Could not find main 'Seats' Remaining cell, "
+                "defaulting to Closed (never invent Open)"
+            )
+
+        # Zero-waitlist capacity is NOT an error - just log for debugging
+        if waitlist_capacity == 0:
+            logger.debug(
+                f"CRN {crn}: Zero waitlist capacity (expected for some courses)"
+            )
+
+        return {
+            "status": status,
+        }
 
     async def _make_request_with_retry(
         self, method: str, url: str, max_retries: int = None, **kwargs
