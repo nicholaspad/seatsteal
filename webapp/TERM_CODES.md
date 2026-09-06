@@ -222,6 +222,46 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 
 ---
 
+## University of Illinois Urbana-Champaign
+
+**Format:** `1202YYS` (6-digit code)
+
+**Pattern:**
+- `1202` - Prefix (constant)
+- `YY` - 2-digit year (68 = 2026, 61 = 2026)
+- `S` - Semester indicator:
+  - `8` = Fall
+  - `1` = Spring
+  - `5` = Summer
+  - `0` = Winter
+
+**Examples:**
+- `120268` - Fall 2026 (1202 + 68 + 8) → URL: `2026/fall`
+- `120261` - Spring 2026 (1202 + 61 + 1) → URL: `2026/spring`
+- `120265` - Summer 2026 (1202 + 65 + 5) → URL: `2026/summer`
+- `120260` - Winter 2026 (1202 + 60 + 0) → URL: `2026/winter`
+
+**Source:** https://courses.illinois.edu
+
+**API Strategy:**
+1. Discovery XML: `/cisapp/explorer/schedule/{year}/{season}.xml` (subject index)
+2. Summary XML: `/cisapp/explorer/schedule/{year}/{season}/{subject}.xml` (course IDs per subject)
+3. Detail HTML: `/schedule/{year}/{season}/{subject}/{course}` (parse CRN, section, availability from table)
+
+**Status Mapping:**
+- HTML Availability field used (NOT XML statusCode/sectionStatusCode):
+  - `Open`, `Open (Restricted)`, `CrossListOpen`, `CrossListOpen (Restricted)` → Open
+  - `Closed`, `Pending`, `Unknown`, missing/malformed → Closed
+
+**Notes:**
+- Do NOT use XML `statusCode` or `sectionStatusCode` for availability (observed "A" on Closed sections)
+- Always parse HTML `#schedule-course-table` → `Availability` dd element or status icon `aria-label`
+- Global CRN deduplication required (cross-listed courses share CRNs)
+- Bounded concurrency (4 course pages max) + retry/backoff for 429/5xx
+- Request budget: 10,000 max to prevent runaway scraping
+
+---
+
 ## Quick Reference Tool
 
 Run the term codes table script to fetch current term codes for all colleges:
