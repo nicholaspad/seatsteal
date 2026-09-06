@@ -8,6 +8,14 @@ from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
 
 
+class PurdueBudgetExceededError(Exception):
+    """
+    Non-retryable budget error for Purdue scraper.
+    Signals that request budget was exceeded and retry will not help.
+    """
+    pass
+
+
 class PurdueScraper(BaseScraper):
     """
     Purdue University course scraper.
@@ -32,8 +40,9 @@ class PurdueScraper(BaseScraper):
     """
 
     BASE_URL = "https://selfservice.mypurdue.purdue.edu/prod"
-    MAX_TOTAL_REQUESTS = 3000  # Hard budget including listings + retries + details
+    MAX_TOTAL_REQUESTS = 3000  # Hard budget sized for CS subject (~500-1000 CRNs), not full catalog
     MAX_RETRIES = 3  # Retry count for transient errors
+    ALLOWED_DEPARTMENTS = ["CS"]  # Production allowlist: only CS is scraped
 
     def __init__(self, db_session=None):
         super().__init__("purdue")
@@ -72,6 +81,23 @@ class PurdueScraper(BaseScraper):
             f"Scraping Purdue {department} courses (limit: {limit}, term: {self.current_term})"
         )
 
+        # REJECT ALL: Full catalog scraping is not supported (exceeds budget)
+        if department.upper() == "ALL":
+            raise ValueError(
+                f"Purdue scraper does not support department='ALL' (full catalog). "
+                f"Full catalog (~21k CRNs) exceeds budget (3000 requests). "
+                f"Allowed departments: {', '.join(self.ALLOWED_DEPARTMENTS)}. "
+                f"Use a specific department from the allowlist."
+            )
+
+        # ENFORCE ALLOWLIST: Only CS is allowed in production
+        if department.upper() not in [d.upper() for d in self.ALLOWED_DEPARTMENTS]:
+            raise ValueError(
+                f"Purdue scraper only supports allowlisted departments: {', '.join(self.ALLOWED_DEPARTMENTS)}. "
+                f"Requested department '{department}' is not allowed. "
+                f"Full catalog scraping exceeds budget (3000 requests)."
+            )
+
         await self._ensure_client()
 
         try:
@@ -105,9 +131,10 @@ class PurdueScraper(BaseScraper):
 
                 # Check request budget after each subject
                 if self.total_request_count > self.MAX_TOTAL_REQUESTS:
-                    raise Exception(
+                    raise PurdueBudgetExceededError(
                         f"Request budget exceeded during listing: {self.total_request_count} > "
-                        f"{self.MAX_TOTAL_REQUESTS} (failing loud, no partial success)"
+                        f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                        f"This is a non-retryable error - reduce scope or increase budget."
                     )
 
                 # Rate limiting between subjects
@@ -119,20 +146,26 @@ class PurdueScraper(BaseScraper):
                 f"Deduplicated: {len(all_crn_entries)} sections → {len(unique_crns)} unique CRNs"
             )
 
-            # Check if detail fetches would exceed budget
+            # Apply limit before preflight and detail fetches if specified
+            if limit and len(unique_crns) > limit:
+                unique_crns = unique_crns[:limit]
+                logger.info(f"Limited to {limit} unique CRNs before detail fetches")
+
+            # Check if detail fetches would exceed budget (worst-case estimate with all retries)
             estimated_detail_requests = len(unique_crns) * (1 + self.MAX_RETRIES)
             if (
                 self.total_request_count + estimated_detail_requests
                 > self.MAX_TOTAL_REQUESTS
             ):
-                raise Exception(
+                raise PurdueBudgetExceededError(
                     f"Request budget would be exceeded by details: "
                     f"{self.total_request_count} + {estimated_detail_requests} (estimated) > "
-                    f"{self.MAX_TOTAL_REQUESTS} (failing loud, no partial success)"
+                    f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                    f"This is a non-retryable error - reduce scope or increase budget."
                 )
 
             # Fetch detail pages with bounded concurrency and fail-loud on errors
-            courses_data = await self._fetch_details_and_group(unique_crns, limit)
+            courses_data = await self._fetch_details_and_group(unique_crns)
 
             logger.info(
                 f"Successfully scraped {len(courses_data)} courses from Purdue "
@@ -534,23 +567,18 @@ class PurdueScraper(BaseScraper):
         return unique_entries
 
     async def _fetch_details_and_group(
-        self, crn_entries: List[Dict[str, str]], limit: Optional[int] = None
+        self, crn_entries: List[Dict[str, str]]
     ) -> List[Dict[str, Any]]:
         """
         Fetch detail pages for CRNs with bounded concurrency and group by course.
         FAIL LOUD on any detail fetch error - no partial success.
 
         Args:
-            crn_entries: List of unique CRN entries
-            limit: Optional limit on number of courses
+            crn_entries: List of unique CRN entries (already limited if applicable)
 
         Returns:
             List of course dictionaries grouped by course_code
         """
-        # Apply limit if specified (before detail fetches)
-        if limit and len(crn_entries) > limit:
-            crn_entries = crn_entries[:limit]
-            logger.info(f"Limited to {limit} CRN entries before detail fetches")
 
         # Fetch detail pages with bounded concurrency (4 concurrent requests)
         semaphore = asyncio.Semaphore(4)
@@ -788,9 +816,10 @@ class PurdueScraper(BaseScraper):
                 # Check request budget
                 self.total_request_count += 1
                 if self.total_request_count > self.MAX_TOTAL_REQUESTS:
-                    raise Exception(
+                    raise PurdueBudgetExceededError(
                         f"Request budget exceeded: {self.total_request_count} > "
-                        f"{self.MAX_TOTAL_REQUESTS} (failing loud)"
+                        f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                        f"This is a non-retryable error - reduce scope or increase budget."
                     )
 
                 # Make request

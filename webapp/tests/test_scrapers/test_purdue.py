@@ -327,10 +327,93 @@ def scraper(mock_db_session):
 
 @pytest.mark.asyncio
 async def test_scraper_initialization(scraper):
-    """Test that scraper initializes with correct term code."""
+    """Test that scraper initializes with correct term code and allowlist."""
     assert scraper.college_short_name == "purdue"
     assert scraper.current_term == "202710"
     assert scraper.total_request_count == 0
+    assert scraper.ALLOWED_DEPARTMENTS == ["CS"]
+
+
+@pytest.mark.asyncio
+async def test_all_department_rejected(scraper):
+    """Test that department='ALL' is rejected with clear error (full catalog exceeds budget)."""
+    await scraper._ensure_client()
+
+    with pytest.raises(ValueError) as exc_info:
+        await scraper.scrape_courses("ALL")
+    
+    error_msg = str(exc_info.value)
+    assert "does not support department='ALL'" in error_msg
+    assert "21k CRNs" in error_msg
+    assert "exceeds budget" in error_msg
+    assert "3000 requests" in error_msg
+    assert "CS" in error_msg  # Should mention allowed departments
+
+
+@pytest.mark.asyncio
+async def test_non_allowlisted_department_rejected(scraper):
+    """Test that non-allowlisted departments (e.g., MA, ECE) are rejected."""
+    await scraper._ensure_client()
+
+    # Try Mathematics (not in allowlist)
+    with pytest.raises(ValueError) as exc_info:
+        await scraper.scrape_courses("MA")
+    
+    error_msg = str(exc_info.value)
+    assert "only supports allowlisted departments" in error_msg
+    assert "CS" in error_msg
+    assert "MA" in error_msg or "'MA'" in error_msg
+
+    # Try ECE (not in allowlist)
+    with pytest.raises(ValueError) as exc_info:
+        await scraper.scrape_courses("ECE")
+    
+    error_msg = str(exc_info.value)
+    assert "only supports allowlisted departments" in error_msg
+    assert "ECE" in error_msg or "'ECE'" in error_msg
+
+
+@pytest.mark.asyncio
+async def test_cs_allowlisted_department_works(scraper):
+    """Test that CS (allowlisted) department can be scraped."""
+    await scraper._ensure_client()
+
+    with patch.object(
+        scraper, "_make_request_with_retry", new_callable=AsyncMock
+    ) as mock_request:
+        # Mock picker response
+        picker_response = MagicMock()
+        picker_response.text = SAMPLE_TERM_PICKER_HTML
+        picker_response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
+
+        # Mock subjects response
+        subjects_response = MagicMock()
+        subjects_response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
+
+        # Mock course list response
+        course_list_response = MagicMock()
+        course_list_response.content = (
+            SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode("utf-8")
+        )
+
+        # Mock detail responses
+        detail_response = MagicMock()
+        detail_response.content = SAMPLE_DETAIL_OPEN_HTML.encode("utf-8")
+
+        # Set up side effect to return appropriate responses
+        mock_request.side_effect = [
+            picker_response,  # GET term picker
+            subjects_response,  # POST subjects
+            course_list_response,  # POST course list for CS
+            detail_response,  # GET detail for CRN 12345
+            detail_response,  # GET detail for CRN 12346
+        ]
+
+        # CS should work (in allowlist)
+        courses = await scraper.scrape_courses("CS")
+
+        # Should succeed and return courses
+        assert len(courses) > 0
 
 
 def test_parse_term_picker(scraper):
@@ -633,11 +716,11 @@ async def test_parse_seat_availability_missing_seats_defaults_closed(scraper):
 
 
 @pytest.mark.asyncio
-async def test_request_budget_failure_through_scrape_courses_path(scraper):
-    """Test request budget failure through the scrape_courses path (not just helper)."""
+async def test_budget_error_is_non_retryable(scraper):
+    """Test that budget errors raise PurdueBudgetExceededError (non-retryable)."""
     await scraper._ensure_client()
 
-    # Set a very low budget
+    # Set a very low budget to trigger error
     scraper.MAX_TOTAL_REQUESTS = 3
 
     call_count = 0
@@ -649,7 +732,7 @@ async def test_request_budget_failure_through_scrape_courses_path(scraper):
         # Simulate budget check
         scraper.total_request_count += 1
         if scraper.total_request_count > scraper.MAX_TOTAL_REQUESTS:
-            raise Exception(
+            raise PurdueBudgetExceededError(
                 f"Request budget exceeded: {scraper.total_request_count} > "
                 f"{scraper.MAX_TOTAL_REQUESTS}"
             )
@@ -669,7 +752,7 @@ async def test_request_budget_failure_through_scrape_courses_path(scraper):
             response.raise_for_status = MagicMock()
             return response
         elif call_count == 3:
-            # POST course list for first subject
+            # POST course list for CS
             response = MagicMock()
             response.content = SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode(
                 "utf-8"
@@ -688,10 +771,140 @@ async def test_request_budget_failure_through_scrape_courses_path(scraper):
     with patch.object(
         scraper, "_make_request_with_retry", side_effect=mock_request_side_effect
     ):
-        with pytest.raises(Exception) as exc_info:
-            await scraper.scrape_courses("ALL")  # Try to scrape all subjects
+        # Should raise PurdueBudgetExceededError, not generic Exception
+        with pytest.raises(PurdueBudgetExceededError) as exc_info:
+            await scraper.scrape_courses("CS")
 
-        assert "budget" in str(exc_info.value).lower()
+        error_msg = str(exc_info.value)
+        assert "budget exceeded" in error_msg.lower()
+        assert "non-retryable" in error_msg.lower()
+
+
+@pytest.mark.asyncio
+async def test_budget_preflight_uses_worst_case_estimate(scraper):
+    """Test that preflight budget check uses worst-case (1+MAX_RETRIES) multiplier."""
+    await scraper._ensure_client()
+
+    # Set up scenario: 161 listing + 750 CRNs
+    # Preflight: 161 + (750 * 4) = 3161 > 3000 -> should FAIL
+    scraper.total_request_count = 161
+    scraper.MAX_TOTAL_REQUESTS = 3000
+
+    # Create 750 CRNs (will exceed with 4x multiplier)
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(750)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+
+                # Should raise PurdueBudgetExceededError due to preflight
+                with pytest.raises(PurdueBudgetExceededError) as exc_info:
+                    await scraper.scrape_courses("CS")
+                
+                error_msg = str(exc_info.value).lower()
+                assert "budget" in error_msg
+                assert "would be exceeded" in error_msg
+                assert "no partial success" in error_msg
+
+
+@pytest.mark.asyncio
+async def test_limit_applied_before_preflight(scraper):
+    """Test that limit is applied before preflight budget check."""
+    await scraper._ensure_client()
+
+    # Set up scenario: 161 listing + 2000 CRNs but limit=100
+    # Without limit-before-preflight: 161 + (2000 * 4) = 8161 > 3000 -> FAIL
+    # With limit-before-preflight: 161 + (100 * 4) = 561 < 3000 -> PASS
+    scraper.total_request_count = 161
+    scraper.MAX_TOTAL_REQUESTS = 3000
+
+    # Create 2000 CRN entries
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(2000)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+                with patch.object(scraper, "_fetch_details_and_group", new_callable=AsyncMock) as mock_details:
+                    mock_details.return_value = []
+
+                    # This should NOT raise because limit=100 is applied before preflight
+                    await scraper.scrape_courses("CS", limit=100)
+                    
+                    # Verify details were called with limited set
+                    assert mock_details.called
+                    # Check that only 100 CRNs were passed to details
+                    call_args = mock_details.call_args[0][0]
+                    assert len(call_args) == 100
+
+
+@pytest.mark.asyncio
+async def test_request_budget_failure_through_scrape_courses_path(scraper):
+    """Test request budget failure through the scrape_courses path (not just helper)."""
+    await scraper._ensure_client()
+
+    # Set a very low budget
+    scraper.MAX_TOTAL_REQUESTS = 3
+
+    call_count = 0
+
+    async def mock_request_side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+
+        # Simulate budget check
+        scraper.total_request_count += 1
+        if scraper.total_request_count > scraper.MAX_TOTAL_REQUESTS:
+            raise PurdueBudgetExceededError(
+                f"Request budget exceeded: {scraper.total_request_count} > "
+                f"{scraper.MAX_TOTAL_REQUESTS}"
+            )
+
+        # Return appropriate mock responses
+        if call_count == 1:
+            # GET term picker
+            response = MagicMock()
+            response.text = SAMPLE_TERM_PICKER_HTML
+            response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
+            response.raise_for_status = MagicMock()
+            return response
+        elif call_count == 2:
+            # POST subjects
+            response = MagicMock()
+            response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
+            response.raise_for_status = MagicMock()
+            return response
+        elif call_count == 3:
+            # POST course list for CS
+            response = MagicMock()
+            response.content = SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode(
+                "utf-8"
+            )
+            response.raise_for_status = MagicMock()
+            return response
+        else:
+            # This should trigger budget exceeded
+            response = MagicMock()
+            response.content = SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode(
+                "utf-8"
+            )
+            response.raise_for_status = MagicMock()
+            return response
+
+    with patch.object(
+        scraper, "_make_request_with_retry", side_effect=mock_request_side_effect
+    ):
+        with pytest.raises(PurdueBudgetExceededError):
+            await scraper.scrape_courses("CS")
 
 
 @pytest.mark.asyncio
@@ -849,3 +1062,132 @@ async def test_term_code_from_db(mock_db_session):
 
     # Verify no hardcoded term in production code path
     # (This is validated by the scraper using get_term_code_from_db in __init__)
+
+
+@pytest.mark.asyncio
+async def test_preflight_uses_realistic_retry_estimate(scraper):
+    """Test that preflight estimate uses ~15% retry headroom, not worst-case 4x."""
+    await scraper._ensure_client()
+
+    # Set up scenario where old logic (4x) would fail but new logic (1.15x) passes
+    # Budget = 30000, listing uses 500, we have 25000 CRNs
+    # Old: 500 + (25000 * 4) = 100500 > 30000 -> FAIL
+    # New: 500 + (25000 * 1.15) = 29250 < 30000 -> PASS
+    scraper.total_request_count = 500
+    scraper.MAX_TOTAL_REQUESTS = 30000
+
+    # Create 25000 unique CRNs
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(25000)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+                with patch.object(scraper, "_fetch_details_and_group", new_callable=AsyncMock) as mock_details:
+                    mock_details.return_value = []
+
+                    # This should NOT raise with new 1.15x logic
+                    await scraper.scrape_courses("CS")
+                    
+                    # Verify details were called (preflight passed)
+                    assert mock_details.called
+
+
+@pytest.mark.asyncio
+async def test_limit_applied_before_preflight(scraper):
+    """Test that limit is applied before preflight budget check."""
+    await scraper._ensure_client()
+
+    # Set up scenario: 50000 CRNs but limit=100
+    # Without limit-before-preflight: 500 + (50000 * 1.15) = 58000 > 30000 -> FAIL
+    # With limit-before-preflight: 500 + (100 * 1.15) = 615 < 30000 -> PASS
+    scraper.total_request_count = 500
+    scraper.MAX_TOTAL_REQUESTS = 30000
+
+    # Create 50000 CRN entries
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(50000)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+                with patch.object(scraper, "_fetch_details_and_group", new_callable=AsyncMock) as mock_details:
+                    mock_details.return_value = []
+
+                    # This should NOT raise because limit=100 is applied before preflight
+                    await scraper.scrape_courses("CS", limit=100)
+                    
+                    # Verify details were called with limited set
+                    assert mock_details.called
+                    # Check that only 100 CRNs were passed to details
+                    call_args = mock_details.call_args[0][0]
+                    assert len(call_args) == 100
+
+
+@pytest.mark.asyncio
+async def test_full_catalog_scale_fits_new_budget(scraper):
+    """Test that realistic full Fall Purdue catalog fits under new budget."""
+    await scraper._ensure_client()
+
+    # Realistic full Fall scenario: 161 listing + ~21000 CRNs
+    # Total: 161 + (21000 * 1.15) = 161 + 24150 = 24311 < 30000 -> PASS
+    scraper.total_request_count = 161
+    scraper.MAX_TOTAL_REQUESTS = 30000
+
+    # Create 21000 unique CRNs (realistic Fall count)
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(21000)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+                with patch.object(scraper, "_fetch_details_and_group", new_callable=AsyncMock) as mock_details:
+                    mock_details.return_value = []
+
+                    # This should NOT raise with new budget
+                    await scraper.scrape_courses("CS")
+                    
+                    # Verify details were called
+                    assert mock_details.called
+
+
+@pytest.mark.asyncio
+async def test_budget_preflight_still_fails_loud_on_overrun(scraper):
+    """Test that budget preflight still fails loud when estimate exceeds budget."""
+    await scraper._ensure_client()
+
+    # Set a budget that will be exceeded even with new 1.15x logic
+    scraper.total_request_count = 500
+    scraper.MAX_TOTAL_REQUESTS = 5000  # Small budget
+
+    # Create 10000 CRNs: 500 + (10000 * 1.15) = 12000 > 5000 -> FAIL
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(10000)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+
+                with pytest.raises(Exception) as exc_info:
+                    await scraper.scrape_courses("CS")
+                
+                # Should fail with budget message mentioning "no partial success"
+                error_msg = str(exc_info.value).lower()
+                assert "budget" in error_msg
+                assert "no partial success" in error_msg
