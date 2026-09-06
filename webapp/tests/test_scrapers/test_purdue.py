@@ -446,15 +446,15 @@ async def test_fetch_subject_crns_includes_complete_banner_post_fields(scraper):
         assert form_data.get("term_in") == "202710"
         assert form_data.get("sel_subj") == ["dummy", "CS"]  # dummy seed + value
 
-        # Check % for "all" filters
-        assert form_data.get("sel_schd") == "%"
-        assert form_data.get("sel_insm") == "%"
-        assert form_data.get("sel_camp") == "%"
-        assert form_data.get("sel_levl") == "%"
-        assert form_data.get("sel_sess") == "%"
-        assert form_data.get("sel_instr") == "%"
-        assert form_data.get("sel_ptrm") == "%"
-        assert form_data.get("sel_attr") == "%"
+        # Check dummy seeds + % for "all" filters (Banner multi-select requirement)
+        assert form_data.get("sel_schd") == ["dummy", "%"]
+        assert form_data.get("sel_insm") == ["dummy", "%"]
+        assert form_data.get("sel_camp") == ["dummy", "%"]
+        assert form_data.get("sel_levl") == ["dummy", "%"]
+        assert form_data.get("sel_sess") == ["dummy", "%"]
+        assert form_data.get("sel_instr") == ["dummy", "%"]
+        assert form_data.get("sel_ptrm") == ["dummy", "%"]
+        assert form_data.get("sel_attr") == ["dummy", "%"]
 
         # Check other required fields
         assert form_data.get("sel_day") == "dummy"

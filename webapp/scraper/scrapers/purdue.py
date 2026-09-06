@@ -291,14 +291,14 @@ class PurdueScraper(BaseScraper):
                 "term_in": self.current_term,
                 "sel_subj": ["dummy", subject],  # Banner pattern: dummy + value
                 "sel_day": "dummy",
-                "sel_schd": "%",  # All schedules
-                "sel_insm": "%",  # All instructional methods
-                "sel_camp": "%",  # All campuses
-                "sel_levl": "%",  # All levels
-                "sel_sess": "%",  # All sessions
-                "sel_instr": "%",  # All instructors
-                "sel_ptrm": "%",  # All parts of term
-                "sel_attr": "%",  # All attributes
+                "sel_schd": ["dummy", "%"],  # All schedules
+                "sel_insm": ["dummy", "%"],  # All instructional methods
+                "sel_camp": ["dummy", "%"],  # All campuses
+                "sel_levl": ["dummy", "%"],  # All levels
+                "sel_sess": ["dummy", "%"],  # All sessions
+                "sel_instr": ["dummy", "%"],  # All instructors
+                "sel_ptrm": ["dummy", "%"],  # All parts of term
+                "sel_attr": ["dummy", "%"],  # All attributes
                 "sel_crse": "",  # Empty for all courses
                 "sel_title": "",
                 "sel_from_cred": "",
