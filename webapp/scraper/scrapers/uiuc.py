@@ -137,10 +137,14 @@ class UiucScraper(BaseScraper):
         """
         Parse UIUC term code into year and season.
 
-        Term format: 1202YYS
-        - 1202 = prefix
-        - YY = 2-digit year (26 = 2026, 68 would be wrong interpretation)
+        Term format: 1202YS where Y is year digit, S is semester
+        - 1202 = required prefix
+        - Y = year digit (6 = 2026, 7 = 2027, etc. in 202X decade)
         - S = semester (8=Fall, 1=Spring, 5=Summer, 0=Winter)
+
+        Examples:
+        - 120268 → 2026/fall
+        - 120261 → 2026/spring
 
         Args:
             term_code: 6-digit term code (e.g., "120268")
@@ -151,30 +155,30 @@ class UiucScraper(BaseScraper):
         Raises:
             ValueError: If term code is invalid
         """
-        if not term_code or len(term_code) != 6:
-            raise ValueError(f"Invalid UIUC term code: {term_code}")
+        if not term_code:
+            raise ValueError("Term code cannot be empty")
 
-        # Extract YY and S from 1202YYS
-        # Position 4 is the first digit of YY, position 5 is the semester code
-        yy = term_code[4]  # Single digit for year
-        semester_code = term_code[5]
+        if not isinstance(term_code, str):
+            raise ValueError(f"Term code must be string, got {type(term_code)}")
 
-        # For UIUC pattern 1202YYS where Y is decade and S is both year+semester
-        # Actually looking at 120268: 1202 + 6 + 8
-        # It appears YY is at position 4 only, and S at position 5
-        # But 68 would mean 2068, not 2026
+        if not term_code.isdigit():
+            raise ValueError(f"Term code must be numeric: {term_code}")
 
-        # Correction: The pattern seems to be 12026 + 8, where:
-        # - 1202 = prefix
-        # - 6 = year within decade (2026)
-        # - 8 = semester
+        if len(term_code) != 6:
+            raise ValueError(
+                f"Term code must be 6 digits, got {len(term_code)}: {term_code}"
+            )
 
-        # So we need to extract position 4 as year offset, position 5 as semester
-        year_offset = term_code[4]
-        semester_code = term_code[5]
+        # Validate prefix
+        if not term_code.startswith("1202"):
+            raise ValueError(f"Term code must start with '1202', got: {term_code}")
+
+        # Extract year digit and semester code from 1202YS
+        year_digit = term_code[4]  # Position 4 is year digit
+        semester_code = term_code[5]  # Position 5 is semester code
 
         # Construct full year (assume 202X decade)
-        year = f"202{year_offset}"
+        year = f"202{year_digit}"
 
         # Map semester code to season string
         season_map = {
@@ -187,7 +191,8 @@ class UiucScraper(BaseScraper):
         season = season_map.get(semester_code)
         if not season:
             raise ValueError(
-                f"Invalid semester code '{semester_code}' in term {term_code}"
+                f"Invalid semester code '{semester_code}' in term {term_code}. "
+                f"Valid codes: {list(season_map.keys())}"
             )
 
         return year, season
@@ -203,30 +208,32 @@ class UiucScraper(BaseScraper):
             season: Season string (e.g., "fall")
 
         Returns:
-            List of subject codes (e.g., ['CS', 'MATH', 'ENG'])
+            List of unique subject codes (e.g., ['CS', 'MATH', 'ENG'])
         """
         url = f"{self.BASE_URL}/cisapp/explorer/schedule/{year}/{season}.xml"
 
-        try:
-            response = await self._fetch_with_retry(url)
-            self.request_count += 1
+        response = await self._fetch_with_retry(url)
+        self.request_count += 1
 
-            # Parse XML
-            root = ET.fromstring(response.content)
+        # Parse XML with namespace safety
+        root = ET.fromstring(response.content)
 
-            # Extract subject codes from XML
-            subjects = []
-            for subject_elem in root.findall(".//subject"):
-                subject_id = subject_elem.get("id")
-                if subject_id:
+        # Extract subject codes from XML (namespace-independent)
+        # Use local-name() via iteration to handle namespaced elements
+        subjects = []
+        seen = set()  # Deduplicate subject IDs
+
+        for elem in root.iter():
+            # Check local tag name (ignoring namespace)
+            local_tag = elem.tag.split("}")[1] if "}" in elem.tag else elem.tag
+            if local_tag == "subject":
+                subject_id = elem.get("id")
+                if subject_id and subject_id not in seen:
+                    seen.add(subject_id)
                     subjects.append(subject_id)
 
-            logger.info(f"Fetched {len(subjects)} subjects from XML index")
-            return subjects
-
-        except Exception as e:
-            logger.error(f"Error fetching UIUC subjects: {e}")
-            raise
+        logger.info(f"Fetched {len(subjects)} unique subjects from XML index")
+        return subjects
 
     async def _fetch_subject_courses(
         self, year: str, season: str, subject: str
@@ -242,36 +249,40 @@ class UiucScraper(BaseScraper):
             subject: Subject code (e.g., "CS")
 
         Returns:
-            List of course IDs (e.g., ['100', '101', '225'])
+            List of unique course IDs (e.g., ['100', '101', '225'])
         """
         url = f"{self.BASE_URL}/cisapp/explorer/schedule/{year}/{season}/{subject}.xml"
 
-        try:
-            response = await self._fetch_with_retry(url)
-            self.request_count += 1
+        response = await self._fetch_with_retry(url)
+        self.request_count += 1
 
-            # Parse XML
-            root = ET.fromstring(response.content)
+        # Parse XML with namespace safety
+        root = ET.fromstring(response.content)
 
-            # Extract course IDs from XML
-            course_ids = []
-            for course_elem in root.findall(".//course"):
-                course_id = course_elem.get("id")
-                if course_id:
+        # Extract course IDs from XML (namespace-independent)
+        course_ids = []
+        seen = set()  # Deduplicate course IDs
+
+        for elem in root.iter():
+            # Check local tag name (ignoring namespace)
+            local_tag = elem.tag.split("}")[1] if "}" in elem.tag else elem.tag
+            if local_tag == "course":
+                course_id = elem.get("id")
+                if course_id and course_id not in seen:
+                    seen.add(course_id)
                     course_ids.append(course_id)
 
-            logger.debug(f"Subject {subject}: {len(course_ids)} courses in XML")
-            return course_ids
-
-        except Exception as e:
-            logger.error(f"Error fetching UIUC courses for subject {subject}: {e}")
-            raise
+        logger.debug(f"Subject {subject}: {len(course_ids)} unique courses in XML")
+        return course_ids
 
     async def _fetch_courses_concurrent(
         self, year: str, season: str, course_ids: List[Tuple[str, str]]
     ) -> List[Dict[str, Any]]:
         """
         Fetch course details from HTML with bounded concurrency.
+
+        Fail-loud strategy: Track failures and abort on material partial failure,
+        401/403, or budget exhaustion. Do NOT swallow exceptions into empty success.
 
         Args:
             year: Year string
@@ -280,9 +291,16 @@ class UiucScraper(BaseScraper):
 
         Returns:
             List of raw class data dictionaries
+
+        Raises:
+            RuntimeError: On material partial failure (>20% fail rate)
+            httpx.HTTPStatusError: On 401/403 auth errors
+            RuntimeError: On request budget exhaustion
         """
         all_classes = []
         semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_COURSES)
+        failed_courses = 0
+        total_courses = len(course_ids)
 
         async def fetch_one(subject: str, course_id: str):
             async with semaphore:
@@ -293,25 +311,50 @@ class UiucScraper(BaseScraper):
         for i in range(0, len(course_ids), batch_size):
             batch = course_ids[i : i + batch_size]
 
-            # Fetch batch concurrently
+            # Fetch batch concurrently WITHOUT return_exceptions
+            # Auth errors (401/403) and budget exhaustion will propagate immediately
             tasks = [fetch_one(subject, course_id) for subject, course_id in batch]
-            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Collect successful results
+            try:
+                batch_results = await asyncio.gather(*tasks)
+            except (httpx.HTTPStatusError, RuntimeError) as e:
+                # Auth errors or budget exhaustion - fail immediately
+                logger.error(f"Critical error during batch fetch: {e}")
+                raise
+
+            # Collect successful results, track failures
             for result in batch_results:
-                if isinstance(result, Exception):
-                    logger.warning(f"Course fetch failed: {result}")
-                    continue
-                if result:
+                if isinstance(result, list):
                     all_classes.extend(result)
+                else:
+                    # This shouldn't happen with our current implementation
+                    failed_courses += 1
+                    logger.warning(f"Unexpected non-list result: {result}")
 
             logger.debug(
                 f"Processed batch {i // batch_size + 1}: "
                 f"{len(batch)} courses (total classes: {len(all_classes)})"
             )
 
+            # Check material failure threshold (>20% fail rate)
+            if total_courses > 10:  # Only enforce for meaningful sample size
+                fail_rate = failed_courses / total_courses
+                if fail_rate > 0.2:
+                    error_msg = (
+                        f"Material partial failure: {failed_courses}/{total_courses} "
+                        f"courses failed ({fail_rate:.1%})"
+                    )
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+
             # Rate limiting between batches
             await asyncio.sleep(0.2)
+
+        # Final failure check
+        if failed_courses > 0:
+            logger.warning(
+                f"Completed with {failed_courses}/{total_courses} course failures"
+            )
 
         return all_classes
 
@@ -331,70 +374,63 @@ class UiucScraper(BaseScraper):
 
         Returns:
             List of class data dictionaries
+
+        Raises:
+            httpx.HTTPStatusError: On 401/403 auth errors
+            RuntimeError: On request budget exhaustion
         """
         url = f"{self.BASE_URL}/schedule/{year}/{season}/{subject}/{course_id}"
 
-        try:
-            # Check request budget
-            if self.request_count >= self.MAX_REQUESTS:
-                logger.error(f"Request budget exhausted ({self.MAX_REQUESTS})")
-                raise RuntimeError("Request budget exhausted")
+        # Check request budget BEFORE making request
+        if self.request_count >= self.MAX_REQUESTS:
+            logger.error(f"Request budget exhausted ({self.MAX_REQUESTS})")
+            raise RuntimeError("Request budget exhausted")
 
-            response = await self._fetch_with_retry(url)
-            self.request_count += 1
+        response = await self._fetch_with_retry(url)
+        self.request_count += 1
 
-            # Parse HTML
-            soup = BeautifulSoup(response.content, "lxml")
+        # Parse HTML
+        soup = BeautifulSoup(response.content, "lxml")
 
-            # Find course title
-            title_elem = soup.find("h1", class_="page-title")
-            if not title_elem:
-                logger.warning(f"No title found for {subject} {course_id}")
-                return []
+        # Find course heading and title
+        # Official DOM: <h1 class="fw-bold">CS 124</h1> with title in .app-label
+        title_elem = soup.find("h1", class_="fw-bold")
+        if not title_elem:
+            raise ValueError(f"No course heading found for {subject} {course_id}")
 
-            title_text = title_elem.get_text(strip=True)
-            # Title format: "SUBJECT COURSE - Title" (e.g., "CS 100 - Intro to CS")
-            course_code = f"{subject} {course_id}"
-            if "-" in title_text:
-                title = title_text.split("-", 1)[1].strip()
-            else:
-                title = title_text
+        # Get course code from h1 (e.g., "CS 124")
+        heading_text = title_elem.get_text(strip=True)
+        course_code = heading_text  # Use the official heading as course code
 
-            # Parse schedule table
-            classes = []
-            schedule_table = soup.find("table", id="schedule-course-table")
-            if not schedule_table:
-                logger.warning(f"No schedule table found for {subject} {course_id}")
-                return []
+        # Get title from .app-label
+        title = ""
+        app_label = soup.find(class_="app-label")
+        if app_label:
+            title = app_label.get_text(strip=True)
 
-            tbody = schedule_table.find("tbody")
-            if not tbody:
-                return []
+        # Parse schedule table
+        classes = []
+        schedule_table = soup.find("table", id="schedule-course-table")
+        if not schedule_table:
+            raise ValueError(f"No schedule table found for {subject} {course_id}")
 
-            for row in tbody.find_all("tr"):
-                try:
-                    class_data = self._parse_class_row(row, course_code, title)
-                    if class_data:
-                        classes.append(class_data)
-                except Exception as e:
-                    logger.warning(f"Error parsing class row for {course_code}: {e}")
-                    continue
-
-            logger.debug(
-                f"Parsed {len(classes)} classes from {subject} {course_id} HTML"
-            )
-            return classes
-
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code in [401, 403]:
-                # Fail loud on auth errors
-                logger.error(f"Auth error {e.response.status_code} for {url}")
-                raise
-            logger.warning(f"HTTP error {e.response.status_code} for {url}")
+        tbody = schedule_table.find("tbody")
+        if not tbody:
+            # Empty tbody is valid (no sections offered)
+            logger.debug(f"Empty tbody for {subject} {course_id}")
             return []
-        except Exception as e:
-            logger.warning(f"Error fetching course HTML for {subject} {course_id}: {e}")
-            return []
+
+        for row in tbody.find_all("tr"):
+            try:
+                class_data = self._parse_class_row(row, course_code, title)
+                if class_data:
+                    classes.append(class_data)
+            except Exception as e:
+                logger.warning(f"Error parsing class row for {course_code}: {e}")
+                continue
+
+        logger.debug(f"Parsed {len(classes)} classes from {subject} {course_id} HTML")
+        return classes
 
     def _parse_class_row(
         self, row, course_code: str, title: str
@@ -402,39 +438,40 @@ class UiucScraper(BaseScraper):
         """
         Parse a single class row from the schedule table.
 
+        Official DOM structure (per CS 124 live page):
+        - td[0]: empty details-control
+        - td[1]: status icon
+        - td[2]: favorites
+        - td[3]: CRN (4th column)
+        - td[4]: Section (5th column)
+        - ... other columns
+
         Args:
             row: BeautifulSoup tr element
-            course_code: Course code (e.g., "CS 100")
+            course_code: Course code (e.g., "CS 124")
             title: Course title
 
         Returns:
             Dictionary with class data or None if invalid
         """
         cells = row.find_all("td")
-        if len(cells) < 2:
+        if len(cells) < 5:
+            # Need at least 5 columns to get CRN and Section
             return None
 
-        # Extract CRN (first cell)
-        crn_cell = cells[0]
-        crn = crn_cell.get_text(strip=True)
+        # Extract CRN (4th column, index 3)
+        crn = cells[3].get_text(strip=True)
         if not crn:
             return None
 
-        # Extract section/type from first cell or second cell
-        # Look for section info in the same cell or nearby
-        section = ""
-        section_elem = crn_cell.find("span", class_="section-code")
-        if section_elem:
-            section = section_elem.get_text(strip=True)
-        elif len(cells) > 1:
-            # Try second cell for section
-            section = cells[1].get_text(strip=True)
+        # Extract section (5th column, index 4)
+        section = cells[4].get_text(strip=True)
 
         # Extract availability status
-        # Look for "Availability" dd element or status icon aria-label
+        # Prefer Availability dd element, fallback to icon aria-label
         status = "Closed"  # Conservative default
 
-        # Find the availability dd element
+        # Look for Availability dd element
         for dd in row.find_all("dd"):
             dt = dd.find_previous_sibling("dt")
             if dt and "availability" in dt.get_text(strip=True).lower():
@@ -442,11 +479,14 @@ class UiucScraper(BaseScraper):
                 status = self._map_availability_status(availability_text)
                 break
 
-        # Fallback: look for status icon aria-label
-        if status == "Closed":
-            status_icon = row.find("i", attrs={"aria-label": True})
+        # Fallback: look for status icon aria-label (in td[1], status column)
+        if status == "Closed" and len(cells) > 1:
+            status_icon = cells[1].find("i", attrs={"aria-label": True})
             if status_icon:
                 aria_label = status_icon.get("aria-label", "")
+                # Strip "Section " prefix from official labels like "Section CrossListOpen (Restricted)"
+                if aria_label.startswith("Section "):
+                    aria_label = aria_label[len("Section ") :]
                 status = self._map_availability_status(aria_label)
 
         return {
