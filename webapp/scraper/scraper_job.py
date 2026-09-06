@@ -239,11 +239,14 @@ class ScraperJob:
                     last_error = stats.get("error", "Unknown error during scraping")
                     last_stats = stats
                     
-                    # Check if this is a partial failure (0 courses/enrollments)
-                    # Partial failures should not be retried - they're expected outcomes
-                    if stats.get("outcome") == "partial":
+                    # Check outcome to determine if retry is appropriate
+                    outcome = stats.get("outcome", "error")
+                    
+                    # Non-retryable outcomes: partial (0 courses/enrollments) and budget_exceeded
+                    if outcome in ["partial", "budget_exceeded"]:
+                        outcome_label = "Partial failure" if outcome == "partial" else "Budget exceeded (non-retryable)"
                         logger.warning(
-                            f"⚠️  Partial failure for {self.college.name} (attempt {attempt}): {last_error}"
+                            f"⚠️  {outcome_label} for {self.college.name} (attempt {attempt}): {last_error}"
                         )
                         return JobResult(success=False, error=last_error, stats=stats)
                     

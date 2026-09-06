@@ -8,6 +8,14 @@ from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
 
 
+class PurdueBudgetExceededError(Exception):
+    """
+    Non-retryable budget error for Purdue scraper.
+    Signals that request budget was exceeded and retry will not help.
+    """
+    pass
+
+
 class PurdueScraper(BaseScraper):
     """
     Purdue University course scraper.
@@ -32,8 +40,9 @@ class PurdueScraper(BaseScraper):
     """
 
     BASE_URL = "https://selfservice.mypurdue.purdue.edu/prod"
-    MAX_TOTAL_REQUESTS = 3000  # Hard budget including listings + retries + details
+    MAX_TOTAL_REQUESTS = 3000  # Hard budget sized for CS subject (~500-1000 CRNs), not full catalog
     MAX_RETRIES = 3  # Retry count for transient errors
+    ALLOWED_DEPARTMENTS = ["CS"]  # Production allowlist: only CS is scraped
 
     def __init__(self, db_session=None):
         super().__init__("purdue")
@@ -72,6 +81,30 @@ class PurdueScraper(BaseScraper):
             f"Scraping Purdue {department} courses (limit: {limit}, term: {self.current_term})"
         )
 
+        # Map ALL to allowlist expansion (production compatibility)
+        # run_scraper.py loop defaults subject="ALL" for all colleges
+        if department.upper() == "ALL":
+            logger.info(
+                f"ALL mapped to allowlist {self.ALLOWED_DEPARTMENTS} "
+                f"(never fans out to full 159-subject catalog)"
+            )
+            # Scrape only allowlisted departments (currently just CS)
+            # Return combined results from all allowlisted departments
+            all_courses = []
+            for allowed_dept in self.ALLOWED_DEPARTMENTS:
+                logger.info(f"Scraping allowlisted department: {allowed_dept}")
+                dept_courses = await self.scrape_courses(allowed_dept, limit)
+                all_courses.extend(dept_courses)
+            return all_courses
+
+        # ENFORCE ALLOWLIST: Only allowlisted departments (reject non-allowlisted named departments)
+        if department.upper() not in [d.upper() for d in self.ALLOWED_DEPARTMENTS]:
+            raise ValueError(
+                f"Purdue scraper only supports allowlisted departments: {', '.join(self.ALLOWED_DEPARTMENTS)}. "
+                f"Requested department '{department}' is not allowed. "
+                f"Full catalog scraping exceeds budget (3000 requests)."
+            )
+
         await self._ensure_client()
 
         try:
@@ -80,7 +113,9 @@ class PurdueScraper(BaseScraper):
 
             # Fetch subjects for the term
             subjects = await self._fetch_subjects()
-            logger.info(f"Found {len(subjects)} subjects for term {self.current_term}")
+            logger.info(
+                f"CARDINALITY: Discovered {len(subjects)} total subjects for term {self.current_term}"
+            )
 
             # Filter by department if not ALL
             if department.upper() != "ALL":
@@ -90,24 +125,31 @@ class PurdueScraper(BaseScraper):
                         f"No subject found matching department: {department}"
                     )
                     return []
-                logger.info(f"Filtered to subject: {subjects[0]}")
+                logger.info(
+                    f"CARDINALITY: Filtered to {len(subjects)} subject(s) for department {department}: {subjects}"
+                )
 
             # Collect all CRN entries from subject searches
             all_crn_entries = []
+            listing_requests = 0
             for subject in subjects:
                 logger.info(f"Fetching course list for subject: {subject}")
+                listing_requests += 1
                 crn_entries = await self._fetch_subject_crns(subject)
                 all_crn_entries.extend(crn_entries)
                 logger.info(
-                    f"Subject {subject}: {len(crn_entries)} sections "
-                    f"(total: {len(all_crn_entries)})"
+                    f"Subject {subject}: {len(crn_entries)} raw entries "
+                    f"(total raw: {len(all_crn_entries)}, listing requests: {listing_requests})"
                 )
 
                 # Check request budget after each subject
                 if self.total_request_count > self.MAX_TOTAL_REQUESTS:
-                    raise Exception(
+                    raise PurdueBudgetExceededError(
                         f"Request budget exceeded during listing: {self.total_request_count} > "
-                        f"{self.MAX_TOTAL_REQUESTS} (failing loud, no partial success)"
+                        f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                        f"CARDINALITY: {len(subjects)} subjects requested, {listing_requests} listing requests, "
+                        f"{len(all_crn_entries)} raw entries so far. "
+                        f"This is a non-retryable error - reduce scope or increase budget."
                     )
 
                 # Rate limiting between subjects
@@ -115,28 +157,52 @@ class PurdueScraper(BaseScraper):
 
             # Deduplicate by CRN before detail fetches
             unique_crns = self._deduplicate_crns(all_crn_entries)
+            original_unique_count = len(unique_crns)
             logger.info(
-                f"Deduplicated: {len(all_crn_entries)} sections → {len(unique_crns)} unique CRNs"
+                f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                f"{len(all_crn_entries)} raw entries → {original_unique_count} unique CRNs"
             )
 
-            # Check if detail fetches would exceed budget
-            estimated_detail_requests = len(unique_crns) * (1 + self.MAX_RETRIES)
+            # Check if limit would truncate (fail loud unless explicit acknowledgment)
+            # This prevents silent partial success where truncated results appear as full scrape
+            if limit and original_unique_count > limit:
+                raise PurdueBudgetExceededError(
+                    f"LIMIT TRUNCATION: {original_unique_count} unique CRNs > limit={limit}. "
+                    f"Failing loud to prevent silent partial success. "
+                    f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                    f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs. "
+                    f"To scrape bounded subset, reduce subject scope (use specific department, not ALL). "
+                    f"Never return truncated results as unqualified success."
+                )
+
+            # Check if detail fetches would exceed budget (worst-case estimate with all retries)
+            projected_detail_requests = original_unique_count * (1 + self.MAX_RETRIES)
             if (
-                self.total_request_count + estimated_detail_requests
+                self.total_request_count + projected_detail_requests
                 > self.MAX_TOTAL_REQUESTS
             ):
-                raise Exception(
+                raise PurdueBudgetExceededError(
                     f"Request budget would be exceeded by details: "
-                    f"{self.total_request_count} + {estimated_detail_requests} (estimated) > "
-                    f"{self.MAX_TOTAL_REQUESTS} (failing loud, no partial success)"
+                    f"{self.total_request_count} + {projected_detail_requests} (projected) > "
+                    f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                    f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                    f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs, "
+                    f"{projected_detail_requests} projected detail requests. "
+                    f"This is a non-retryable error - reduce scope or increase budget."
                 )
 
             # Fetch detail pages with bounded concurrency and fail-loud on errors
-            courses_data = await self._fetch_details_and_group(unique_crns, limit)
+            initial_request_count = self.total_request_count
+            courses_data = await self._fetch_details_and_group(unique_crns)
+            actual_detail_requests = self.total_request_count - initial_request_count
 
             logger.info(
-                f"Successfully scraped {len(courses_data)} courses from Purdue "
-                f"({len(unique_crns)} sections processed, {self.total_request_count} total requests)"
+                f"Successfully scraped {len(courses_data)} courses from Purdue. "
+                f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs, "
+                f"{projected_detail_requests} projected detail requests, "
+                f"{actual_detail_requests} actual detail requests, "
+                f"{self.total_request_count} total requests"
             )
             return courses_data
 
@@ -534,23 +600,18 @@ class PurdueScraper(BaseScraper):
         return unique_entries
 
     async def _fetch_details_and_group(
-        self, crn_entries: List[Dict[str, str]], limit: Optional[int] = None
+        self, crn_entries: List[Dict[str, str]]
     ) -> List[Dict[str, Any]]:
         """
         Fetch detail pages for CRNs with bounded concurrency and group by course.
         FAIL LOUD on any detail fetch error - no partial success.
 
         Args:
-            crn_entries: List of unique CRN entries
-            limit: Optional limit on number of courses
+            crn_entries: List of unique CRN entries (already limited if applicable)
 
         Returns:
             List of course dictionaries grouped by course_code
         """
-        # Apply limit if specified (before detail fetches)
-        if limit and len(crn_entries) > limit:
-            crn_entries = crn_entries[:limit]
-            logger.info(f"Limited to {limit} CRN entries before detail fetches")
 
         # Fetch detail pages with bounded concurrency (4 concurrent requests)
         semaphore = asyncio.Semaphore(4)
@@ -788,9 +849,10 @@ class PurdueScraper(BaseScraper):
                 # Check request budget
                 self.total_request_count += 1
                 if self.total_request_count > self.MAX_TOTAL_REQUESTS:
-                    raise Exception(
+                    raise PurdueBudgetExceededError(
                         f"Request budget exceeded: {self.total_request_count} > "
-                        f"{self.MAX_TOTAL_REQUESTS} (failing loud)"
+                        f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                        f"This is a non-retryable error - reduce scope or increase budget."
                     )
 
                 # Make request

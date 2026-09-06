@@ -11,7 +11,7 @@ from pathlib import Path
 webapp_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from scraper.scrapers.purdue import PurdueScraper
+from scraper.scrapers.purdue import PurdueScraper, PurdueBudgetExceededError
 from models.college import College
 import httpx
 
@@ -327,10 +327,133 @@ def scraper(mock_db_session):
 
 @pytest.mark.asyncio
 async def test_scraper_initialization(scraper):
-    """Test that scraper initializes with correct term code."""
+    """Test that scraper initializes with correct term code and allowlist."""
     assert scraper.college_short_name == "purdue"
     assert scraper.current_term == "202710"
     assert scraper.total_request_count == 0
+    assert scraper.ALLOWED_DEPARTMENTS == ["CS"]
+
+
+@pytest.mark.asyncio
+async def test_all_department_maps_to_allowlist(scraper):
+    """
+    Test that department='ALL' maps to allowlist (e.g., CS) instead of full 159-subject catalog.
+    Production compatibility: run_scraper.py defaults subject='ALL' for all colleges.
+    """
+    await scraper._ensure_client()
+
+    # Mock responses for CS scraping (since ALL maps to ["CS"])
+    with patch.object(
+        scraper, "_make_request_with_retry", new_callable=AsyncMock
+    ) as mock_request:
+        # Mock picker response
+        picker_response = MagicMock()
+        picker_response.text = SAMPLE_TERM_PICKER_HTML
+        picker_response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
+        picker_response.raise_for_status = MagicMock()
+
+        # Mock subjects response
+        subjects_response = MagicMock()
+        subjects_response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
+        subjects_response.raise_for_status = MagicMock()
+
+        # Mock course list response
+        course_list_response = MagicMock()
+        course_list_response.content = (
+            SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode("utf-8")
+        )
+        course_list_response.raise_for_status = MagicMock()
+
+        # Mock detail responses
+        detail_response = MagicMock()
+        detail_response.content = SAMPLE_DETAIL_OPEN_HTML.encode("utf-8")
+        detail_response.raise_for_status = MagicMock()
+
+        mock_request.side_effect = [
+            picker_response,
+            subjects_response,
+            course_list_response,
+            detail_response,
+            detail_response,
+        ]
+
+        # Scrape with department='ALL' - should map to allowlist (CS)
+        courses = await scraper.scrape_courses("ALL", limit=None)
+
+        # Verify:
+        # 1. Should succeed (not raise)
+        # 2. Should return CS courses (not empty, not full catalog)
+        # 3. All course_codes should start with "CS" (allowlist subject)
+        assert len(courses) > 0, "ALL should map to CS and return courses"
+        assert all(
+            c["course_code"].startswith("CS") for c in courses
+        ), "ALL should only scrape CS (allowlist) - all course_codes should start with 'CS'"
+
+
+@pytest.mark.asyncio
+async def test_non_allowlisted_department_rejected(scraper):
+    """Test that non-allowlisted departments (e.g., MA, ECE) are rejected."""
+    await scraper._ensure_client()
+
+    # Try Mathematics (not in allowlist)
+    with pytest.raises(ValueError) as exc_info:
+        await scraper.scrape_courses("MA")
+    
+    error_msg = str(exc_info.value)
+    assert "only supports allowlisted departments" in error_msg
+    assert "CS" in error_msg
+    assert "MA" in error_msg or "'MA'" in error_msg
+
+    # Try ECE (not in allowlist)
+    with pytest.raises(ValueError) as exc_info:
+        await scraper.scrape_courses("ECE")
+    
+    error_msg = str(exc_info.value)
+    assert "only supports allowlisted departments" in error_msg
+    assert "ECE" in error_msg or "'ECE'" in error_msg
+
+
+@pytest.mark.asyncio
+async def test_cs_allowlisted_department_works(scraper):
+    """Test that CS (allowlisted) department can be scraped."""
+    await scraper._ensure_client()
+
+    with patch.object(
+        scraper, "_make_request_with_retry", new_callable=AsyncMock
+    ) as mock_request:
+        # Mock picker response
+        picker_response = MagicMock()
+        picker_response.text = SAMPLE_TERM_PICKER_HTML
+        picker_response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
+
+        # Mock subjects response
+        subjects_response = MagicMock()
+        subjects_response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
+
+        # Mock course list response
+        course_list_response = MagicMock()
+        course_list_response.content = (
+            SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode("utf-8")
+        )
+
+        # Mock detail responses
+        detail_response = MagicMock()
+        detail_response.content = SAMPLE_DETAIL_OPEN_HTML.encode("utf-8")
+
+        # Set up side effect to return appropriate responses
+        mock_request.side_effect = [
+            picker_response,  # GET term picker
+            subjects_response,  # POST subjects
+            course_list_response,  # POST course list for CS
+            detail_response,  # GET detail for CRN 12345
+            detail_response,  # GET detail for CRN 12346
+        ]
+
+        # CS should work (in allowlist)
+        courses = await scraper.scrape_courses("CS")
+
+        # Should succeed and return courses
+        assert len(courses) > 0
 
 
 def test_parse_term_picker(scraper):
@@ -633,11 +756,11 @@ async def test_parse_seat_availability_missing_seats_defaults_closed(scraper):
 
 
 @pytest.mark.asyncio
-async def test_request_budget_failure_through_scrape_courses_path(scraper):
-    """Test request budget failure through the scrape_courses path (not just helper)."""
+async def test_budget_error_is_non_retryable(scraper):
+    """Test that budget errors raise PurdueBudgetExceededError (non-retryable)."""
     await scraper._ensure_client()
 
-    # Set a very low budget
+    # Set a very low budget to trigger error
     scraper.MAX_TOTAL_REQUESTS = 3
 
     call_count = 0
@@ -649,7 +772,7 @@ async def test_request_budget_failure_through_scrape_courses_path(scraper):
         # Simulate budget check
         scraper.total_request_count += 1
         if scraper.total_request_count > scraper.MAX_TOTAL_REQUESTS:
-            raise Exception(
+            raise PurdueBudgetExceededError(
                 f"Request budget exceeded: {scraper.total_request_count} > "
                 f"{scraper.MAX_TOTAL_REQUESTS}"
             )
@@ -669,7 +792,7 @@ async def test_request_budget_failure_through_scrape_courses_path(scraper):
             response.raise_for_status = MagicMock()
             return response
         elif call_count == 3:
-            # POST course list for first subject
+            # POST course list for CS
             response = MagicMock()
             response.content = SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode(
                 "utf-8"
@@ -688,10 +811,138 @@ async def test_request_budget_failure_through_scrape_courses_path(scraper):
     with patch.object(
         scraper, "_make_request_with_retry", side_effect=mock_request_side_effect
     ):
-        with pytest.raises(Exception) as exc_info:
-            await scraper.scrape_courses("ALL")  # Try to scrape all subjects
+        # Should raise PurdueBudgetExceededError, not generic Exception
+        with pytest.raises(PurdueBudgetExceededError) as exc_info:
+            await scraper.scrape_courses("CS")
 
-        assert "budget" in str(exc_info.value).lower()
+        error_msg = str(exc_info.value)
+        # Accept both "budget exceeded" and "budget would be exceeded" messages
+        assert "budget" in error_msg.lower() and "exceed" in error_msg.lower()
+
+
+@pytest.mark.asyncio
+async def test_budget_preflight_uses_worst_case_estimate(scraper):
+    """Test that preflight budget check uses worst-case (1+MAX_RETRIES) multiplier."""
+    await scraper._ensure_client()
+
+    # Set up scenario: 161 listing + 750 CRNs
+    # Preflight: 161 + (750 * 4) = 3161 > 3000 -> should FAIL
+    scraper.total_request_count = 161
+    scraper.MAX_TOTAL_REQUESTS = 3000
+
+    # Create 750 CRNs (will exceed with 4x multiplier)
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(750)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+
+                # Should raise PurdueBudgetExceededError due to preflight
+                with pytest.raises(PurdueBudgetExceededError) as exc_info:
+                    await scraper.scrape_courses("CS")
+                
+                error_msg = str(exc_info.value).lower()
+                assert "budget" in error_msg
+                assert "would be exceeded" in error_msg
+                assert "no partial success" in error_msg
+
+
+@pytest.mark.asyncio
+async def test_limit_truncation_fails_loud(scraper):
+    """Test that limit truncation fails loud to prevent silent partial success."""
+    await scraper._ensure_client()
+
+    # Set up scenario: 2000 CRNs but limit=100
+    # Should FAIL with truncation error (not silently truncate)
+    scraper.total_request_count = 161
+    scraper.MAX_TOTAL_REQUESTS = 3000
+
+    # Create 2000 CRN entries
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(2000)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+
+                # Should raise PurdueBudgetExceededError for truncation
+                with pytest.raises(PurdueBudgetExceededError) as exc_info:
+                    await scraper.scrape_courses("CS", limit=100)
+                
+                error_msg = str(exc_info.value)
+                assert "LIMIT TRUNCATION" in error_msg or "truncat" in error_msg.lower()
+                assert "2000" in error_msg  # Total CRNs
+                assert "100" in error_msg  # Limit
+                assert "silent partial success" in error_msg.lower()
+
+
+@pytest.mark.asyncio
+async def test_request_budget_failure_through_scrape_courses_path(scraper):
+    """Test request budget failure through the scrape_courses path (not just helper)."""
+    await scraper._ensure_client()
+
+    # Set a very low budget
+    scraper.MAX_TOTAL_REQUESTS = 3
+
+    call_count = 0
+
+    async def mock_request_side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+
+        # Simulate budget check
+        scraper.total_request_count += 1
+        if scraper.total_request_count > scraper.MAX_TOTAL_REQUESTS:
+            raise PurdueBudgetExceededError(
+                f"Request budget exceeded: {scraper.total_request_count} > "
+                f"{scraper.MAX_TOTAL_REQUESTS}"
+            )
+
+        # Return appropriate mock responses
+        if call_count == 1:
+            # GET term picker
+            response = MagicMock()
+            response.text = SAMPLE_TERM_PICKER_HTML
+            response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
+            response.raise_for_status = MagicMock()
+            return response
+        elif call_count == 2:
+            # POST subjects
+            response = MagicMock()
+            response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
+            response.raise_for_status = MagicMock()
+            return response
+        elif call_count == 3:
+            # POST course list for CS
+            response = MagicMock()
+            response.content = SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode(
+                "utf-8"
+            )
+            response.raise_for_status = MagicMock()
+            return response
+        else:
+            # This should trigger budget exceeded
+            response = MagicMock()
+            response.content = SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode(
+                "utf-8"
+            )
+            response.raise_for_status = MagicMock()
+            return response
+
+    with patch.object(
+        scraper, "_make_request_with_retry", side_effect=mock_request_side_effect
+    ):
+        with pytest.raises(PurdueBudgetExceededError):
+            await scraper.scrape_courses("CS")
 
 
 @pytest.mark.asyncio
@@ -849,3 +1100,68 @@ async def test_term_code_from_db(mock_db_session):
 
     # Verify no hardcoded term in production code path
     # (This is validated by the scraper using get_term_code_from_db in __init__)
+
+
+@pytest.mark.asyncio
+async def test_budget_exceeded_consumes_one_attempt_not_three():
+    """
+    Test service/job boundary: budget_exceeded outcome consumes ONE attempt, not three.
+    Regression test proving non-retryable wiring works end-to-end.
+    """
+    from scraper.scraper_job import ScraperJob, JobConfig
+    from scraper.services.scraper_service import ScraperService
+    from unittest.mock import AsyncMock, MagicMock, patch
+    
+    # Create mock college and db session
+    mock_college = MagicMock()
+    mock_college.id = 20
+    mock_college.name = "Purdue University"
+    mock_college.short_name = "purdue"
+    mock_college.is_active = True
+    
+    mock_db = MagicMock()
+    
+    # Track how many times scrape_college is called
+    attempt_count = 0
+    
+    async def mock_scrape_college(*args, **kwargs):
+        nonlocal attempt_count
+        attempt_count += 1
+        # Simulate budget exceeded error
+        return {
+            "college": "purdue",
+            "department": "ALL",
+            "courses_saved": 0,
+            "classes_saved": 0,
+            "enrollments_saved": 0,
+            "duration_seconds": 0.1,
+            "success": False,
+            "outcome": "budget_exceeded",  # Non-retryable outcome
+            "error": "Request budget would be exceeded by details: 161 + 85548 > 3000",
+        }
+    
+    # Create job with 3 retry attempts (default)
+    config = JobConfig(subject="ALL", limit=None, retry_attempts=3)
+    job = ScraperJob(mock_college, mock_db, config)
+    
+    # Mock the lock and log service
+    with patch.object(job.lock, 'acquire', return_value=MagicMock(success=True)):
+        with patch.object(job.lock, 'release'):
+            with patch.object(job.lock, 'get_scraper_id', return_value=1):
+                with patch('scraper.scraper_job.ScraperLogService') as mock_log_service:
+                    mock_log_service_instance = AsyncMock()
+                    mock_log_service_instance.start_log = AsyncMock(return_value=1)
+                    mock_log_service_instance.complete_log = AsyncMock()
+                    mock_log_service.return_value = mock_log_service_instance
+                    
+                    # Patch ScraperService.scrape_college to return budget_exceeded
+                    with patch.object(ScraperService, 'scrape_college', side_effect=mock_scrape_college):
+                        result = await job.execute()
+    
+    # CRITICAL: Should have called scrape_college ONCE, not three times
+    # budget_exceeded outcome should prevent retry
+    assert attempt_count == 1, f"Expected 1 attempt, got {attempt_count}. budget_exceeded should not retry!"
+    assert result.success is False
+    assert "budget" in result.error.lower()
+
+

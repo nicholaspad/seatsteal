@@ -22,7 +22,7 @@ from scraper.scrapers.uci import UciScraper
 from scraper.scrapers.uf import UfScraper
 from scraper.scrapers.osu import OsuScraper
 from scraper.scrapers.asu import AsuScraper
-from scraper.scrapers.purdue import PurdueScraper
+from scraper.scrapers.purdue import PurdueScraper, PurdueBudgetExceededError
 from scraper.scrapers.uiuc import UiucScraper
 
 # Map college short names to scraper classes
@@ -319,6 +319,14 @@ class ScraperService:
 
             duration = (datetime.now() - start_time).total_seconds()
 
+            # Check if this is a non-retryable budget error from Purdue scraper
+            outcome = "error"  # Default to retryable error
+            if isinstance(e, PurdueBudgetExceededError):
+                outcome = "budget_exceeded"  # Non-retryable outcome
+                logger.error(
+                    f"Non-retryable budget exceeded error for {college_short_name} {department}: {e}"
+                )
+
             return {
                 "college": college_short_name,
                 "department": department,
@@ -327,6 +335,7 @@ class ScraperService:
                 "enrollments_saved": 0,
                 "duration_seconds": duration,
                 "success": False,
+                "outcome": outcome,  # "budget_exceeded" prevents retry
                 "error": str(e),
             }
 
