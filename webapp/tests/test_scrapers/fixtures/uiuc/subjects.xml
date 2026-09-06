@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<subjects>
+    <subject id="CS" name="Computer Science"/>
+    <subject id="MATH" name="Mathematics"/>
+    <subject id="ENG" name="Engineering"/>
+</subjects>

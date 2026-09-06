@@ -23,6 +23,7 @@ from scraper.scrapers.uf import UfScraper
 from scraper.scrapers.osu import OsuScraper
 from scraper.scrapers.asu import AsuScraper
 from scraper.scrapers.purdue import PurdueScraper
+from scraper.scrapers.uiuc import UiucScraper
 
 # Map college short names to scraper classes
 SCRAPER_MAP = {
@@ -39,6 +40,7 @@ SCRAPER_MAP = {
     "osu": OsuScraper,  # Catalog-number shard strategy (1xxx-8xxx)
     "asu": AsuScraper,  # ScrollId-based pagination with subject-first strategy
     "purdue": PurdueScraper,  # Banner HTML scraping with CRN deduplication
+    "uiuc": UiucScraper,  # XML discovery + HTML status parsing
 }
 
 
