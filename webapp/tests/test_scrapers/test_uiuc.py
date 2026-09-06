@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+import httpx
 
 import sys
 from pathlib import Path
@@ -305,36 +306,6 @@ SAMPLE_COURSE_HTML_MISSING = """
 </html>
 """
 
-# HTML with XML statusCode="A" but Closed availability (regression test)
-SAMPLE_COURSE_HTML_STATUSCODE_NOT_AVAILABILITY = """
-<!DOCTYPE html>
-<html>
-<head><title>CS 400</title></head>
-<body>
-    <h1 class="page-title">CS 400 - Advanced Course</h1>
-    <div class="xml-status">
-        <statusCode>A</statusCode>
-        <sectionStatusCode>A</sectionStatusCode>
-    </div>
-    <table id="schedule-course-table">
-        <tbody>
-            <tr>
-                <td>44444</td>
-                <td>LEC</td>
-                <td>Prof. Brown</td>
-                <td>
-                    <dl>
-                        <dt>Availability</dt>
-                        <dd>Closed</dd>
-                    </dl>
-                </td>
-            </tr>
-        </tbody>
-    </table>
-</body>
-</html>
-"""
-
 
 @pytest.fixture
 def mock_db_session():
@@ -624,12 +595,27 @@ async def test_fetch_course_html_missing_availability(scraper):
 @pytest.mark.asyncio
 async def test_statuscode_not_used_for_availability(scraper):
     """Test that XML statusCode is NOT used for availability (regression test)."""
-    # This test verifies we use HTML Availability field, not XML statusCode
-    # The fixture includes statusCode="A" but Availability dd says "Closed"
-    assert scraper._map_availability_status("Closed") == "Closed"
+    # This test verifies we parse HTML Availability field, not XML statusCode
+    # The fixture includes statusCode="A" metadata but Availability dd says "Closed"
+    await scraper._ensure_client()
 
-    # Verify the status mapping doesn't depend on any XML field
-    # (The actual HTML parsing test is covered by other test cases)
+    with patch.object(
+        scraper, "_fetch_with_retry", new_callable=AsyncMock
+    ) as mock_fetch:
+        # Mock HTTP response with statusCode="A" but Availability="Closed"
+        mock_response = MagicMock()
+        mock_response.content = SAMPLE_COURSE_HTML_STATUSCODE_NOT_AVAILABILITY.encode()
+        mock_fetch.return_value = mock_response
+
+        # Parse through scraper method to prove statusCode is ignored
+        classes = await scraper._fetch_course_html("2026", "fall", "CS", "400")
+
+        assert len(classes) == 1
+        cls = classes[0]
+        assert cls["class_number"] == "44444"
+        assert cls["status"] == "Closed"  # From Availability dd, NOT statusCode="A"
+
+    await scraper.client.aclose()
 
 
 @pytest.mark.asyncio
@@ -923,17 +909,19 @@ async def test_request_budget_exceeded(scraper):
     scraper.request_budget = 2
     scraper.request_count = 1  # Already used 1
 
-    with patch.object(
-        scraper, "_fetch_with_retry", new_callable=AsyncMock
-    ) as mock_fetch:
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
         # Mock HTTP response
         mock_response = MagicMock()
+        mock_response.status_code = 200
         mock_response.content = SAMPLE_COURSE_HTML_OPEN.encode()
-        mock_fetch.return_value = mock_response
+        mock_response.headers = {"Content-Length": str(len(SAMPLE_COURSE_HTML_OPEN))}
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
 
         # First request should succeed (count goes from 1 to 2)
         classes = await scraper._fetch_course_html("2026", "fall", "CS", "124")
         assert len(classes) > 0  # Just verify we got classes
+        assert scraper.request_count == 2
 
         # Second request should fail (would go from 2 to 3, exceeding budget of 2)
         with pytest.raises(RuntimeError, match="Request budget exhausted"):
@@ -1136,6 +1124,159 @@ async def test_xml_course_id_deduplication(scraper):
         assert "124" in course_ids
         assert "225" in course_ids
         assert "374" in course_ids
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_http_403_fixture(scraper):
+    """Test 403 error handling with real fixture file."""
+    await scraper._ensure_client()
+
+    # Read fixture file
+    fixture_path = Path(__file__).parent / "fixtures" / "uiuc" / "http_403.html"
+    with open(fixture_path, "r") as f:
+        html_403 = f.read()
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        # Mock 403 response
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.content = html_403.encode()
+        mock_response.headers = {}
+
+        def raise_for_status():
+            raise httpx.HTTPStatusError(
+                "403 Forbidden", request=MagicMock(), response=mock_response
+            )
+
+        mock_response.raise_for_status = raise_for_status
+        mock_get.return_value = mock_response
+
+        # Should raise immediately without retries
+        with pytest.raises(httpx.HTTPStatusError, match="403"):
+            await scraper._fetch_with_retry(
+                "https://courses.illinois.edu/schedule/2026/fall/CS/124"
+            )
+
+        # Verify only one attempt (no retries for 403)
+        assert mock_get.call_count == 1
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_http_429_fixture(scraper):
+    """Test 429 rate limiting with real fixture file."""
+    await scraper._ensure_client()
+
+    # Read fixture file
+    fixture_path = Path(__file__).parent / "fixtures" / "uiuc" / "http_429.html"
+    with open(fixture_path, "r") as f:
+        html_429 = f.read()
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        call_count = 0
+
+        async def mock_get_429(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+
+            # First call returns 429, subsequent calls succeed
+            if call_count == 1:
+                mock_response = MagicMock()
+                mock_response.status_code = 429
+                mock_response.content = html_429.encode()
+                mock_response.headers = {"Retry-After": "1"}
+
+                def raise_for_status():
+                    raise httpx.HTTPStatusError(
+                        "429 Too Many Requests",
+                        request=MagicMock(),
+                        response=mock_response,
+                    )
+
+                mock_response.raise_for_status = raise_for_status
+                return mock_response
+            else:
+                # Success on retry
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.content = b"<html>Success</html>"
+                mock_response.headers = {}
+                mock_response.raise_for_status = MagicMock()
+                return mock_response
+
+        mock_get.side_effect = mock_get_429
+
+        # Should succeed after retry
+        result = await scraper._fetch_with_retry(
+            "https://courses.illinois.edu/schedule/2026/fall/CS/124"
+        )
+
+        assert result.status_code == 200
+        # Should have attempted twice (429 + retry)
+        assert call_count == 2
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_malformed_html_parse_failure_integration(scraper):
+    """Integration test: malformed HTML causes parse failures tracked as course failures."""
+    await scraper._ensure_client()
+
+    # Read malformed HTML fixture
+    fixture_path = Path(__file__).parent / "fixtures" / "uiuc" / "malformed_rows.html"
+    with open(fixture_path, "r") as f:
+        malformed_html = f.read()
+
+    # Create 50 courses, 15 will be malformed (30% failure rate)
+    course_ids = [(f"CS", f"{i:03d}") for i in range(50)]
+
+    with patch.object(
+        scraper, "_fetch_with_retry", new_callable=AsyncMock
+    ) as mock_fetch:
+
+        def make_response(course_id):
+            mock_response = MagicMock()
+            # Every 3rd course gets malformed HTML
+            if int(course_id) % 3 == 0:
+                mock_response.content = malformed_html.encode()
+            else:
+                # Valid HTML with one class
+                valid_html = f"""
+<!DOCTYPE html>
+<html>
+<head><title>CS {course_id}</title></head>
+<body>
+    <h1 class="fw-bold">CS {course_id}</h1>
+    <div class="app-label">Test Course</div>
+    <table id="schedule-course-table">
+        <tbody>
+            <tr>
+                <td></td>
+                <td><i aria-label="Section Open"></i></td>
+                <td></td>
+                <td>{course_id}99</td>
+                <td>AL1</td>
+                <td></td>
+                <td><dl><dt>Availability</dt><dd>Open</dd></dl></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>
+                """
+                mock_response.content = valid_html.encode()
+            return mock_response
+
+        # Mock returns different responses based on course_id
+        mock_fetch.side_effect = lambda url: make_response(url.split("/")[-1])
+
+        # Should raise RuntimeError due to >20% parse failure rate
+        with pytest.raises(RuntimeError, match="Material partial failure"):
+            await scraper._fetch_courses_concurrent("2026", "fall", course_ids)
 
     await scraper.client.aclose()
 

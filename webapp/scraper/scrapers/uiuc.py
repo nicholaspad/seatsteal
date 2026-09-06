@@ -31,11 +31,14 @@ class UiucScraper(BaseScraper):
     BASE_URL = "https://courses.illinois.edu"
     MAX_CONCURRENT_COURSES = 4  # Bounded concurrency for course page fetches
     RETRY_BACKOFF_DELAYS = [2, 4, 8]  # Exponential backoff for retries (seconds)
+    MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB response size cap
 
     # Budget multipliers for calculating dynamic request budget
     BUDGET_PER_SUBJECT_XML = 1  # 1 request per subject XML fetch
     BUDGET_PER_COURSE_HTML = 1  # 1 request per course HTML page
-    BUDGET_RETRY_MULTIPLIER = 1.3  # 30% allowance for retries
+    BUDGET_RETRY_MULTIPLIER = (
+        1.5  # 50% allowance for retries (up to 4 attempts per fetch)
+    )
     BUDGET_BASE_OVERHEAD = 2  # Base: subjects index XML + margin
 
     def __init__(self, db_session=None):
@@ -279,7 +282,6 @@ class UiucScraper(BaseScraper):
         """
         url = f"{self.BASE_URL}/cisapp/explorer/schedule/{year}/{season}.xml"
 
-        await self._check_and_increment_budget()
         response = await self._fetch_with_retry(url)
 
         # Parse XML with namespace safety
@@ -320,7 +322,6 @@ class UiucScraper(BaseScraper):
         """
         url = f"{self.BASE_URL}/cisapp/explorer/schedule/{year}/{season}/{subject}.xml"
 
-        await self._check_and_increment_budget()
         response = await self._fetch_with_retry(url)
 
         # Parse XML with namespace safety
@@ -368,6 +369,7 @@ class UiucScraper(BaseScraper):
         semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_COURSES)
         total_courses = len(course_ids)
         courses_with_classes = 0
+        courses_failed = 0  # Track courses that raised exceptions
         courses_empty_success = 0  # Track courses that return [] (malformed/no rows)
 
         async def fetch_one(subject: str, course_id: str):
@@ -379,20 +381,37 @@ class UiucScraper(BaseScraper):
         for i in range(0, len(course_ids), batch_size):
             batch = course_ids[i : i + batch_size]
 
-            # Fetch batch concurrently WITHOUT return_exceptions
-            # Auth errors (401/403) and budget exhaustion will propagate immediately
+            # Fetch batch concurrently WITH return_exceptions to handle parse failures
             tasks = [fetch_one(subject, course_id) for subject, course_id in batch]
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            try:
-                batch_results = await asyncio.gather(*tasks)
-            except (httpx.HTTPStatusError, RuntimeError) as e:
-                # Auth errors or budget exhaustion - fail immediately
-                logger.error(f"Critical error during batch fetch: {e}")
-                raise
-
-            # Collect results and track empty-success (malformed/no classes)
+            # Process results and handle exceptions
             for idx, result in enumerate(batch_results):
-                if isinstance(result, list):
+                subject, course_id = batch[idx]
+
+                # Check for critical exceptions that should fail immediately
+                if isinstance(result, httpx.HTTPStatusError):
+                    if result.response.status_code in [401, 403]:
+                        logger.error(
+                            f"Auth error ({result.response.status_code}) - failing immediately"
+                        )
+                        raise result
+                    # Other HTTP errors count as failures
+                    courses_failed += 1
+                    logger.warning(f"HTTP error for {subject} {course_id}: {result}")
+                elif isinstance(result, RuntimeError):
+                    # Budget exhaustion or response size - fail immediately
+                    if "budget" in str(result).lower() or "size" in str(result).lower():
+                        logger.error(f"Critical error - failing immediately: {result}")
+                        raise result
+                    # Other RuntimeErrors count as failures
+                    courses_failed += 1
+                    logger.warning(f"Runtime error for {subject} {course_id}: {result}")
+                elif isinstance(result, Exception):
+                    # Parse errors (ValueError, etc.) count as failures
+                    courses_failed += 1
+                    logger.warning(f"Parse error for {subject} {course_id}: {result}")
+                elif isinstance(result, list):
                     if len(result) > 0:
                         # Success with classes
                         all_classes.extend(result)
@@ -400,28 +419,32 @@ class UiucScraper(BaseScraper):
                     else:
                         # Empty success - malformed HTML or no sections offered
                         courses_empty_success += 1
-                        subject, course_id = batch[idx]
                         logger.warning(
                             f"Empty-success course: {subject} {course_id} (no classes parsed)"
                         )
                 else:
                     # Should never happen - indicates bug in implementation
-                    courses_empty_success += 1
-                    logger.error(f"Unexpected non-list result: {result}")
+                    courses_failed += 1
+                    logger.error(
+                        f"Unexpected result type for {subject} {course_id}: {type(result)}"
+                    )
 
             logger.debug(
                 f"Processed batch {i // batch_size + 1}: "
                 f"{len(batch)} courses "
-                f"(classes: {len(all_classes)}, with_data: {courses_with_classes}, empty: {courses_empty_success})"
+                f"(classes: {len(all_classes)}, success: {courses_with_classes}, "
+                f"empty: {courses_empty_success}, failed: {courses_failed})"
             )
 
-            # Check material failure threshold (>20% empty-success rate)
+            # Check material failure threshold (>20% failure rate: failed + empty)
             if total_courses > 10:  # Only enforce for meaningful sample size
-                empty_rate = courses_empty_success / total_courses
-                if empty_rate > 0.2:
+                total_failures = courses_failed + courses_empty_success
+                fail_rate = total_failures / total_courses
+                if fail_rate > 0.2:
                     error_msg = (
-                        f"Material partial failure: {courses_empty_success}/{total_courses} "
-                        f"courses empty-success ({empty_rate:.1%})"
+                        f"Material partial failure: {total_failures}/{total_courses} "
+                        f"courses failed ({fail_rate:.1%}) - "
+                        f"{courses_failed} exceptions + {courses_empty_success} empty-success"
                     )
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
@@ -430,18 +453,19 @@ class UiucScraper(BaseScraper):
             await asyncio.sleep(0.2)
 
         # Final summary
+        total_failures = courses_failed + courses_empty_success
         logger.info(
             f"Completed course fetch: {courses_with_classes} courses with classes, "
-            f"{courses_empty_success} empty-success, "
+            f"{courses_empty_success} empty-success, {courses_failed} failed, "
             f"{len(all_classes)} total class rows"
         )
 
-        if courses_empty_success > 0 and total_courses > 10:
-            empty_rate = courses_empty_success / total_courses
-            if empty_rate > 0.2:
+        if total_failures > 0 and total_courses > 10:
+            fail_rate = total_failures / total_courses
+            if fail_rate > 0.2:
                 logger.warning(
-                    f"High empty-success rate: {empty_rate:.1%} "
-                    f"({courses_empty_success}/{total_courses})"
+                    f"High failure rate: {fail_rate:.1%} "
+                    f"({total_failures}/{total_courses})"
                 )
 
         return all_classes
@@ -468,9 +492,6 @@ class UiucScraper(BaseScraper):
             RuntimeError: On request budget exhaustion
         """
         url = f"{self.BASE_URL}/schedule/{year}/{season}/{subject}/{course_id}"
-
-        # Check request budget atomically BEFORE making request
-        await self._check_and_increment_budget()
 
         response = await self._fetch_with_retry(url)
 
@@ -553,19 +574,21 @@ class UiucScraper(BaseScraper):
         section = cells[4].get_text(strip=True)
 
         # Extract availability status
-        # Prefer Availability dd element, fallback to icon aria-label
-        status = "Closed"  # Conservative default
+        # Prefer Availability dd element, fallback to icon aria-label ONLY if dd absent
+        status = None  # Will be set from dd or aria-label
 
         # Look for Availability dd element
+        availability_dd_found = False
         for dd in row.find_all("dd"):
             dt = dd.find_previous_sibling("dt")
             if dt and "availability" in dt.get_text(strip=True).lower():
                 availability_text = dd.get_text(strip=True)
                 status = self._map_availability_status(availability_text)
+                availability_dd_found = True
                 break
 
-        # Fallback: look for status icon aria-label (in td[1], status column)
-        if status == "Closed" and len(cells) > 1:
+        # Fallback ONLY if no Availability dd was found: use aria-label
+        if not availability_dd_found and len(cells) > 1:
             status_icon = cells[1].find("i", attrs={"aria-label": True})
             if status_icon:
                 aria_label = status_icon.get("aria-label", "")
@@ -573,6 +596,10 @@ class UiucScraper(BaseScraper):
                 if aria_label.startswith("Section "):
                     aria_label = aria_label[len("Section ") :]
                 status = self._map_availability_status(aria_label)
+
+        # Conservative default if neither dd nor aria-label found
+        if status is None:
+            status = "Closed"
 
         return {
             "course_code": course_code,
@@ -684,6 +711,9 @@ class UiucScraper(BaseScraper):
         """
         Fetch URL with retry logic for 429 and 5xx errors.
 
+        Counts EVERY outbound HTTP attempt against request budget.
+        Enforces hard response-size cap.
+
         Args:
             url: URL to fetch
 
@@ -692,6 +722,7 @@ class UiucScraper(BaseScraper):
 
         Raises:
             httpx.HTTPError: If all retries fail or on auth errors (401/403)
+            RuntimeError: If request budget exhausted or response too large
         """
         last_exception = None
 
@@ -701,7 +732,23 @@ class UiucScraper(BaseScraper):
                     logger.info(f"Retrying {url} after {delay}s delay")
                     await asyncio.sleep(delay)
 
+                # Count this attempt against budget BEFORE making request
+                await self._check_and_increment_budget()
+
                 response = await self.client.get(url)
+
+                # Check response size cap
+                content_length = response.headers.get("Content-Length")
+                if content_length and int(content_length) > self.MAX_RESPONSE_SIZE:
+                    raise RuntimeError(
+                        f"Response size {content_length} bytes exceeds limit {self.MAX_RESPONSE_SIZE}"
+                    )
+
+                # Also check actual content size (some servers don't send Content-Length)
+                if len(response.content) > self.MAX_RESPONSE_SIZE:
+                    raise RuntimeError(
+                        f"Response size {len(response.content)} bytes exceeds limit {self.MAX_RESPONSE_SIZE}"
+                    )
 
                 # Handle auth errors immediately (no retry)
                 if response.status_code in [401, 403]:
@@ -737,6 +784,9 @@ class UiucScraper(BaseScraper):
                 last_exception = e
                 # Check if this is an auth error - fail immediately
                 if hasattr(e, "response") and e.response.status_code in [401, 403]:
+                    raise
+                # Check if this is budget or size error - fail immediately
+                if isinstance(e, RuntimeError):
                     raise
                 if attempt >= len(self.RETRY_BACKOFF_DELAYS):
                     break
