@@ -383,10 +383,11 @@ async def test_all_department_maps_to_allowlist(scraper):
         # Verify:
         # 1. Should succeed (not raise)
         # 2. Should return CS courses (not empty, not full catalog)
+        # 3. All course_codes should start with "CS" (allowlist subject)
         assert len(courses) > 0, "ALL should map to CS and return courses"
         assert all(
-            c["subject"] == "CS" for c in courses
-        ), "ALL should only scrape CS (allowlist)"
+            c["course_code"].startswith("CS") for c in courses
+        ), "ALL should only scrape CS (allowlist) - all course_codes should start with 'CS'"
 
 
 @pytest.mark.asyncio
