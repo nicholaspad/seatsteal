@@ -156,17 +156,16 @@ class PurdueScraper(BaseScraper):
             )
 
             # Apply limit before preflight and detail fetches if specified
-            limited_crns_count = len(unique_crns)
+            original_unique_count = len(unique_crns)
             if limit and len(unique_crns) > limit:
                 unique_crns = unique_crns[:limit]
-                limited_crns_count = len(unique_crns)
                 logger.info(
-                    f"CARDINALITY: Limited to {limited_crns_count} unique CRNs before detail fetches "
-                    f"(was {len(unique_crns)} before limit)"
+                    f"CARDINALITY: Limited to {len(unique_crns)} unique CRNs before detail fetches "
+                    f"(was {original_unique_count} before limit)"
                 )
 
             # Check if detail fetches would exceed budget (worst-case estimate with all retries)
-            projected_detail_requests = limited_crns_count * (1 + self.MAX_RETRIES)
+            projected_detail_requests = len(unique_crns) * (1 + self.MAX_RETRIES)
             if (
                 self.total_request_count + projected_detail_requests
                 > self.MAX_TOTAL_REQUESTS
@@ -176,8 +175,8 @@ class PurdueScraper(BaseScraper):
                     f"{self.total_request_count} + {projected_detail_requests} (projected) > "
                     f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
                     f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
-                    f"{len(all_crn_entries)} raw entries, {len(unique_crns)} unique CRNs (before limit), "
-                    f"{limited_crns_count} unique CRNs (after limit), "
+                    f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs (before limit), "
+                    f"{len(unique_crns)} unique CRNs (after limit), "
                     f"{projected_detail_requests} projected detail requests. "
                     f"This is a non-retryable error - reduce scope or increase budget."
                 )
@@ -190,7 +189,7 @@ class PurdueScraper(BaseScraper):
             logger.info(
                 f"Successfully scraped {len(courses_data)} courses from Purdue. "
                 f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
-                f"{len(all_crn_entries)} raw entries, {len(unique_crns)} unique CRNs, "
+                f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs, "
                 f"{projected_detail_requests} projected detail requests, "
                 f"{actual_detail_requests} actual detail requests, "
                 f"{self.total_request_count} total requests"
