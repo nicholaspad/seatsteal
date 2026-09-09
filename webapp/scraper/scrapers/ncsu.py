@@ -1,6 +1,9 @@
 from typing import List, Dict, Any, Optional
 import asyncio
+import json
+import re
 import httpx
+from bs4 import BeautifulSoup
 from scraper.base import BaseScraper
 from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
@@ -21,29 +24,31 @@ class NcsuScraper(BaseScraper):
 
     Scrapes course data from NC State's PeopleSoft ACS Class Search system.
     Strategy: POST subjects.php for subject list → POST search.php per subject →
-    parse JSON response → deduplicate by Class # → return courses with classes.
+    parse HTML response → deduplicate by Class # → return courses with classes.
 
     Term codes: STRM format (e.g., "2268" = Fall 2026)
     - YYY = year since 1900 (226 = 2026)
     - S = session digit:
-      - 8 = Fall
       - 1 = Spring
-      - 5 = Summer I
-      - 6 = Summer II
+      - 6 = Summer I
+      - 7 = Summer II
+      - 8 = Fall
 
     CRITICAL:
     - At NC State, CS = Crop Science, CSC = Computer Science
     - ONLY allowlist CSC (never CS as CompSci)
-    - Use Class # (class_nbr) as identity, not section alone
+    - Use Class # (from td.class-num) as identity, not section alone
     - Map Open→Open; Closed/Reserved/Waitlist/unknown→Closed (Reserved→Closed enables reserve-release alerts)
     - Department ALL → expand only to ALLOWED_DEPARTMENTS=["CSC"] (never ~199 subjects)
-    - Content-Type may say text/html but body is JSON {"html":..., "json":...}
-    - User-Agent: SeatSteal/1.0
+    - Response is JSON {"html":"<section class=course...>", "json":{...}}
+    - Parse the HTML field with BeautifulSoup, NOT the json field
+    - User-Agent: SeatSteal/1.0, X-Requested-With: XMLHttpRequest
     - Fail loud on budget exceeded, empty response, or unparseable data
     """
 
     BASE_URL = "https://webappprd.acs.ncsu.edu/php/coursecat"
     MAX_TOTAL_REQUESTS = 50
+    MAX_RESPONSE_SIZE = 5 * 1024 * 1024  # 5MB
     MAX_RETRIES = 3
     ALLOWED_DEPARTMENTS = ["CSC"]
 
@@ -64,6 +69,7 @@ class NcsuScraper(BaseScraper):
                     "User-Agent": "SeatSteal/1.0",
                     "Accept": "application/json, text/html, */*",
                     "Accept-Language": "en-US,en;q=0.5",
+                    "X-Requested-With": "XMLHttpRequest",
                 },
             )
 
@@ -140,6 +146,9 @@ class NcsuScraper(BaseScraper):
         """
         Fetch available subjects for the current term.
 
+        Response format: {"subj_js": "[\"AA - Art and Architecture\", \"CSC - Computer Science\", ...]"}
+        Parse the nested JSON string and extract subject codes.
+
         Returns:
             List of subject codes (e.g., ['CSC', 'MA', 'ECE'])
         """
@@ -154,27 +163,28 @@ class NcsuScraper(BaseScraper):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            # Parse response - may be JSON or HTML containing JSON
-            subjects_data = self._parse_json_response(response)
+            # Parse outer JSON
+            response_data = response.json()
 
-            # Extract subject codes from response
+            # Extract nested subj_js JSON string
+            if "subj_js" not in response_data:
+                raise Exception("No subj_js field in subjects response")
+
+            subj_js = response_data["subj_js"]
+
+            # Parse nested JSON string
+            subjects_list = json.loads(subj_js)
+
+            # Extract subject codes from "CODE - Description" format
             subjects = []
-            if isinstance(subjects_data, list):
-                # Response is array of subjects
-                for subj in subjects_data:
-                    if isinstance(subj, dict) and "subject" in subj:
-                        subjects.append(subj["subject"])
-                    elif isinstance(subj, str):
-                        subjects.append(subj)
-            elif isinstance(subjects_data, dict):
-                # Response might have subjects nested
-                if "subjects" in subjects_data:
-                    subjects = subjects_data["subjects"]
-                elif "data" in subjects_data:
-                    subjects = subjects_data["data"]
+            for subj_entry in subjects_list:
+                if " - " in subj_entry:
+                    # Split on first " - " to get code
+                    code = subj_entry.split(" - ", 1)[0].strip()
+                    subjects.append(code)
 
             if not subjects:
-                raise Exception("No subjects found in response")
+                raise Exception("No subjects parsed from subj_js")
 
             logger.info(f"Fetched {len(subjects)} subjects from NC State")
             return subjects
@@ -186,6 +196,9 @@ class NcsuScraper(BaseScraper):
     async def _fetch_department_courses(self, department: str) -> List[Dict[str, Any]]:
         """
         Fetch courses for a specific department.
+
+        Response format: {"html": "<section class=course...>", "json": {...}}
+        Parse the HTML field with BeautifulSoup.
 
         Args:
             department: Department/subject code (e.g., 'CSC')
@@ -219,14 +232,22 @@ class NcsuScraper(BaseScraper):
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
 
-            # Parse JSON response
-            search_data = self._parse_json_response(response)
+            # Parse JSON response to get HTML
+            response_data = response.json()
 
-            if not search_data:
-                raise Exception("Empty response from search")
+            if "html" not in response_data:
+                raise Exception("No html field in search response")
 
-            # Extract courses from response
-            courses_data = self._parse_courses_from_search(search_data, department)
+            html_content = response_data["html"]
+
+            if not html_content or html_content.strip() == "":
+                raise Exception(
+                    f"Empty HTML content in search response for {department}. "
+                    f"This may indicate no courses or a breaking API change."
+                )
+
+            # Parse HTML with BeautifulSoup
+            courses_data = self._parse_courses_from_html(html_content, department)
 
             logger.info(
                 f"Fetched {len(courses_data)} courses for department {department}"
@@ -237,160 +258,138 @@ class NcsuScraper(BaseScraper):
             logger.error(f"Error fetching courses for {department}: {e}")
             raise
 
-    def _parse_json_response(self, response: httpx.Response) -> Any:
-        """
-        Parse JSON response that may have text/html Content-Type but JSON body.
-
-        The ACS API returns {"html":..., "json":...} even with Content-Type: text/html.
-        Parse as JSON and extract the json field if present.
-
-        Args:
-            response: httpx Response object
-
-        Returns:
-            Parsed data (dict or list)
-        """
-        try:
-            # Try to parse as JSON first
-            data = response.json()
-
-            # If response has {"json": ...} structure, extract it
-            if isinstance(data, dict) and "json" in data:
-                return data["json"]
-
-            return data
-
-        except Exception as e:
-            logger.error(f"Failed to parse JSON response: {e}")
-            logger.debug(f"Response content: {response.text[:500]}")
-            raise Exception(f"Could not parse response as JSON: {e}")
-
-    def _parse_courses_from_search(
-        self, search_data: Any, department: str
+    def _parse_courses_from_html(
+        self, html_content: str, department: str
     ) -> List[Dict[str, Any]]:
         """
-        Parse courses from search response data.
+        Parse courses from HTML content.
+
+        HTML structure:
+        <section class="course" id="CSC-111">
+            ...
+            <td class="class-num">12345</td>
+            ...
+            <td class="avail">Open</td> or Closed/Reserved/Waitlist
+            ...
+        </section>
 
         Args:
-            search_data: Parsed JSON data from search
+            html_content: HTML string from search response
             department: Department code for validation
 
         Returns:
             List of course dictionaries with classes
         """
+        soup = BeautifulSoup(html_content, "lxml")
+
         courses_dict: Dict[str, Dict[str, Any]] = {}
+        seen_class_numbers = set()
 
-        # Handle different response formats
-        sections = []
-        if isinstance(search_data, list):
-            sections = search_data
-        elif isinstance(search_data, dict):
-            if "sections" in search_data:
-                sections = search_data["sections"]
-            elif "courses" in search_data:
-                sections = search_data["courses"]
-            elif "data" in search_data:
-                sections = search_data["data"]
+        # Find all course sections
+        course_sections = soup.find_all("section", class_="course")
 
-        if not sections:
-            logger.warning("No sections found in search response")
-            # Fail loud if no sections found (may indicate breaking API change)
+        if not course_sections:
+            # Fail loud if no courses found (may indicate breaking API change)
             raise Exception(
-                f"No sections found in search response for {department}. "
+                f"No course sections found in HTML for {department}. "
                 f"This may indicate a breaking change in the API or empty term data."
             )
 
-        # Track seen class numbers for global deduplication
-        seen_class_numbers = set()
-
-        for section in sections:
-            if not isinstance(section, dict):
+        for course_section in course_sections:
+            # Extract course ID from section id attribute (e.g., "CSC-111")
+            course_id = course_section.get("id", "")
+            if not course_id:
+                logger.warning("Course section missing id attribute")
                 continue
-
-            # Extract section data with various field name possibilities
-            class_number = self._extract_field(
-                section, ["class_nbr", "classNbr", "class_number", "classNumber"]
-            )
-            course_id = self._extract_field(
-                section, ["course", "courseId", "course_id", "catalog"]
-            )
-            section_code = self._extract_field(
-                section, ["section", "section_code", "sectionCode"]
-            )
-            title = self._extract_field(section, ["title", "courseTitle", "descr"])
-            status = self._extract_field(
-                section, ["status", "enrollStatus", "enrl_stat"]
-            )
-
-            if not class_number:
-                logger.warning(f"Section missing class_nbr: {section}")
-                continue
-
-            # Deduplicate by class_number (CRITICAL: Class # is the identity)
-            if class_number in seen_class_numbers:
-                logger.debug(f"Skipping duplicate class_number: {class_number}")
-                continue
-            seen_class_numbers.add(class_number)
 
             # Parse course_code from course_id (e.g., "CSC-111" → "CSC 111")
-            if course_id:
-                if "-" in course_id:
-                    parts = course_id.split("-", 1)
-                    course_code = f"{parts[0]} {parts[1]}"
-                else:
-                    course_code = course_id.replace("_", " ")
+            if "-" in course_id:
+                parts = course_id.split("-", 1)
+                course_code = f"{parts[0]} {parts[1]}"
             else:
-                # Fallback: construct from section data
-                course_code = f"{department} ???"
-                logger.warning(
-                    f"Could not determine course_code for class {class_number}"
+                course_code = course_id.replace("_", " ")
+
+            # Extract course title
+            title_elem = course_section.find("h3")
+            title = title_elem.get_text(strip=True) if title_elem else "Unknown Title"
+
+            # Find all class rows in this course section
+            # Look for td.class-num to find class rows
+            class_num_cells = course_section.find_all("td", class_="class-num")
+
+            for class_num_cell in class_num_cells:
+                # Extract class number
+                class_number = class_num_cell.get_text(strip=True)
+                if not class_number:
+                    continue
+
+                # Deduplicate by class_number (CRITICAL: Class # is the identity)
+                if class_number in seen_class_numbers:
+                    logger.debug(f"Skipping duplicate class_number: {class_number}")
+                    continue
+                seen_class_numbers.add(class_number)
+
+                # Find the row containing this class number
+                row = class_num_cell.find_parent("tr")
+                if not row:
+                    logger.warning(
+                        f"Could not find parent row for class {class_number}"
+                    )
+                    continue
+
+                # Extract section code (usually in a cell near class number)
+                section_code = "001"  # Default
+                # Look for section info in row
+                section_cells = row.find_all("td")
+                for cell in section_cells:
+                    cell_text = cell.get_text(strip=True)
+                    # Section codes are typically like "001", "002", "601", etc.
+                    if re.match(r"^\d{3}$", cell_text):
+                        section_code = cell_text
+                        break
+
+                # Extract availability status from avail cell
+                avail_cell = row.find("td", class_="avail")
+                if avail_cell:
+                    status_text = avail_cell.get_text(strip=True)
+                else:
+                    # Fallback: look for status in row cells
+                    status_text = "Unknown"
+                    for cell in section_cells:
+                        cell_text = cell.get_text(strip=True).lower()
+                        if cell_text in ["open", "closed", "reserved", "waitlist"]:
+                            status_text = cell_text
+                            break
+
+                # Normalize status: Open→Open, everything else→Closed
+                normalized_status = self._normalize_ncsu_status(status_text)
+
+                # Group by course_code
+                if course_code not in courses_dict:
+                    courses_dict[course_code] = {
+                        "course_code": course_code,
+                        "title": title,
+                        "classes": [],
+                    }
+
+                courses_dict[course_code]["classes"].append(
+                    {
+                        "class_number": str(class_number),
+                        "section": section_code,
+                        "status": normalized_status,
+                    }
                 )
-
-            # Normalize status: Open→Open, everything else→Closed
-            normalized_status = self._normalize_ncsu_status(status)
-
-            # Group by course_code
-            if course_code not in courses_dict:
-                courses_dict[course_code] = {
-                    "course_code": course_code,
-                    "title": title or "Unknown Title",
-                    "classes": [],
-                }
-
-            courses_dict[course_code]["classes"].append(
-                {
-                    "class_number": str(class_number),
-                    "section": section_code or "001",
-                    "status": normalized_status,
-                }
-            )
 
         courses_data = list(courses_dict.values())
 
         # Fail loud if no courses parsed
         if not courses_data:
             raise Exception(
-                f"Failed to parse any courses from search response for {department}. "
+                f"Failed to parse any courses from HTML for {department}. "
                 f"This may indicate a breaking change in the API."
             )
 
         return courses_data
-
-    def _extract_field(self, data: dict, field_names: List[str]) -> Optional[str]:
-        """
-        Extract field from dict trying multiple possible field names.
-
-        Args:
-            data: Dictionary to search
-            field_names: List of possible field names to try
-
-        Returns:
-            Field value as string, or None if not found
-        """
-        for name in field_names:
-            if name in data and data[name]:
-                return str(data[name])
-        return None
 
     def _normalize_ncsu_status(self, status: Optional[str]) -> str:
         """
@@ -465,6 +464,15 @@ class NcsuScraper(BaseScraper):
                     raise ValueError(f"Unsupported HTTP method: {method}")
 
                 response.raise_for_status()
+
+                # Check response size
+                content_length = len(response.content)
+                if content_length > self.MAX_RESPONSE_SIZE:
+                    raise Exception(
+                        f"Response size {content_length} exceeds MAX_RESPONSE_SIZE "
+                        f"{self.MAX_RESPONSE_SIZE}. Potential runaway response."
+                    )
+
                 self.request_count += 1
                 return response
 

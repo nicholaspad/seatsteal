@@ -269,25 +269,31 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 **Pattern:**
 - `YYY` - Year since 1900 (e.g., 226 = 2026)
 - `S` - Session digit:
-  - `8` = Fall
   - `1` = Spring
-  - `5` = Summer I
-  - `6` = Summer II
+  - `6` = Summer I
+  - `7` = Summer II
+  - `8` = Fall
 
 **Examples:**
 - `2268` - Fall 2026 (226 + 8)
-- `2271` - Spring 2027 (227 + 1)
-- `2265` - Summer I 2026 (226 + 5)
+- `2271` - Spring 2027 (227 + 1) — inference only, not yet published
+- `2266` - Summer I 2026 (226 + 6)
+- `2267` - Summer II 2026 (226 + 7)
 - `2258` - Fall 2025 (225 + 8)
 
 **Source:** Public ACS Class Search (PeopleSoft) at https://webappprd.acs.ncsu.edu/php/coursecat
 
 **API Strategy:**
-1. POST `subjects.php` with `strm=<TERM>` to get subject list
-2. POST `search.php` with form data (term, subject, etc.) to search courses
+1. POST `subjects.php` with `strm=<TERM>` → returns `{"subj_js": "[\"CODE - Desc\", ...]"}`
+   - Parse nested JSON string, extract codes from "CODE - Description" format
+2. POST `search.php` with form data (term, subject, etc.) → returns `{"html": "<section class=course...>", "json": {...}}`
+   - **Parse the HTML field with BeautifulSoup** (NOT the json field)
    - Do NOT send `open-classes=1` (would drop Closed sections)
-3. Parse JSON response: Content-Type may say `text/html` but body is JSON `{"html":..., "json":...}`
-4. Deduplicate globally by Class # (class_nbr) before grouping by course
+3. Extract from HTML:
+   - `<section class="course" id="CSC-111">` → course_code "CSC 111"
+   - `<td class="class-num">` → class_number (unique identity)
+   - `<td class="avail">` → status (Open/Closed/Reserved/Waitlist)
+4. Deduplicate globally by Class # before grouping by course
 
 **Status Mapping:**
 - `Open` → Open
@@ -301,8 +307,10 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 - Never allowlist CS as CompSci
 
 **Notes:**
-- Use Class # (class_nbr) as the unique identifier, not section alone
+- Use Class # (from td.class-num) as the unique identifier, not section alone
 - User-Agent: SeatSteal/1.0
+- X-Requested-With: XMLHttpRequest (required on POSTs)
+- MAX_RESPONSE_SIZE: 5MB guard against runaway responses
 - Request budget: 50 max for single-department scraping (CSC)
 - ALL department maps to CSC allowlist only (never expands to full ~199-subject catalog)
 
