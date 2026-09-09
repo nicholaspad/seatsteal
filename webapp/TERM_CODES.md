@@ -262,6 +262,52 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 
 ---
 
+## NC State University
+
+**Format:** `YYYS` (4-digit STRM format)
+
+**Pattern:**
+- `YYY` - Year since 1900 (e.g., 226 = 2026)
+- `S` - Session digit:
+  - `8` = Fall
+  - `1` = Spring
+  - `5` = Summer I
+  - `6` = Summer II
+
+**Examples:**
+- `2268` - Fall 2026 (226 + 8)
+- `2271` - Spring 2027 (227 + 1)
+- `2265` - Summer I 2026 (226 + 5)
+- `2258` - Fall 2025 (225 + 8)
+
+**Source:** Public ACS Class Search (PeopleSoft) at https://webappprd.acs.ncsu.edu/php/coursecat
+
+**API Strategy:**
+1. POST `subjects.php` with `strm=<TERM>` to get subject list
+2. POST `search.php` with form data (term, subject, etc.) to search courses
+   - Do NOT send `open-classes=1` (would drop Closed sections)
+3. Parse JSON response: Content-Type may say `text/html` but body is JSON `{"html":..., "json":...}`
+4. Deduplicate globally by Class # (class_nbr) before grouping by course
+
+**Status Mapping:**
+- `Open` → Open
+- `Closed`, `Reserved`, `Waitlist`, unknown → Closed
+  - Reserved→Closed enables reserve-release alerts
+
+**CRITICAL Department Trap:**
+- **CS = Crop Science** (NOT Computer Science!)
+- **CSC = Computer Science**
+- ONLY allowlist CSC for Computer Science courses
+- Never allowlist CS as CompSci
+
+**Notes:**
+- Use Class # (class_nbr) as the unique identifier, not section alone
+- User-Agent: SeatSteal/1.0
+- Request budget: 50 max for single-department scraping (CSC)
+- ALL department maps to CSC allowlist only (never expands to full ~199-subject catalog)
+
+---
+
 ## Quick Reference Tool
 
 Run the term codes table script to fetch current term codes for all colleges:
