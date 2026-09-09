@@ -1,0 +1,6 @@
+{
+  "html": "<section class=\"course\" id=\"CSC-316\"><h1>CSC 316  <small>Data Structures and Algorithms</small> <span class=\"units pull-right\">Units: 3</span></h1><table class=\"table section-table table-striped table-condensed\"><thead><tr><th>Section</th><th>Component</th><th class=\"class-num hidden-xs\">Class #</th><th>Avail.</th><th>Day/Time</th><th>Location</th></tr></thead><tbody><tr><td>001</td><td>Lec</td><td class=\"class-num hidden-xs\">5678</td><td><span class=\"text-success\">Reserved</span><br/>2/120</td><td>MWF 10:00 AM</td><td>EB2 Room 1011</td></tr><tr><td>002</td><td>Lec</td><td class=\"class-num hidden-xs\">5679</td><td><span class=\"text-success\">Reserved</span><br/>0/115</td><td>TR 11:30 AM</td><td>EB2 Room 1005</td></tr></tbody></table></section>",
+  "json": {
+    "inputs": {}
+  }
+}

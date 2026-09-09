@@ -262,6 +262,62 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 
 ---
 
+## NC State University
+
+**Format:** `YYYS` (4-digit STRM format)
+
+**Pattern:**
+- `YYY` - Year since 1900 (e.g., 226 = 2026)
+- `S` - Session digit:
+  - `1` = Spring
+  - `6` = Summer I
+  - `7` = Summer II
+  - `8` = Fall
+
+**Examples:**
+- `2268` - Fall 2026 (226 + 8)
+- `2271` - Spring 2027 (227 + 1) — inference only, not yet published
+- `2266` - Summer I 2026 (226 + 6)
+- `2267` - Summer II 2026 (226 + 7)
+- `2258` - Fall 2025 (225 + 8)
+
+**Source:** Public ACS Class Search (PeopleSoft) at https://webappprd.acs.ncsu.edu/php/coursecat
+
+**API Strategy:**
+1. POST `subjects.php` with `strm=<TERM>` → returns `{"subj_js": "[\"CODE - Desc\", ...]"}`
+   - Parse nested JSON string, extract codes from "CODE - Description" format
+2. POST `search.php` with form data (term, subject, etc.) → returns `{"html": "<section class=course...>", "json": {...}}`
+   - **Parse the HTML field with BeautifulSoup** (NOT the json field)
+   - Do NOT send `open-classes=1` (would drop Closed sections)
+3. Extract from HTML:
+   - `<section class="course" id="CSC-111">` → course_code "CSC 111"
+   - `<h1>CSC 110 <small>Title</small>` → title (strip "Units: X" suffix)
+   - `<td class="class-num hidden-xs">12345</td>` → class_number (unique identity)
+   - Avail cell is bare `<td>` with `<span class="text-success">Open</span><br/>4/60` or `<em><span class="text-danger">Closed</span></em><br/>0/35`
+   - Extract status from span text (Reserved uses `text-success` class)
+4. Deduplicate globally by Class # before grouping by course
+
+**Status Mapping:**
+- `Open` → Open
+- `Closed`, `Reserved`, `Waitlist`, unknown → Closed
+  - Reserved→Closed enables reserve-release alerts
+
+**CRITICAL Department Trap:**
+- **CS = Crop Science** (NOT Computer Science!)
+- **CSC = Computer Science**
+- ONLY allowlist CSC for Computer Science courses
+- Never allowlist CS as CompSci
+
+**Notes:**
+- Use Class # (from td.class-num) as the unique identifier, not section alone
+- User-Agent: SeatSteal/1.0
+- X-Requested-With: XMLHttpRequest (required on POSTs)
+- MAX_RESPONSE_SIZE: 5MB guard against runaway responses
+- Request budget: 50 max for single-department scraping (CSC)
+- ALL department maps to CSC allowlist only (never expands to full ~199-subject catalog)
+
+---
+
 ## Quick Reference Tool
 
 Run the term codes table script to fetch current term codes for all colleges:
