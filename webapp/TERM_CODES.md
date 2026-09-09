@@ -291,8 +291,10 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
    - Do NOT send `open-classes=1` (would drop Closed sections)
 3. Extract from HTML:
    - `<section class="course" id="CSC-111">` → course_code "CSC 111"
-   - `<td class="class-num">` → class_number (unique identity)
-   - `<td class="avail">` → status (Open/Closed/Reserved/Waitlist)
+   - `<h1>CSC 110 <small>Title</small>` → title (strip "Units: X" suffix)
+   - `<td class="class-num hidden-xs">12345</td>` → class_number (unique identity)
+   - Avail cell is bare `<td>` with `<span class="text-success">Open</span><br/>4/60` or `<em><span class="text-danger">Closed</span></em><br/>0/35`
+   - Extract status from span text (Reserved uses `text-success` class)
 4. Deduplicate globally by Class # before grouping by course
 
 **Status Mapping:**
