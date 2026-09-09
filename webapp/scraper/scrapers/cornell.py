@@ -185,15 +185,21 @@ class CornellScraper(BaseScraper):
                 )
 
                 for indicator in indicators:
-                    # Map CSS classes to status values
-                    if "open-status-open" in indicator.get("class", []):
+                    classes = indicator.get("class", [])
+
+                    # Check current term status first
+                    if "open-status-open" in classes:
                         status_indicators.append("open")
-                    elif "open-status-archive" in indicator.get("class", []):
-                        status_indicators.append(
-                            "open"
-                        )  # Archived courses are still open
-                    elif "open-status-closed" in indicator.get("class", []):
+                    elif "open-status-closed" in classes:
                         status_indicators.append("closed")
+                    # For archived terms, distinguish by icon shape
+                    elif "open-status-archive" in classes:
+                        if "fa-square" in classes:
+                            status_indicators.append("closed")
+                        elif "fa-circle" in classes:
+                            status_indicators.append("open")
+                        else:
+                            status_indicators.append("unknown")
                     else:
                         status_indicators.append("unknown")
 

@@ -48,6 +48,50 @@ SAMPLE_CORNELL_COURSE_HTML_OPEN = """
 </div>
 """
 
+SAMPLE_CORNELL_COURSE_HTML_ARCHIVE_OPEN = """
+<div class="node">
+    <a id="dtitle-789" aria-label="CS 2110 - Object-Oriented Programming">CS 2110</a>
+    <div class="sections">
+        <i class="fa fa-circle open-status-archive"></i>
+        <div class="class-numbers">
+            <strong title="Class Number">30001</strong>
+            <em title="Component">LEC</em> 001
+        </div>
+    </div>
+</div>
+"""
+
+SAMPLE_CORNELL_COURSE_HTML_ARCHIVE_CLOSED = """
+<div class="node">
+    <a id="dtitle-101" aria-label="CS 3110 - Data Structures and Functional Programming">CS 3110</a>
+    <div class="sections">
+        <i class="fa fa-square open-status-archive"></i>
+        <div class="class-numbers">
+            <strong title="Class Number">40001</strong>
+            <em title="Component">LEC</em> 001
+        </div>
+    </div>
+</div>
+"""
+
+SAMPLE_CORNELL_COURSE_HTML_ARCHIVE_MIXED = """
+<div class="node">
+    <a id="dtitle-202" aria-label="CS 4110 - Programming Languages">CS 4110</a>
+    <div class="sections">
+        <i class="fa fa-circle open-status-archive"></i>
+        <i class="fa fa-square open-status-archive"></i>
+        <div class="class-numbers">
+            <strong title="Class Number">50001</strong>
+            <em title="Component">LEC</em> 001
+        </div>
+        <div class="class-numbers">
+            <strong title="Class Number">50002</strong>
+            <em title="Component">LEC</em> 002
+        </div>
+    </div>
+</div>
+"""
+
 # Sample Cornell browse page HTML for subject listing
 SAMPLE_CORNELL_SUBJECTS_HTML = """
 <html>
@@ -250,6 +294,61 @@ class TestCornellScraper:
         assert result["course_code"] == "CS 9999"
         assert result["title"] == "Special Topics"
         assert result["classes"] == []
+
+    @pytest.mark.unit
+    def test_parse_course_archive_open_status(self, mock_cornell_db_session):
+        """Test parsing archived course with open status (fa-circle)."""
+        scraper = CornellScraper(mock_cornell_db_session)
+
+        soup = BeautifulSoup(SAMPLE_CORNELL_COURSE_HTML_ARCHIVE_OPEN, "html.parser")
+        course_elem = soup.select_one(".node")
+
+        result = scraper._parse_course(course_elem)
+
+        assert result is not None
+        assert result["course_code"] == "CS 2110"
+        assert result["title"] == "Object-Oriented Programming"
+        assert len(result["classes"]) == 1
+        assert result["classes"][0]["class_number"] == "30001"
+        assert result["classes"][0]["status"] == "open"
+
+    @pytest.mark.unit
+    def test_parse_course_archive_closed_status(self, mock_cornell_db_session):
+        """Test parsing archived course with closed status (fa-square)."""
+        scraper = CornellScraper(mock_cornell_db_session)
+
+        soup = BeautifulSoup(SAMPLE_CORNELL_COURSE_HTML_ARCHIVE_CLOSED, "html.parser")
+        course_elem = soup.select_one(".node")
+
+        result = scraper._parse_course(course_elem)
+
+        assert result is not None
+        assert result["course_code"] == "CS 3110"
+        assert result["title"] == "Data Structures and Functional Programming"
+        assert len(result["classes"]) == 1
+        assert result["classes"][0]["class_number"] == "40001"
+        assert result["classes"][0]["status"] == "closed"
+
+    @pytest.mark.unit
+    def test_parse_course_archive_mixed_status(self, mock_cornell_db_session):
+        """Test parsing archived course with mixed open and closed sections."""
+        scraper = CornellScraper(mock_cornell_db_session)
+
+        soup = BeautifulSoup(SAMPLE_CORNELL_COURSE_HTML_ARCHIVE_MIXED, "html.parser")
+        course_elem = soup.select_one(".node")
+
+        result = scraper._parse_course(course_elem)
+
+        assert result is not None
+        assert result["course_code"] == "CS 4110"
+        assert result["title"] == "Programming Languages"
+        assert len(result["classes"]) == 2
+        # First section should be open (fa-circle)
+        assert result["classes"][0]["class_number"] == "50001"
+        assert result["classes"][0]["status"] == "open"
+        # Second section should be closed (fa-square)
+        assert result["classes"][1]["class_number"] == "50002"
+        assert result["classes"][1]["status"] == "closed"
 
     @pytest.mark.unit
     @patch("scraper.scrapers.cornell.CornellScraper.fetch_html")
