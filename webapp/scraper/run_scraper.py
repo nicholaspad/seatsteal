@@ -38,6 +38,12 @@ class ScraperCLI:
         # Read scraper interval from environment variable (in minutes), default to 30 minutes
         interval_minutes = int(os.getenv("SCRAPER_INTERVAL_MINUTES", "30"))
         self.college_loop_interval_seconds = interval_minutes * 60
+        # Rediscovery interval: how often to check for newly activated/deactivated colleges (in seconds)
+        self.rediscovery_interval_seconds = int(
+            os.getenv("SCRAPER_REDISCOVERY_INTERVAL_SECONDS", "60")
+        )
+        # Track running college tasks: {college_id: asyncio.Task}
+        self._running_tasks: Dict[int, asyncio.Task] = {}
 
     async def _run_single_job(
         self,
@@ -283,14 +289,98 @@ class ScraperCLI:
                 if scraper.last_error_message:
                     logger.info(f"     Last error: {scraper.last_error_message}")
 
+    async def _supervisor_loop(
+        self, subject: str = "ALL", limit: Optional[int] = None
+    ) -> None:
+        """
+        Supervisor that periodically checks for active colleges and manages their tasks.
+
+        Discovers newly activated colleges and starts loops for them.
+        Stops loops for colleges that have been deactivated.
+
+        Args:
+            subject: Subject filter (default: 'ALL')
+            limit: Optional limit on courses
+        """
+        rediscovery_mins = self.rediscovery_interval_seconds // 60
+        rediscovery_secs = self.rediscovery_interval_seconds % 60
+        time_str = (
+            f"{rediscovery_mins}m {rediscovery_secs}s"
+            if rediscovery_mins > 0
+            else f"{rediscovery_secs}s"
+        )
+        logger.info(
+            f"👀 Supervisor: checking for active college changes every {time_str}"
+        )
+
+        while True:
+            try:
+                # Query current active colleges
+                with SessionLocal() as db:
+                    active_colleges = (
+                        db.execute(select(College).where(College.is_active == True))
+                        .scalars()
+                        .all()
+                    )
+                    active_college_ids = {c.id for c in active_colleges}
+                    active_colleges_by_id = {c.id: c for c in active_colleges}
+
+                running_ids = set(self._running_tasks.keys())
+
+                # Find newly activated colleges (in DB but not running)
+                newly_activated_ids = active_college_ids - running_ids
+                for college_id in newly_activated_ids:
+                    college = active_colleges_by_id[college_id]
+                    logger.info(
+                        f"🆕 Supervisor: discovered newly activated college {college.short_name} (id={college.id})"
+                    )
+                    task = asyncio.create_task(
+                        self._run_college_loop(college, subject=subject, limit=limit)
+                    )
+                    self._running_tasks[college.id] = task
+
+                # Find deactivated colleges (running but not in active DB list)
+                deactivated_ids = running_ids - active_college_ids
+                for college_id in deactivated_ids:
+                    logger.info(
+                        f"🛑 Supervisor: college id={college_id} deactivated, cancelling loop"
+                    )
+                    task = self._running_tasks[college_id]
+                    task.cancel()
+                    del self._running_tasks[college_id]
+
+                # Clean up any tasks that finished or failed
+                finished_ids = []
+                for college_id, task in self._running_tasks.items():
+                    if task.done():
+                        try:
+                            # Check if task raised an exception
+                            task.result()
+                        except asyncio.CancelledError:
+                            logger.info(f"✅ College id={college_id} task cancelled")
+                        except Exception as e:
+                            logger.error(f"❌ College id={college_id} task failed: {e}")
+                        finished_ids.append(college_id)
+
+                for college_id in finished_ids:
+                    del self._running_tasks[college_id]
+
+            except Exception as e:
+                logger.error(f"❌ Supervisor error: {e}")
+
+            await asyncio.sleep(self.rediscovery_interval_seconds)
+
     async def loop(self, subject: str = "ALL", limit: Optional[int] = None) -> None:
         """
-        Run scraper jobs in independent loops per college.
+        Run scraper jobs in independent loops per college with dynamic rediscovery.
 
         Each college runs on its own schedule - after completing a scrape,
         it waits for the configured interval (SCRAPER_INTERVAL_MINUTES env var)
         before starting its next run. This ensures that fast-running colleges
         aren't blocked by slow-running ones.
+
+        A supervisor periodically checks for newly activated or deactivated colleges
+        and starts/stops their loops accordingly without requiring a restart.
 
         Args:
             subject: Subject filter (default: 'ALL')
@@ -306,7 +396,7 @@ class ScraperCLI:
         logger.info("🔄 Resetting all scraper statuses to idle on bootup...")
         await self.reset_all_scrapers_to_idle()
 
-        # Get all active colleges
+        # Get all active colleges at startup
         with SessionLocal() as db:
             colleges = (
                 db.execute(select(College).where(College.is_active == True))
@@ -315,22 +405,33 @@ class ScraperCLI:
             )
 
         if not colleges:
-            logger.warning("⚠️  No active colleges found")
-            return
+            logger.warning("⚠️  No active colleges found at startup")
+        else:
+            logger.info(f"🚀 Starting independent loops for {len(colleges)} colleges")
 
-        logger.info(f"🚀 Starting independent loops for {len(colleges)} colleges")
+            # Create independent loop task for each active college at startup
+            for college in colleges:
+                task = asyncio.create_task(
+                    self._run_college_loop(college, subject=subject, limit=limit)
+                )
+                self._running_tasks[college.id] = task
 
-        # Create independent loop task for each college
-        tasks = [
-            self._run_college_loop(college, subject=subject, limit=limit)
-            for college in colleges
-        ]
+        # Start supervisor to monitor for newly activated/deactivated colleges
+        supervisor_task = asyncio.create_task(
+            self._supervisor_loop(subject=subject, limit=limit)
+        )
 
         try:
-            # Run all college loops concurrently (each runs independently forever)
-            await asyncio.gather(*tasks)
+            # Wait for supervisor (runs forever)
+            await supervisor_task
         except KeyboardInterrupt:
-            logger.info("🛑 Stopping all college loops...")
+            logger.info("🛑 Stopping supervisor and all college loops...")
+            supervisor_task.cancel()
+            # Cancel all running college tasks
+            for task in self._running_tasks.values():
+                task.cancel()
+            # Wait for all tasks to complete cancellation
+            await asyncio.gather(*self._running_tasks.values(), return_exceptions=True)
 
 
 async def main():
