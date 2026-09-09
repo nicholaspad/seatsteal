@@ -222,6 +222,18 @@ def test_purge_confirm(test_db: Session, stale_data_setup):
     """Test actual purge with --confirm deletes correct data."""
     cutoff = stale_data_setup["cutoff_timestamp"]
 
+    # Capture IDs before purge (objects will be deleted and marked as such in session)
+    old_course_id = stale_data_setup["old_course"].id
+    old_class_id = stale_data_setup["old_class"].class_id
+    old_enrollment_id = stale_data_setup["old_enrollment"].id
+    new_course_id = stale_data_setup["new_course"].id
+    new_class_id = stale_data_setup["new_class"].class_id
+    new_enrollment_id = stale_data_setup["new_enrollment"].id
+    mixed_course_id = stale_data_setup["mixed_course"].id
+    mixed_class_id = stale_data_setup["mixed_class"].class_id
+    mixed_old_enrollment_id = stale_data_setup["mixed_old_enrollment"].id
+    mixed_new_enrollment_id = stale_data_setup["mixed_new_enrollment"].id
+
     # Purge with confirmation
     result = purge_stale_enrollments(
         "cornell",
@@ -239,71 +251,28 @@ def test_purge_confirm(test_db: Session, stale_data_setup):
     # Refresh to get latest state after deletion
     test_db.expire_all()
 
-    # Verify old course/class/enrollment are deleted
-    assert (
-        test_db.query(Course)
-        .filter_by(id=stale_data_setup["old_course"].id)
-        .first()
-        is None
-    )
-    assert (
-        test_db.query(Class)
-        .filter_by(class_id=stale_data_setup["old_class"].class_id)
-        .first()
-        is None
-    )
-    assert (
-        test_db.query(Enrollment)
-        .filter_by(id=stale_data_setup["old_enrollment"].id)
-        .first()
-        is None
-    )
+    # Verify old course/class/enrollment are deleted (use pre-captured IDs)
+    assert test_db.query(Course).filter_by(id=old_course_id).first() is None
+    assert test_db.query(Class).filter_by(class_id=old_class_id).first() is None
+    assert test_db.query(Enrollment).filter_by(id=old_enrollment_id).first() is None
 
     # Verify new course/class/enrollment are NOT deleted
+    assert test_db.query(Course).filter_by(id=new_course_id).first() is not None
+    assert test_db.query(Class).filter_by(class_id=new_class_id).first() is not None
     assert (
-        test_db.query(Course)
-        .filter_by(id=stale_data_setup["new_course"].id)
-        .first()
-        is not None
-    )
-    assert (
-        test_db.query(Class)
-        .filter_by(class_id=stale_data_setup["new_class"].class_id)
-        .first()
-        is not None
-    )
-    assert (
-        test_db.query(Enrollment)
-        .filter_by(id=stale_data_setup["new_enrollment"].id)
-        .first()
-        is not None
+        test_db.query(Enrollment).filter_by(id=new_enrollment_id).first() is not None
     )
 
     # Verify mixed course/class still exist (has new enrollment)
-    assert (
-        test_db.query(Course)
-        .filter_by(id=stale_data_setup["mixed_course"].id)
-        .first()
-        is not None
-    )
-    assert (
-        test_db.query(Class)
-        .filter_by(class_id=stale_data_setup["mixed_class"].class_id)
-        .first()
-        is not None
-    )
+    assert test_db.query(Course).filter_by(id=mixed_course_id).first() is not None
+    assert test_db.query(Class).filter_by(class_id=mixed_class_id).first() is not None
 
     # Verify mixed old enrollment is deleted, new enrollment is NOT deleted
     assert (
-        test_db.query(Enrollment)
-        .filter_by(id=stale_data_setup["mixed_old_enrollment"].id)
-        .first()
-        is None
+        test_db.query(Enrollment).filter_by(id=mixed_old_enrollment_id).first() is None
     )
     assert (
-        test_db.query(Enrollment)
-        .filter_by(id=stale_data_setup["mixed_new_enrollment"].id)
-        .first()
+        test_db.query(Enrollment).filter_by(id=mixed_new_enrollment_id).first()
         is not None
     )
 
@@ -314,6 +283,7 @@ def test_purge_abort_with_subscriptions(
     """Test purge aborts if subscriptions exist on classes that would be deleted."""
     cutoff = stale_data_setup["cutoff_timestamp"]
     old_class_id = stale_data_setup["old_class"].class_id
+    old_enrollment_id = stale_data_setup["old_enrollment"].id
     cornell_id = stale_data_setup["cornell_college"].id
 
     # Add subscription to old class
@@ -342,12 +312,9 @@ def test_purge_abort_with_subscriptions(
     # Refresh to get latest state
     test_db.expire_all()
 
-    # Nothing should be deleted
+    # Nothing should be deleted (use pre-captured ID)
     assert (
-        test_db.query(Enrollment)
-        .filter_by(id=stale_data_setup["old_enrollment"].id)
-        .first()
-        is not None
+        test_db.query(Enrollment).filter_by(id=old_enrollment_id).first() is not None
     )
 
 
@@ -388,12 +355,8 @@ def test_purge_force_skip_subscribed(
     test_db.expire_all()
 
     # Verify old class still exists (NEVER deleted because of subscription)
-    assert (
-        test_db.query(Class)
-        .filter_by(class_id=stale_data_setup["old_class"].class_id)
-        .first()
-        is not None
-    )
+    # Use pre-captured old_class_id instead of fixture object
+    assert test_db.query(Class).filter_by(class_id=old_class_id).first() is not None
 
     # Verify subscription still exists (NEVER deleted)
     assert test_db.query(Subscription).filter_by(class_id=old_class_id).first() is not None
