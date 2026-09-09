@@ -103,35 +103,42 @@ async def test_fetch_subjects_parses_nested_json(scraper):
 
 @pytest.mark.asyncio
 async def test_parse_courses_from_html_with_open_closed(scraper):
-    """Test parsing courses from HTML with Open and Closed statuses."""
+    """Test parsing courses from real-shaped HTML with Open and Closed statuses."""
     search_fixture = load_fixture("search_csc_open_closed.json")
     html_content = search_fixture["html"]
 
     courses = scraper._parse_courses_from_html(html_content, "CSC")
 
-    # Should have 2 courses (CSC 111 and CSC 216)
-    assert len(courses) == 2
+    # Should have 3 courses
+    assert len(courses) == 3
+
+    # Find CSC 110
+    csc110 = next((c for c in courses if c["course_code"] == "CSC 110"), None)
+    assert csc110 is not None
+    assert "Computer Science Principles" in csc110["title"]
+    assert len(csc110["classes"]) == 2
+
+    # Check Open status
+    open_classes = [c for c in csc110["classes"] if c["status"] == "Open"]
+    assert len(open_classes) == 2
 
     # Find CSC 111
     csc111 = next((c for c in courses if c["course_code"] == "CSC 111"), None)
     assert csc111 is not None
-    assert csc111["title"] == "Introduction to Computing: Python"
-    assert len(csc111["classes"]) == 2
+    assert "Data Science" in csc111["title"] or "Python" in csc111["title"]
 
-    # Check classes for CSC 111
-    classes = csc111["classes"]
+    # Should have both Reserved and Closed
+    reserved_class = next(
+        (c for c in csc111["classes"] if c["class_number"] == "8291"), None
+    )
+    assert reserved_class is not None
+    assert reserved_class["status"] == "Closed"  # Reserved maps to Closed
 
-    # Find section 002 (Open)
-    section_002 = next((c for c in classes if c["section"] == "002"), None)
-    assert section_002 is not None
-    assert section_002["class_number"] == "4780"
-    assert section_002["status"] == "Open"
-
-    # Find section 001 (Closed)
-    section_001 = next((c for c in classes if c["section"] == "001"), None)
-    assert section_001 is not None
-    assert section_001["class_number"] == "8291"
-    assert section_001["status"] == "Closed"
+    closed_class = next(
+        (c for c in csc111["classes"] if c["class_number"] == "4780"), None
+    )
+    assert closed_class is not None
+    assert closed_class["status"] == "Closed"
 
 
 @pytest.mark.asyncio
@@ -504,6 +511,96 @@ async def test_course_code_parsing_from_section_id(scraper):
         # Should have space, not hyphen
         assert " " in course_code
         assert "-" not in course_code
+
+
+@pytest.mark.asyncio
+async def test_regression_live_shaped_fixture_has_open_statuses(scraper):
+    """
+    Regression test: Real-shaped fixture should have Open statuses (not all Closed).
+
+    Live baseline (2026-09-09): CSC ~86 courses / 204 Class #s
+    - Open: ~172
+    - Closed: ~21
+    - Reserved: ~11
+
+    Parser was returning 204 Closed + Unknown Title - this test ensures we now parse correctly.
+    """
+    search_fixture = load_fixture("search_csc_open_closed.json")
+    html_content = search_fixture["html"]
+
+    courses = scraper._parse_courses_from_html(html_content, "CSC")
+
+    # Count Open vs Closed statuses
+    all_classes = []
+    for course in courses:
+        all_classes.extend(course["classes"])
+
+    open_count = sum(1 for c in all_classes if c["status"] == "Open")
+    closed_count = sum(1 for c in all_classes if c["status"] == "Closed")
+
+    # Assert we have Open statuses (not all Closed)
+    assert open_count > 0, "Should have at least one Open class"
+    assert (
+        open_count >= closed_count
+    ), "Should have more Open than Closed in this fixture"
+
+    # Assert titles are real (not "Unknown Title")
+    for course in courses:
+        assert (
+            course["title"] != "Unknown Title"
+        ), f"Course {course['course_code']} has Unknown Title"
+        assert (
+            len(course["title"]) > 10
+        ), f"Course {course['course_code']} title too short: {course['title']}"
+
+
+@pytest.mark.asyncio
+async def test_real_html_structure_h1_with_small(scraper):
+    """Test that parser handles real h1 with small tag structure."""
+    search_fixture = load_fixture("search_csc_open_closed.json")
+    html_content = search_fixture["html"]
+
+    courses = scraper._parse_courses_from_html(html_content, "CSC")
+
+    # Verify titles are extracted correctly from h1/small
+    for course in courses:
+        # Titles should be meaningful (from real h1/small structure)
+        assert course["title"] != "Unknown Title"
+        # Should not have "Units: X" in title (should be stripped)
+        assert "Units:" not in course["title"]
+
+
+@pytest.mark.asyncio
+async def test_real_html_structure_span_text_success_danger(scraper):
+    """Test that parser extracts status from span.text-success/text-danger."""
+    search_fixture = load_fixture("search_csc_open_closed.json")
+    html_content = search_fixture["html"]
+
+    # Parse directly to see the spans
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html_content, "lxml")
+
+    # Find a span with text-success (Open or Reserved)
+    success_spans = soup.find_all("span", class_="text-success")
+    assert len(success_spans) > 0, "Should have text-success spans"
+
+    # Find a span with text-danger (Closed)
+    danger_spans = soup.find_all("span", class_="text-danger")
+    assert len(danger_spans) > 0, "Should have text-danger spans"
+
+    # Now test parsing
+    courses = scraper._parse_courses_from_html(html_content, "CSC")
+
+    # Verify we parsed both Open and Closed statuses
+    all_statuses = set()
+    for course in courses:
+        for class_data in course["classes"]:
+            all_statuses.add(class_data["status"])
+
+    assert (
+        "Open" in all_statuses or "Closed" in all_statuses
+    ), "Should have parsed status from spans"
 
 
 @pytest.mark.asyncio

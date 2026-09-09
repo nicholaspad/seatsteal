@@ -264,13 +264,18 @@ class NcsuScraper(BaseScraper):
         """
         Parse courses from HTML content.
 
-        HTML structure:
+        Real HTML structure:
         <section class="course" id="CSC-111">
-            ...
-            <td class="class-num">12345</td>
-            ...
-            <td class="avail">Open</td> or Closed/Reserved/Waitlist
-            ...
+            <h1>CSC 111 <small>Title</small> ...</h1>
+            <table class="table section-table...">
+                <tr>
+                    <td>001</td>
+                    <td>Lec</td>
+                    <td class="class-num hidden-xs">12345</td>
+                    <td><span class="text-success">Open</span><br/>4/60</td>
+                    ...
+                </tr>
+            </table>
         </section>
 
         Args:
@@ -309,16 +314,44 @@ class NcsuScraper(BaseScraper):
             else:
                 course_code = course_id.replace("_", " ")
 
-            # Extract course title
-            title_elem = course_section.find("h3")
-            title = title_elem.get_text(strip=True) if title_elem else "Unknown Title"
+            # Extract course title from h1 with small tag
+            h1_elem = course_section.find("h1")
+            if h1_elem:
+                # Title is in the h1, with main title before small and detail in small
+                h1_text = h1_elem.get_text(" ", strip=True)
+                # Remove "Units: X" suffix if present
+                h1_text = re.sub(r"\s+Units:\s+\d+", "", h1_text)
+                title = h1_text
+            else:
+                title = "Unknown Title"
 
-            # Find all class rows in this course section
-            # Look for td.class-num to find class rows
-            class_num_cells = course_section.find_all("td", class_="class-num")
+            # Find table with class data
+            table = course_section.find("table", class_="section-table")
+            if not table:
+                logger.debug(f"No section-table found for {course_id}")
+                continue
 
-            for class_num_cell in class_num_cells:
-                # Extract class number
+            # Find all data rows (skip header)
+            rows = table.find_all("tr")
+            for row in rows[1:]:  # Skip header row
+                cells = row.find_all("td")
+                if len(cells) < 4:
+                    continue
+
+                # Extract section code (first cell)
+                section_code = cells[0].get_text(strip=True) or "001"
+
+                # Extract class number (cell with class="class-num hidden-xs")
+                class_num_cell = None
+                for cell in cells:
+                    if "class-num" in cell.get("class", []):
+                        class_num_cell = cell
+                        break
+
+                if not class_num_cell:
+                    logger.warning(f"No class-num cell found in row for {course_id}")
+                    continue
+
                 class_number = class_num_cell.get_text(strip=True)
                 if not class_number:
                     continue
@@ -329,37 +362,23 @@ class NcsuScraper(BaseScraper):
                     continue
                 seen_class_numbers.add(class_number)
 
-                # Find the row containing this class number
-                row = class_num_cell.find_parent("tr")
-                if not row:
-                    logger.warning(
-                        f"Could not find parent row for class {class_number}"
-                    )
-                    continue
-
-                # Extract section code (usually in a cell near class number)
-                section_code = "001"  # Default
-                # Look for section info in row
-                section_cells = row.find_all("td")
-                for cell in section_cells:
-                    cell_text = cell.get_text(strip=True)
-                    # Section codes are typically like "001", "002", "601", etc.
-                    if re.match(r"^\d{3}$", cell_text):
-                        section_code = cell_text
-                        break
-
-                # Extract availability status from avail cell
-                avail_cell = row.find("td", class_="avail")
-                if avail_cell:
-                    status_text = avail_cell.get_text(strip=True)
+                # Find availability cell (next cell after class-num)
+                # The avail cell contains: <span class="text-success">Open</span><br/>4/60
+                # or: <em><span class="text-danger">Closed</span></em><br/>0/35
+                class_num_idx = cells.index(class_num_cell)
+                if class_num_idx + 1 < len(cells):
+                    avail_cell = cells[class_num_idx + 1]
                 else:
-                    # Fallback: look for status in row cells
-                    status_text = "Unknown"
-                    for cell in section_cells:
-                        cell_text = cell.get_text(strip=True).lower()
-                        if cell_text in ["open", "closed", "reserved", "waitlist"]:
-                            status_text = cell_text
-                            break
+                    logger.warning(f"No avail cell after class-num for {class_number}")
+                    avail_cell = None
+
+                # Extract status from span within avail cell
+                status_text = "Unknown"
+                if avail_cell:
+                    # Look for span with text-success or text-danger class
+                    status_span = avail_cell.find("span")
+                    if status_span:
+                        status_text = status_span.get_text(strip=True)
 
                 # Normalize status: Open→Open, everything else→Closed
                 normalized_status = self._normalize_ncsu_status(status_text)
