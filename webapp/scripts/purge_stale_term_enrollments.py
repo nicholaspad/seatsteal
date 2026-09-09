@@ -11,20 +11,20 @@ This script safely removes:
 - Classes that have no remaining enrollments and no active subscriptions
 - Courses that have no remaining classes
 
-This script NEVER deletes subscriptions or notification_logs, and will abort if any
-subscription references a class that would be deleted (unless --force-skip-subscribed
-is explicitly set).
+This script NEVER deletes subscriptions, notification_logs, or classes with active subscriptions.
+If subscriptions exist on classes that would be deleted, the script aborts by default
+(unless --force-skip-subscribed is set, which skips those classes but still never deletes them).
 
 Motivating example: Cornell SP26 term flip (FA25 → SP26)
 
 Usage:
-    # Dry run (default) - preview what would be deleted
+    # Preview mode (default) - shows what would be deleted
     python purge_stale_term_enrollments.py --college cornell --before-scraped-at "2025-01-15T00:00:00Z"
     
-    # Actually delete (with confirmation)
+    # Actually delete (requires --confirm)
     python purge_stale_term_enrollments.py --college cornell --before-scraped-at "2025-01-15T00:00:00Z" --confirm
     
-    # Force deletion even if subscriptions exist (use with caution)
+    # Continue even if subscriptions block some classes (use with caution)
     python purge_stale_term_enrollments.py --college cornell --before-scraped-at "2025-01-15T00:00:00Z" --confirm --force-skip-subscribed
 """
 
@@ -151,6 +151,7 @@ def purge_stale_enrollments(
     cutoff_timestamp: datetime,
     dry_run: bool = True,
     force_skip_subscribed: bool = False,
+    db_session: Optional[Session] = None,
 ) -> Optional[Dict[str, int]]:
     """
     Purge stale term enrollments for a college.
@@ -160,17 +161,25 @@ def purge_stale_enrollments(
         cutoff_timestamp: UTC timestamp - delete enrollments scraped before this
         dry_run: If True, only preview counts without deleting
         force_skip_subscribed: If True, skip deletion of classes with subscriptions instead of aborting
+        db_session: Optional database session (for testing); if None, creates a new engine
 
     Returns:
         Dict with counts of deleted records, or None if college not found or aborted
     """
-    engine = create_engine(
-        settings.DATABASE_URL,
-        echo=False,
-        pool_pre_ping=True,
-    )
+    # Use provided session or create a new engine
+    if db_session is not None:
+        db = db_session
+        should_close = False
+    else:
+        engine = create_engine(
+            settings.DATABASE_URL,
+            echo=False,
+            pool_pre_ping=True,
+        )
+        db = Session(engine)
+        should_close = True
 
-    with Session(engine) as db:
+    try:
         # Find college by short_name or id
         try:
             college_id_int = int(college_identifier)
@@ -254,18 +263,12 @@ def purge_stale_enrollments(
         deletion_counts["enrollments"] = result.rowcount
         print(f"   Deleted {deletion_counts['enrollments']} enrollments")
 
-        # 2. Delete orphan classes (no remaining enrollments, no subscriptions)
-        # Build the WHERE clause dynamically based on force_skip_subscribed
-        subscription_check = "" if force_skip_subscribed else """
-            AND NOT EXISTS (
-                SELECT 1 FROM subscriptions s
-                WHERE s.class_id = c.class_id
-            )
-        """
-
+        # 2. Delete orphan classes (no remaining enrollments, NEVER with subscriptions)
+        # IMPORTANT: ALWAYS check subscriptions - we NEVER delete classes with active subscriptions
+        # force_skip_subscribed only disables the early abort above, not this safety check
         result = db.execute(
             text(
-                f"""
+                """
                 DELETE FROM classes c
                 WHERE c.course_id IN (
                     SELECT co.id FROM courses co WHERE co.college_id = :college_id
@@ -275,7 +278,10 @@ def purge_stale_enrollments(
                     SELECT 1 FROM enrollments e
                     WHERE e.class_id = c.class_id
                 )
-                {subscription_check}
+                AND NOT EXISTS (
+                    SELECT 1 FROM subscriptions s
+                    WHERE s.class_id = c.class_id
+                )
             """
             ),
             {"college_id": college_id, "cutoff": cutoff_timestamp},
@@ -301,13 +307,21 @@ def purge_stale_enrollments(
         print(f"   Deleted {deletion_counts['courses']} courses")
 
         # Commit all deletions
-        db.commit()
+        if db_session is None:
+            db.commit()
+        else:
+            # For test sessions, commit will be handled by the test framework
+            db.commit()
 
         print(f"\n✅ Purge complete for {college.name}")
 
         return deletion_counts
 
-    engine.dispose()
+    finally:
+        if should_close:
+            db.close()
+            if 'engine' in locals():
+                engine.dispose()
 
 
 def main():
@@ -316,10 +330,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Dry run (preview only - default)
+  # Preview mode (default - no deletion)
   python purge_stale_term_enrollments.py --college cornell --before-scraped-at "2025-01-15T00:00:00Z"
   
-  # Actually delete
+  # Actually delete (requires --confirm)
   python purge_stale_term_enrollments.py --college cornell --before-scraped-at "2025-01-15T00:00:00Z" --confirm
   
   # Force skip classes with subscriptions (use with caution)
@@ -344,13 +358,13 @@ Examples:
     parser.add_argument(
         "--confirm",
         action="store_true",
-        help="Actually delete (default is dry run)",
+        help="Actually delete data (default is preview mode)",
     )
 
     parser.add_argument(
         "--force-skip-subscribed",
         action="store_true",
-        help="Skip deletion of classes with active subscriptions instead of aborting (NOT recommended)",
+        help="Continue even if subscriptions block some classes (skips those classes but never deletes them)",
     )
 
     args = parser.parse_args()
@@ -367,7 +381,7 @@ Examples:
     dry_run = not args.confirm
 
     if dry_run:
-        print("⚠️  DRY RUN MODE - No data will be deleted. Use --confirm to actually delete.\n")
+        print("⚠️  PREVIEW MODE - No data will be deleted. Use --confirm to actually delete.\n")
 
     result = purge_stale_enrollments(
         args.college.lower(),

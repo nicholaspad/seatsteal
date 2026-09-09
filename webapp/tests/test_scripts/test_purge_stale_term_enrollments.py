@@ -2,6 +2,7 @@
 
 import pytest
 from datetime import datetime, timezone, timedelta
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 import sys
@@ -64,6 +65,14 @@ def stale_data_setup(test_db: Session, cornell_college: College, test_user: Prof
         is_active=True,
     )
     test_db.add(old_class)
+    test_db.commit()
+    test_db.refresh(old_class)
+
+    # Backdate created_at to make it "old" (created_at < cutoff)
+    test_db.execute(
+        text("UPDATE classes SET created_at = :old_time WHERE class_id = :class_id"),
+        {"old_time": old_timestamp, "class_id": old_class.class_id},
+    )
     test_db.commit()
     test_db.refresh(old_class)
 
@@ -169,7 +178,7 @@ def test_preview_counts(test_db: Session, stale_data_setup):
     # Should find 2 stale enrollments (old_enrollment + mixed_old_enrollment)
     assert counts["stale_enrollments"] == 2
 
-    # Should find 1 orphan class (old_class has no new enrollments)
+    # Should find 1 orphan class (old_class has no new enrollments and created_at < cutoff)
     assert counts["orphan_classes"] == 1
 
     # Should find 1 empty course (old_course will have no classes after purge)
@@ -194,10 +203,14 @@ def test_purge_dry_run(test_db: Session, stale_data_setup):
         cutoff,
         dry_run=True,
         force_skip_subscribed=False,
+        db_session=test_db,
     )
 
     # Dry run returns None
     assert result is None
+
+    # Refresh to get latest state
+    test_db.expire_all()
 
     # Nothing should be deleted
     assert test_db.query(Enrollment).count() == enrollments_before
@@ -215,12 +228,16 @@ def test_purge_confirm(test_db: Session, stale_data_setup):
         cutoff,
         dry_run=False,
         force_skip_subscribed=False,
+        db_session=test_db,
     )
 
     # Should delete 2 enrollments, 1 class, 1 course
     assert result["enrollments"] == 2
     assert result["classes"] == 1
     assert result["courses"] == 1
+
+    # Refresh to get latest state after deletion
+    test_db.expire_all()
 
     # Verify old course/class/enrollment are deleted
     assert (
@@ -316,10 +333,14 @@ def test_purge_abort_with_subscriptions(
         cutoff,
         dry_run=False,
         force_skip_subscribed=False,
+        db_session=test_db,
     )
 
     # Should return None (aborted)
     assert result is None
+
+    # Refresh to get latest state
+    test_db.expire_all()
 
     # Nothing should be deleted
     assert (
@@ -333,7 +354,7 @@ def test_purge_abort_with_subscriptions(
 def test_purge_force_skip_subscribed(
     test_db: Session, stale_data_setup, test_user: Profile
 ):
-    """Test purge with --force-skip-subscribed skips classes with subscriptions."""
+    """Test purge with --force-skip-subscribed skips classes with subscriptions but NEVER deletes them."""
     cutoff = stale_data_setup["cutoff_timestamp"]
     old_class_id = stale_data_setup["old_class"].class_id
     cornell_id = stale_data_setup["cornell_college"].id
@@ -355,14 +376,18 @@ def test_purge_force_skip_subscribed(
         cutoff,
         dry_run=False,
         force_skip_subscribed=True,
+        db_session=test_db,
     )
 
-    # Should delete enrollments but NOT the subscribed class
+    # Should delete enrollments but NOT the subscribed class (force_skip means skip, not delete)
     assert result["enrollments"] == 2  # Both old enrollments
     assert result["classes"] == 0  # Old class NOT deleted (has subscription)
     assert result["courses"] == 0  # Old course NOT deleted (still has class)
 
-    # Verify old class still exists
+    # Refresh to get latest state after deletion
+    test_db.expire_all()
+
+    # Verify old class still exists (NEVER deleted because of subscription)
     assert (
         test_db.query(Class)
         .filter_by(class_id=stale_data_setup["old_class"].class_id)
@@ -370,7 +395,7 @@ def test_purge_force_skip_subscribed(
         is not None
     )
 
-    # Verify subscription still exists
+    # Verify subscription still exists (NEVER deleted)
     assert test_db.query(Subscription).filter_by(class_id=old_class_id).first() is not None
 
 
@@ -383,6 +408,7 @@ def test_purge_nonexistent_college(test_db: Session):
         cutoff,
         dry_run=False,
         force_skip_subscribed=False,
+        db_session=test_db,
     )
 
     assert result is None
@@ -397,6 +423,96 @@ def test_purge_no_stale_data(test_db: Session, cornell_college: College):
         cutoff,
         dry_run=False,
         force_skip_subscribed=False,
+        db_session=test_db,
     )
 
     assert result == {"enrollments": 0, "classes": 0, "courses": 0}
+
+
+def test_cross_college_isolation(test_db: Session):
+    """Test that purging one college doesn't affect another college's data."""
+    now = datetime.now(timezone.utc)
+    old_timestamp = now - timedelta(days=30)
+    cutoff = now - timedelta(days=15)
+
+    # Create two colleges
+    college_a = College(name="College A", short_name="colla", is_active=True)
+    college_b = College(name="College B", short_name="collb", is_active=True)
+    test_db.add(college_a)
+    test_db.add(college_b)
+    test_db.commit()
+    test_db.refresh(college_a)
+    test_db.refresh(college_b)
+
+    # Create old data for both colleges
+    for college in [college_a, college_b]:
+        course = Course(
+            college_id=college.id,
+            course_code="CS101",
+            title="Test Course",
+            is_active=True,
+        )
+        test_db.add(course)
+        test_db.commit()
+        test_db.refresh(course)
+
+        cls = Class(
+            course_id=course.id,
+            class_number="12345",
+            section_code="A",
+            is_active=True,
+        )
+        test_db.add(cls)
+        test_db.commit()
+        test_db.refresh(cls)
+
+        # Backdate created_at
+        test_db.execute(
+            text("UPDATE classes SET created_at = :old_time WHERE class_id = :class_id"),
+            {"old_time": old_timestamp, "class_id": cls.class_id},
+        )
+        test_db.commit()
+
+        enrollment = Enrollment(
+            class_id=cls.class_id,
+            college_id=college.id,
+            enrollment_status="open",
+            scraped_at=old_timestamp,
+        )
+        test_db.add(enrollment)
+
+    test_db.commit()
+
+    # Count college_b data before purge
+    college_b_enrollments = (
+        test_db.query(Enrollment).filter_by(college_id=college_b.id).count()
+    )
+    college_b_courses = (
+        test_db.query(Course).filter_by(college_id=college_b.id).count()
+    )
+
+    # Purge college A only
+    result = purge_stale_enrollments(
+        "colla",
+        cutoff,
+        dry_run=False,
+        force_skip_subscribed=False,
+        db_session=test_db,
+    )
+
+    assert result["enrollments"] == 1
+    assert result["classes"] == 1
+    assert result["courses"] == 1
+
+    # Refresh to get latest state
+    test_db.expire_all()
+
+    # College B data should be untouched
+    assert (
+        test_db.query(Enrollment).filter_by(college_id=college_b.id).count()
+        == college_b_enrollments
+    )
+    assert (
+        test_db.query(Course).filter_by(college_id=college_b.id).count()
+        == college_b_courses
+    )
