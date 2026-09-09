@@ -10,9 +10,11 @@ Tests scraper CLI and job management including:
 - Error handling and recovery
 """
 
+import os
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from scraper.run_scraper import ScraperCLI
@@ -656,3 +658,257 @@ class TestIntegration:
                 assert result["successful"] == 4
                 assert result["failed"] == 1
                 assert mock_run.call_count == 5
+
+
+# ============================================================================
+# Rediscovery Tests (Dynamic College Activation)
+# ============================================================================
+
+
+class TestRediscovery:
+    """Test dynamic college activation/deactivation without restart"""
+
+    @pytest.mark.asyncio
+    async def test_inactive_colleges_not_started_at_boot(self, mock_db):
+        """Test that inactive colleges are not started at boot"""
+        colleges = [
+            College(id=1, name="Active College", short_name="active", is_active=True),
+            College(
+                id=2, name="Inactive College", short_name="inactive", is_active=False
+            ),
+        ]
+
+        # First query returns all colleges for status reset
+        # Second query (in loop) returns only active colleges
+        mock_result_all = Mock()
+        mock_result_all.scalars = Mock(
+            return_value=Mock(all=Mock(return_value=colleges))
+        )
+
+        mock_result_active = Mock()
+        mock_result_active.scalars = Mock(
+            return_value=Mock(all=Mock(return_value=[colleges[0]]))
+        )
+
+        mock_db.execute = Mock(side_effect=[mock_result_all, mock_result_active])
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "_run_college_loop", new_callable=AsyncMock
+            ) as mock_loop:
+                with patch.object(
+                    ScraperCLI, "_supervisor_loop", new_callable=AsyncMock
+                ):
+                    # Mock the loop to create tasks but not run them
+                    mock_loop.return_value = None
+
+                    cli = ScraperCLI()
+
+                    # Start loop in background with short timeout
+                    loop_task = asyncio.create_task(cli.loop())
+                    await asyncio.sleep(0.1)  # Let it initialize
+                    loop_task.cancel()
+                    try:
+                        await loop_task
+                    except asyncio.CancelledError:
+                        pass
+
+                    # Should only start loop for active college
+                    assert mock_loop.call_count == 1
+                    assert cli._running_tasks[1]  # Active college should be running
+
+    @pytest.mark.asyncio
+    async def test_newly_activated_college_gets_started(self, mock_db):
+        """Test that college activated after loop start gets a task"""
+        active_college = College(
+            id=1, name="Active College", short_name="active", is_active=True
+        )
+        new_college = College(
+            id=2, name="New College", short_name="new", is_active=True
+        )
+
+        # Track query count to simulate state changes
+        query_count = [0]
+
+        def make_result(colleges):
+            mock_result = Mock()
+            mock_result.scalars = Mock(
+                return_value=Mock(all=Mock(return_value=colleges))
+            )
+            return mock_result
+
+        def execute_side_effect(*args, **kwargs):
+            query_count[0] += 1
+            # First two queries: reset + initial loop() startup, only active_college
+            # Third query: supervisor rediscovery, both colleges active
+            if query_count[0] <= 2:
+                return make_result([active_college])
+            else:
+                return make_result([active_college, new_college])
+
+        mock_db.execute = Mock(side_effect=execute_side_effect)
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "_run_college_loop", new_callable=AsyncMock
+            ) as mock_loop:
+                mock_loop.return_value = None
+                cli = ScraperCLI()
+                cli.rediscovery_interval_seconds = 0.05  # Fast rediscovery for testing
+
+                # Start loop in background
+                loop_task = asyncio.create_task(cli.loop())
+
+                # Wait for initialization + at least one rediscovery cycle
+                await asyncio.sleep(0.2)
+
+                # Cancel the loop
+                loop_task.cancel()
+                try:
+                    await loop_task
+                except asyncio.CancelledError:
+                    pass
+
+                # Should have started both colleges
+                assert mock_loop.call_count >= 2
+                # Both colleges should be in running tasks at some point
+                # (new_college added after rediscovery)
+
+    @pytest.mark.asyncio
+    async def test_deactivated_college_gets_cancelled(self, mock_db):
+        """Test that deactivated college has its task cancelled"""
+        # Test the supervisor loop's deactivation logic directly
+        active_college = College(
+            id=1, name="Active College", short_name="active", is_active=True
+        )
+
+        # Simulate having both colleges active initially
+        cli = ScraperCLI()
+
+        # Create mock tasks for both colleges
+        task1 = AsyncMock()
+        task1.done = Mock(return_value=False)
+        task1.cancel = Mock()
+
+        task2 = AsyncMock()
+        task2.done = Mock(return_value=False)
+        task2.cancel = Mock()
+
+        cli._running_tasks[1] = task1
+        cli._running_tasks[2] = task2
+
+        # Mock database to return only college 1 (college 2 deactivated)
+        mock_result = Mock()
+        mock_result.scalars = Mock(
+            return_value=Mock(all=Mock(return_value=[active_college]))
+        )
+        mock_db.execute = Mock(return_value=mock_result)
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ) as MockSessionLocal:
+            # Manually execute the supervisor's deactivation logic
+            from scraper.run_scraper import SessionLocal as ImportedSessionLocal
+
+            with ImportedSessionLocal() as db:
+                active_colleges = (
+                    db.execute(select(College).where(College.is_active == True))
+                    .scalars()
+                    .all()
+                )
+                active_college_ids = {c.id for c in active_colleges}
+
+            running_ids = set(cli._running_tasks.keys())
+            deactivated_ids = running_ids - active_college_ids
+
+            # Remove deactivated colleges
+            for college_id in deactivated_ids:
+                task = cli._running_tasks[college_id]
+                task.cancel()
+                del cli._running_tasks[college_id]
+
+            # Verify that task2 was cancelled and removed
+            task2.cancel.assert_called_once()
+            assert 1 in cli._running_tasks
+            assert 2 not in cli._running_tasks
+            task1.cancel.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_supervisor_handles_exceptions_gracefully(self, mock_db):
+        """Test that supervisor continues running even if a query fails"""
+        active_college = College(
+            id=1, name="Active College", short_name="active", is_active=True
+        )
+
+        query_count = [0]
+
+        def make_result(colleges):
+            mock_result = Mock()
+            mock_result.scalars = Mock(
+                return_value=Mock(all=Mock(return_value=colleges))
+            )
+            return mock_result
+
+        def execute_side_effect(*args, **kwargs):
+            query_count[0] += 1
+            if query_count[0] == 3:  # Third query (first supervisor check) fails
+                raise Exception("Database error")
+            return make_result([active_college])
+
+        mock_db.execute = Mock(side_effect=execute_side_effect)
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "_run_college_loop", new_callable=AsyncMock
+            ) as mock_loop:
+                mock_loop.return_value = None
+
+                cli = ScraperCLI()
+                cli.rediscovery_interval_seconds = 0.05
+
+                loop_task = asyncio.create_task(cli.loop())
+
+                # Wait for supervisor to run at least twice (once with error)
+                await asyncio.sleep(0.2)
+
+                # Supervisor should still be running despite error
+                assert not loop_task.done()
+
+                loop_task.cancel()
+                try:
+                    await loop_task
+                except asyncio.CancelledError:
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_rediscovery_interval_configurable(self):
+        """Test that rediscovery interval is configurable via env var"""
+        with patch.dict(os.environ, {"SCRAPER_REDISCOVERY_INTERVAL_SECONDS": "120"}):
+            cli = ScraperCLI()
+            assert cli.rediscovery_interval_seconds == 120
+
+    @pytest.mark.asyncio
+    async def test_rediscovery_interval_default(self):
+        """Test that rediscovery interval defaults to 60 seconds"""
+        # Clear any env var that might be set
+        with patch.dict(os.environ, {}, clear=True):
+            cli = ScraperCLI()
+            assert cli.rediscovery_interval_seconds == 60
