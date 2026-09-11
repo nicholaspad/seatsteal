@@ -83,27 +83,17 @@ class ScraperService:
                     keyword in error_msg.lower()
                     for keyword in ["ssl", "eof", "connection", "timeout"]
                 ):
-                    # Rollback the transaction before retrying
-                    # A statement timeout or connection error aborts the transaction,
-                    # so we must rollback to avoid InFailedSqlTransaction on retry
+                    # Rollback the transaction and re-raise to fail the entire scrape job.
+                    # Since scrape commits once at the end, a mid-scrape rollback drops all
+                    # prior course/class inserts while in-memory mappings still hold those IDs.
+                    # Retrying just this statement would cause FK failures later when using stale IDs.
+                    # Instead, let the whole job fail and be retried from scratch by orchestration.
                     self.db.rollback()
-                    logger.debug(
-                        "Rolled back transaction after error to avoid poisoned transaction state"
+                    logger.warning(
+                        f"Database connection error (attempt {attempt + 1}): {error_msg}. "
+                        "Rolled back transaction and failing scrape job to allow full retry."
                     )
-
-                    if attempt < max_retries - 1:
-                        wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
-                        logger.warning(
-                            f"Database connection error (attempt {attempt + 1}/{max_retries}): {error_msg}. "
-                            f"Retrying in {wait_time}s..."
-                        )
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        logger.error(
-                            f"Database connection error after {max_retries} attempts: {error_msg}"
-                        )
-                        raise
+                    raise
                 else:
                     # Don't retry non-connection errors
                     raise
@@ -531,8 +521,7 @@ class ScraperService:
             values_clause = ", ".join(placeholders)
 
             # Build the multi-row INSERT ... ON CONFLICT query with RETURNING
-            query = text(
-                f"""
+            query = text(f"""
                 INSERT INTO courses (college_id, course_code, title, is_active, created_at, updated_at)
                 VALUES {values_clause}
                 ON CONFLICT (college_id, course_code)
@@ -541,8 +530,7 @@ class ScraperService:
                     is_active = EXCLUDED.is_active,
                     updated_at = EXCLUDED.updated_at
                 RETURNING id, course_code
-                """
-            )
+                """)
 
             # Execute single query for entire batch and collect results (with retry)
             result = self._execute_with_retry(query, params)
@@ -600,8 +588,7 @@ class ScraperService:
             values_clause = ", ".join(placeholders)
 
             # Build the multi-row INSERT ... ON CONFLICT query with RETURNING
-            query = text(
-                f"""
+            query = text(f"""
                 INSERT INTO classes (course_id, class_number, section_code, is_active, created_at, updated_at)
                 VALUES {values_clause}
                 ON CONFLICT (course_id, class_number)
@@ -610,8 +597,7 @@ class ScraperService:
                     is_active = EXCLUDED.is_active,
                     updated_at = EXCLUDED.updated_at
                 RETURNING class_id, course_id, class_number
-                """
-            )
+                """)
 
             # Execute single query for entire batch and collect results (with retry)
             result = self._execute_with_retry(query, params)
@@ -702,28 +688,18 @@ class ScraperService:
                             keyword in error_msg.lower()
                             for keyword in ["ssl", "eof", "connection", "timeout"]
                         ):
-                            # Rollback the transaction before retrying
-                            # A statement timeout or connection error aborts the transaction,
-                            # so we must rollback to avoid InFailedSqlTransaction on retry
+                            # Rollback the transaction and re-raise to fail the entire scrape job.
+                            # Since scrape commits once at the end, a mid-scrape rollback drops all
+                            # prior course/class inserts while in-memory mappings still hold those IDs.
+                            # Retrying just this batch would cause FK failures when using stale class_ids.
+                            # Instead, let the whole job fail and be retried from scratch by orchestration.
                             self.db.rollback()
-                            logger.debug(
-                                "Rolled back transaction after enrollment insert error to avoid poisoned transaction state"
+                            logger.warning(
+                                f"Database connection error during enrollment insert "
+                                f"(attempt {attempt + 1}): {error_msg}. "
+                                "Rolled back transaction and failing scrape job to allow full retry."
                             )
-
-                            if attempt < max_retries - 1:
-                                wait_time = 2**attempt
-                                logger.warning(
-                                    f"Database connection error during enrollment insert "
-                                    f"(attempt {attempt + 1}/{max_retries}): {error_msg}. "
-                                    f"Retrying in {wait_time}s..."
-                                )
-                                time.sleep(wait_time)
-                                continue
-                            else:
-                                logger.error(
-                                    f"Database connection error after {max_retries} attempts: {error_msg}"
-                                )
-                                raise
+                            raise
                         else:
                             raise
 
@@ -762,14 +738,12 @@ class ScraperService:
 
         # Use DISTINCT ON to get the most recent enrollment per class
         # This is a PostgreSQL-specific feature that's very efficient
-        query = text(
-            """
+        query = text("""
             SELECT DISTINCT ON (class_id) class_id, id, enrollment_status
             FROM enrollments
             WHERE class_id = ANY(:class_ids)
             ORDER BY class_id, scraped_at DESC
-        """
-        )
+        """)
 
         result = self._execute_with_retry(query, {"class_ids": class_ids})
 
@@ -809,13 +783,11 @@ class ScraperService:
         for i in range(0, len(enrollment_ids), batch_size):
             batch_ids = enrollment_ids[i : i + batch_size]
 
-            query = text(
-                """
+            query = text("""
                 UPDATE enrollments
                 SET scraped_at = :scraped_at
                 WHERE id = ANY(:enrollment_ids)
-            """
-            )
+            """)
 
             result = self._execute_with_retry(
                 query, {"scraped_at": scraped_at, "enrollment_ids": batch_ids}

@@ -447,20 +447,22 @@ def test_empty_enrollment_list(scraper_service: ScraperService, test_db: Session
 
 
 @pytest.mark.asyncio
-async def test_zero_courses_marked_as_partial_failure(test_db: Session, test_college: College):
+async def test_zero_courses_marked_as_partial_failure(
+    test_db: Session, test_college: College
+):
     """Test that scraping 0 courses returns success=False with outcome='partial'."""
     service = ScraperService(test_db)
-    
+
     # Mock the scraper to return empty course list
-    with patch('scraper.services.scraper_service.SCRAPER_MAP') as mock_scraper_map:
+    with patch("scraper.services.scraper_service.SCRAPER_MAP") as mock_scraper_map:
         mock_scraper_class = MagicMock()
         mock_scraper_instance = MagicMock()
         mock_scraper_instance.scrape_courses = AsyncMock(return_value=[])
         mock_scraper_class.return_value = mock_scraper_instance
         mock_scraper_map.get.return_value = mock_scraper_class
-        
+
         result = await service.scrape_college(test_college.short_name, "CS")
-        
+
         # Verify partial failure result
         assert result["success"] is False
         assert result["outcome"] == "partial"
@@ -469,28 +471,32 @@ async def test_zero_courses_marked_as_partial_failure(test_db: Session, test_col
 
 
 @pytest.mark.asyncio
-async def test_zero_enrollments_marked_as_partial_failure(test_db: Session, test_college: College):
+async def test_zero_enrollments_marked_as_partial_failure(
+    test_db: Session, test_college: College
+):
     """Test that scraping courses but 0 enrollments returns success=False with outcome='partial'."""
     service = ScraperService(test_db)
-    
+
     # Mock the scraper to return courses with NO classes (empty classes list)
     # This simulates the production failure mode where courses exist but have no class/enrollment data
-    with patch('scraper.services.scraper_service.SCRAPER_MAP') as mock_scraper_map:
+    with patch("scraper.services.scraper_service.SCRAPER_MAP") as mock_scraper_map:
         mock_scraper_class = MagicMock()
         mock_scraper_instance = MagicMock()
         # Return courses but with empty classes array - results in 0 enrollments naturally
-        mock_scraper_instance.scrape_courses = AsyncMock(return_value=[
-            {
-                "course_code": "CS 101",
-                "title": "Test Course",
-                "classes": []  # Empty classes - no enrollments will be created
-            }
-        ])
+        mock_scraper_instance.scrape_courses = AsyncMock(
+            return_value=[
+                {
+                    "course_code": "CS 101",
+                    "title": "Test Course",
+                    "classes": [],  # Empty classes - no enrollments will be created
+                }
+            ]
+        )
         mock_scraper_class.return_value = mock_scraper_instance
         mock_scraper_map.get.return_value = mock_scraper_class
-        
+
         result = await service.scrape_college(test_college.short_name, "CS")
-        
+
         # Verify partial failure result
         assert result["success"] is False
         assert result["outcome"] == "partial"
@@ -511,28 +517,29 @@ def test_get_latest_enrollments_empty_list(
 def test_execute_with_retry_rolls_back_on_timeout(
     scraper_service: ScraperService, test_db: Session
 ):
-    """Test that _execute_with_retry rolls back transaction on statement timeout."""
+    """Test that _execute_with_retry rolls back transaction and re-raises on statement timeout.
+
+    After PR #225 follow-up: rollback clears the transaction but in-memory ID mappings become stale.
+    Retrying just the failed statement would cause FK failures later. Instead, we rollback and
+    re-raise to fail the whole scrape job so it can be retried from scratch by orchestration.
+    """
     from sqlalchemy import text
     from sqlalchemy.exc import OperationalError
 
     # Create a mock query that will fail with a timeout error
     query = text("SELECT 1")
 
-    # Mock the db.execute to raise OperationalError with "timeout" on first attempt
+    # Mock the db.execute to raise OperationalError with "timeout"
     original_execute = test_db.execute
     rollback_called = {"count": 0}
     execute_call_count = {"count": 0}
 
     def mock_execute(q, p):
         execute_call_count["count"] += 1
-        if execute_call_count["count"] == 1:
-            # First call - simulate statement timeout
-            raise OperationalError(
-                "statement timeout error", None, None, connection_invalidated=False
-            )
-        else:
-            # Second call - succeed
-            return original_execute(q, p)
+        # Always fail with timeout - no retry should happen
+        raise OperationalError(
+            "statement timeout error", None, None, connection_invalidated=False
+        )
 
     original_rollback = test_db.rollback
 
@@ -545,17 +552,15 @@ def test_execute_with_retry_rolls_back_on_timeout(
     test_db.rollback = mock_rollback
 
     try:
-        # Execute with retry
-        result = scraper_service._execute_with_retry(query, {})
+        # Execute with retry - should rollback and raise immediately
+        with pytest.raises(OperationalError, match="statement timeout error"):
+            scraper_service._execute_with_retry(query, {})
 
-        # Verify rollback was called once (after first timeout)
+        # Verify rollback was called once (before re-raising)
         assert rollback_called["count"] == 1
 
-        # Verify execute was called twice (first failed, second succeeded)
-        assert execute_call_count["count"] == 2
-
-        # Verify the query eventually succeeded
-        assert result is not None
+        # Verify execute was called only once (no retry after rollback)
+        assert execute_call_count["count"] == 1
 
     finally:
         # Restore original methods
@@ -569,7 +574,13 @@ def test_bulk_insert_enrollments_rolls_back_on_timeout(
     test_college: College,
     test_class: Class,
 ):
-    """Test that bulk_insert_enrollments rolls back transaction on timeout."""
+    """Test that bulk_insert_enrollments rolls back transaction and re-raises on timeout.
+
+    After PR #225 follow-up: rollback clears the transaction but in-memory class_id mappings
+    become stale. Retrying just this batch would cause FK failures when using stale class_ids.
+    Instead, we rollback and re-raise to fail the whole scrape job so it can be retried from
+    scratch by orchestration.
+    """
     from sqlalchemy.exc import OperationalError
 
     enrollment_data = [
@@ -581,24 +592,20 @@ def test_bulk_insert_enrollments_rolls_back_on_timeout(
         }
     ]
 
-    # Mock bulk_insert_mappings to raise OperationalError with "timeout" on first attempt
+    # Mock bulk_insert_mappings to raise OperationalError with "timeout"
     original_bulk_insert = test_db.bulk_insert_mappings
     rollback_called = {"count": 0}
     insert_call_count = {"count": 0}
 
     def mock_bulk_insert(model, mappings):
         insert_call_count["count"] += 1
-        if insert_call_count["count"] == 1:
-            # First call - simulate statement timeout
-            raise OperationalError(
-                "statement timeout during insert",
-                None,
-                None,
-                connection_invalidated=False,
-            )
-        else:
-            # Second call - succeed
-            return original_bulk_insert(model, mappings)
+        # Always fail with timeout - no retry should happen
+        raise OperationalError(
+            "statement timeout during insert",
+            None,
+            None,
+            connection_invalidated=False,
+        )
 
     original_rollback = test_db.rollback
 
@@ -611,17 +618,15 @@ def test_bulk_insert_enrollments_rolls_back_on_timeout(
     test_db.rollback = mock_rollback
 
     try:
-        # Execute batch insert
-        inserted = scraper_service._batch_insert_enrollments(enrollment_data)
+        # Execute batch insert - should rollback and raise immediately
+        with pytest.raises(OperationalError, match="statement timeout during insert"):
+            scraper_service._batch_insert_enrollments(enrollment_data)
 
-        # Verify rollback was called once (after first timeout)
+        # Verify rollback was called once (before re-raising)
         assert rollback_called["count"] == 1
 
-        # Verify bulk_insert was called twice (first failed, second succeeded)
-        assert insert_call_count["count"] == 2
-
-        # Verify the insert eventually succeeded
-        assert inserted == 1
+        # Verify bulk_insert was called only once (no retry after rollback)
+        assert insert_call_count["count"] == 1
 
     finally:
         # Restore original methods
