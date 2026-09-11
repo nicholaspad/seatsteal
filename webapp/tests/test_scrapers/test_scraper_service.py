@@ -506,3 +506,124 @@ def test_get_latest_enrollments_empty_list(
     """Test _get_latest_enrollments with empty list."""
     latest = scraper_service._get_latest_enrollments([])
     assert latest == {}
+
+
+def test_execute_with_retry_rolls_back_on_timeout(
+    scraper_service: ScraperService, test_db: Session
+):
+    """Test that _execute_with_retry rolls back transaction on statement timeout."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+
+    # Create a mock query that will fail with a timeout error
+    query = text("SELECT 1")
+
+    # Mock the db.execute to raise OperationalError with "timeout" on first attempt
+    original_execute = test_db.execute
+    rollback_called = {"count": 0}
+    execute_call_count = {"count": 0}
+
+    def mock_execute(q, p):
+        execute_call_count["count"] += 1
+        if execute_call_count["count"] == 1:
+            # First call - simulate statement timeout
+            raise OperationalError(
+                "statement timeout error", None, None, connection_invalidated=False
+            )
+        else:
+            # Second call - succeed
+            return original_execute(q, p)
+
+    original_rollback = test_db.rollback
+
+    def mock_rollback():
+        rollback_called["count"] += 1
+        return original_rollback()
+
+    # Patch execute and rollback
+    test_db.execute = mock_execute
+    test_db.rollback = mock_rollback
+
+    try:
+        # Execute with retry
+        result = scraper_service._execute_with_retry(query, {})
+
+        # Verify rollback was called once (after first timeout)
+        assert rollback_called["count"] == 1
+
+        # Verify execute was called twice (first failed, second succeeded)
+        assert execute_call_count["count"] == 2
+
+        # Verify the query eventually succeeded
+        assert result is not None
+
+    finally:
+        # Restore original methods
+        test_db.execute = original_execute
+        test_db.rollback = original_rollback
+
+
+def test_bulk_insert_enrollments_rolls_back_on_timeout(
+    scraper_service: ScraperService,
+    test_db: Session,
+    test_college: College,
+    test_class: Class,
+):
+    """Test that bulk_insert_enrollments rolls back transaction on timeout."""
+    from sqlalchemy.exc import OperationalError
+
+    enrollment_data = [
+        {
+            "class_id": test_class.class_id,
+            "college_id": test_college.id,
+            "enrollment_status": "closed",
+            "raw_text": '{"test": "data"}',
+        }
+    ]
+
+    # Mock bulk_insert_mappings to raise OperationalError with "timeout" on first attempt
+    original_bulk_insert = test_db.bulk_insert_mappings
+    rollback_called = {"count": 0}
+    insert_call_count = {"count": 0}
+
+    def mock_bulk_insert(model, mappings):
+        insert_call_count["count"] += 1
+        if insert_call_count["count"] == 1:
+            # First call - simulate statement timeout
+            raise OperationalError(
+                "statement timeout during insert",
+                None,
+                None,
+                connection_invalidated=False,
+            )
+        else:
+            # Second call - succeed
+            return original_bulk_insert(model, mappings)
+
+    original_rollback = test_db.rollback
+
+    def mock_rollback():
+        rollback_called["count"] += 1
+        return original_rollback()
+
+    # Patch bulk_insert_mappings and rollback
+    test_db.bulk_insert_mappings = mock_bulk_insert
+    test_db.rollback = mock_rollback
+
+    try:
+        # Execute batch insert
+        inserted = scraper_service._batch_insert_enrollments(enrollment_data)
+
+        # Verify rollback was called once (after first timeout)
+        assert rollback_called["count"] == 1
+
+        # Verify bulk_insert was called twice (first failed, second succeeded)
+        assert insert_call_count["count"] == 2
+
+        # Verify the insert eventually succeeded
+        assert inserted == 1
+
+    finally:
+        # Restore original methods
+        test_db.bulk_insert_mappings = original_bulk_insert
+        test_db.rollback = original_rollback

@@ -83,6 +83,14 @@ class ScraperService:
                     keyword in error_msg.lower()
                     for keyword in ["ssl", "eof", "connection", "timeout"]
                 ):
+                    # Rollback the transaction before retrying
+                    # A statement timeout or connection error aborts the transaction,
+                    # so we must rollback to avoid InFailedSqlTransaction on retry
+                    self.db.rollback()
+                    logger.debug(
+                        "Rolled back transaction after error to avoid poisoned transaction state"
+                    )
+
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
                         logger.warning(
@@ -694,6 +702,14 @@ class ScraperService:
                             keyword in error_msg.lower()
                             for keyword in ["ssl", "eof", "connection", "timeout"]
                         ):
+                            # Rollback the transaction before retrying
+                            # A statement timeout or connection error aborts the transaction,
+                            # so we must rollback to avoid InFailedSqlTransaction on retry
+                            self.db.rollback()
+                            logger.debug(
+                                "Rolled back transaction after enrollment insert error to avoid poisoned transaction state"
+                            )
+
                             if attempt < max_retries - 1:
                                 wait_time = 2**attempt
                                 logger.warning(
