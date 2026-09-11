@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime, timezone
 from loguru import logger
-import time
 from sqlalchemy.exc import OperationalError
 
 from models.college import College
@@ -58,45 +57,42 @@ class ScraperService:
         """
         self.db = db
 
-    def _execute_with_retry(self, query, params, max_retries: int = 3):
+    def _execute_with_retry(self, query, params):
         """
-        Execute a database query with retry logic for transient connection errors.
+        Execute a database query with rollback on connection/timeout errors.
+
+        Rollback and re-raise on connection/timeout errors to avoid InFailedSqlTransaction.
+        Since scrape commits once at the end, mid-scrape rollback drops all prior inserts
+        while in-memory ID mappings remain stale. Re-raising fails the whole scrape job
+        so orchestration can retry from scratch with clean state.
 
         Args:
             query: SQLAlchemy query to execute
             params: Parameters for the query
-            max_retries: Maximum number of retry attempts (default: 3)
 
         Returns:
             Query result
 
         Raises:
-            OperationalError: If all retries are exhausted
+            OperationalError: On connection/timeout errors (after rollback) or data errors
         """
-        for attempt in range(max_retries):
-            try:
-                return self.db.execute(query, params)
-            except OperationalError as e:
-                error_msg = str(e)
-                # Only retry on connection/timeout errors, not data errors
-                if any(
-                    keyword in error_msg.lower()
-                    for keyword in ["ssl", "eof", "connection", "timeout"]
-                ):
-                    # Rollback the transaction and re-raise to fail the entire scrape job.
-                    # Since scrape commits once at the end, a mid-scrape rollback drops all
-                    # prior course/class inserts while in-memory mappings still hold those IDs.
-                    # Retrying just this statement would cause FK failures later when using stale IDs.
-                    # Instead, let the whole job fail and be retried from scratch by orchestration.
-                    self.db.rollback()
-                    logger.warning(
-                        f"Database connection error (attempt {attempt + 1}): {error_msg}. "
-                        "Rolled back transaction and failing scrape job to allow full retry."
-                    )
-                    raise
-                else:
-                    # Don't retry non-connection errors
-                    raise
+        try:
+            return self.db.execute(query, params)
+        except OperationalError as e:
+            error_msg = str(e)
+            if any(
+                keyword in error_msg.lower()
+                for keyword in ["ssl", "eof", "connection", "timeout"]
+            ):
+                self.db.rollback()
+                logger.warning(
+                    f"Database connection error: {error_msg}. "
+                    "Rolled back transaction and failing scrape job to allow full retry."
+                )
+                raise
+            else:
+                # Don't rollback non-connection errors
+                raise
 
     async def scrape_college(
         self, college_short_name: str, department: str, limit: Optional[int] = None
@@ -675,33 +671,23 @@ class ScraperService:
             for i in range(0, len(to_insert), batch_size):
                 batch = to_insert[i : i + batch_size]
 
-                # Use SQLAlchemy's bulk_insert_mappings for efficient batch insert (with retry)
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        self.db.bulk_insert_mappings(Enrollment, batch)
-                        total_inserted += len(batch)
-                        break
-                    except OperationalError as e:
-                        error_msg = str(e)
-                        if any(
-                            keyword in error_msg.lower()
-                            for keyword in ["ssl", "eof", "connection", "timeout"]
-                        ):
-                            # Rollback the transaction and re-raise to fail the entire scrape job.
-                            # Since scrape commits once at the end, a mid-scrape rollback drops all
-                            # prior course/class inserts while in-memory mappings still hold those IDs.
-                            # Retrying just this batch would cause FK failures when using stale class_ids.
-                            # Instead, let the whole job fail and be retried from scratch by orchestration.
-                            self.db.rollback()
-                            logger.warning(
-                                f"Database connection error during enrollment insert "
-                                f"(attempt {attempt + 1}): {error_msg}. "
-                                "Rolled back transaction and failing scrape job to allow full retry."
-                            )
-                            raise
-                        else:
-                            raise
+                try:
+                    self.db.bulk_insert_mappings(Enrollment, batch)
+                    total_inserted += len(batch)
+                except OperationalError as e:
+                    error_msg = str(e)
+                    if any(
+                        keyword in error_msg.lower()
+                        for keyword in ["ssl", "eof", "connection", "timeout"]
+                    ):
+                        self.db.rollback()
+                        logger.warning(
+                            f"Database connection error during enrollment insert: {error_msg}. "
+                            "Rolled back transaction and failing scrape job to allow full retry."
+                        )
+                        raise
+                    else:
+                        raise
 
                 logger.debug(
                     f"Inserted batch {i // batch_size + 1}: {len(batch)} enrollments"
