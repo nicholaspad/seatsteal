@@ -514,6 +514,57 @@ def test_get_latest_enrollments_empty_list(
     assert latest == {}
 
 
+def test_get_latest_enrollments_chunked(
+    scraper_service: ScraperService,
+    test_db: Session,
+    test_college: College,
+    test_course: Course,
+):
+    """Test _get_latest_enrollments with large list that requires chunking."""
+    # Create 150 classes to test chunking (chunk_size=50 means 3 chunks)
+    classes = []
+    for i in range(150):
+        class_obj = Class(
+            course_id=test_course.id,
+            class_number=f"{10000 + i}",
+            section_code=f"{i:03d}",
+            is_active=True,
+        )
+        classes.append(class_obj)
+
+    test_db.add_all(classes)
+    test_db.commit()
+
+    # Add enrollments for all classes with different timestamps
+    for i, class_obj in enumerate(classes):
+        test_db.refresh(class_obj)
+        enrollment = Enrollment(
+            class_id=class_obj.class_id,
+            college_id=test_college.id,
+            enrollment_status="open" if i % 2 == 0 else "closed",
+            raw_text=f'{{"class": "{i}"}}',
+            scraped_at=datetime(2024, 1, 1, 10, i % 60, i % 60, tzinfo=timezone.utc),
+        )
+        test_db.add(enrollment)
+
+    test_db.commit()
+
+    # Get class_ids
+    class_ids = [c.class_id for c in classes]
+
+    # Fetch latest enrollments with chunking
+    latest = scraper_service._get_latest_enrollments(class_ids, chunk_size=50)
+
+    # Should return all 150 classes
+    assert len(latest) == 150
+
+    # Verify all class_ids are present
+    for class_id in class_ids:
+        assert class_id in latest
+        assert "id" in latest[class_id]
+        assert "status" in latest[class_id]
+
+
 def test_execute_with_retry_rolls_back_on_timeout(
     scraper_service: ScraperService, test_db: Session
 ):
@@ -632,3 +683,73 @@ def test_bulk_insert_enrollments_rolls_back_on_timeout(
         # Restore original methods
         test_db.bulk_insert_mappings = original_bulk_insert
         test_db.rollback = original_rollback
+
+
+@pytest.mark.asyncio
+async def test_scrape_college_timeout_error_message(
+    test_db: Session, test_college: College
+):
+    """Test that statement timeout errors include detailed error messages."""
+    from sqlalchemy.exc import OperationalError
+
+    service = ScraperService(test_db)
+
+    # Mock the scraper to raise a statement timeout OperationalError
+    with patch("scraper.services.scraper_service.SCRAPER_MAP") as mock_scraper_map:
+        mock_scraper_class = MagicMock()
+        mock_scraper_instance = MagicMock()
+
+        # Create a realistic timeout error
+        timeout_error = OperationalError(
+            "(psycopg2.errors.QueryCanceled) canceling statement due to statement timeout",
+            None,
+            None,
+        )
+        timeout_error.orig = Exception("statement timeout")
+
+        mock_scraper_instance.scrape_courses = AsyncMock(side_effect=timeout_error)
+        mock_scraper_class.return_value = mock_scraper_instance
+        mock_scraper_map.get.return_value = mock_scraper_class
+
+        result = await service.scrape_college(test_college.short_name, "CS")
+
+        # Verify error result
+        assert result["success"] is False
+        assert result["outcome"] == "error"
+
+        # Verify error message includes timeout details (not "Unknown error")
+        error_message = result["error"]
+        assert "QueryCanceled" in error_message or "timeout" in error_message.lower()
+        assert error_message != "Unknown error during scraping"
+
+
+@pytest.mark.asyncio
+async def test_scrape_college_operational_error_with_orig(
+    test_db: Session, test_college: College
+):
+    """Test that OperationalError with orig attribute includes both main and orig details."""
+    from sqlalchemy.exc import OperationalError
+
+    service = ScraperService(test_db)
+
+    # Mock the scraper to raise an OperationalError with orig
+    with patch("scraper.services.scraper_service.SCRAPER_MAP") as mock_scraper_map:
+        mock_scraper_class = MagicMock()
+        mock_scraper_instance = MagicMock()
+
+        # Create an error with orig attribute
+        error = OperationalError("connection error", None, None)
+        error.orig = Exception("SSL SYSCALL error: EOF detected")
+
+        mock_scraper_instance.scrape_courses = AsyncMock(side_effect=error)
+        mock_scraper_class.return_value = mock_scraper_instance
+        mock_scraper_map.get.return_value = mock_scraper_class
+
+        result = await service.scrape_college(test_college.short_name, "CS")
+
+        # Verify error result includes orig details
+        assert result["success"] is False
+        error_message = result["error"]
+        assert "connection error" in error_message
+        assert "orig:" in error_message
+        assert error_message != "Unknown error during scraping"

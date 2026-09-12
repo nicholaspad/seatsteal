@@ -323,6 +323,19 @@ class ScraperService:
                     f"Non-retryable budget exceeded error for {college_short_name} {department}: {e}"
                 )
 
+            # Build detailed error message, including timeout info from OperationalError
+            error_message = str(e)
+            if isinstance(e, OperationalError):
+                # Extract detailed error from orig attribute if available
+                if hasattr(e, "orig") and e.orig:
+                    error_message = f"{error_message} (orig: {e.orig})"
+                # Check for timeout/QueryCanceled patterns
+                error_lower = error_message.lower()
+                if "timeout" in error_lower or "querycanceled" in error_lower:
+                    logger.error(
+                        f"Statement timeout detected for {college_short_name} {department}: {error_message}"
+                    )
+
             return {
                 "college": college_short_name,
                 "department": department,
@@ -332,7 +345,7 @@ class ScraperService:
                 "duration_seconds": duration,
                 "success": False,
                 "outcome": outcome,  # "budget_exceeded" prevents retry
-                "error": str(e),
+                "error": error_message,
             }
 
     async def _upsert_course(
@@ -610,7 +623,7 @@ class ScraperService:
         return class_mapping
 
     def _batch_insert_enrollments(
-        self, enrollment_data_list: List[Dict[str, Any]], batch_size: int = 100
+        self, enrollment_data_list: List[Dict[str, Any]], batch_size: int = 50
     ) -> int:
         """
         Batch insert or update enrollments with status-change detection.
@@ -618,9 +631,12 @@ class ScraperService:
         Only inserts new enrollment records when status changes. When status is
         unchanged, updates the existing enrollment's scraped_at timestamp.
 
+        Reduced batch_size from 100 to 50 to minimize timeout risk on large
+        enrollment batches (e.g. OSU ~23k classes).
+
         Args:
             enrollment_data_list: List of enrollment data dictionaries
-            batch_size: Number of records to insert per batch (default: 100)
+            batch_size: Number of records to insert per batch (default: 50)
 
         Returns:
             Total number of enrollments processed (inserts + updates)
@@ -635,9 +651,9 @@ class ScraperService:
         # Extract unique class_ids from enrollment data
         class_ids = list(set(e["class_id"] for e in enrollment_data_list))
 
-        # Fetch the most recent enrollment for each class_id (batch query)
+        # Fetch the most recent enrollment for each class_id (chunked query to avoid timeout)
         logger.debug(f"Fetching latest enrollments for {len(class_ids)} classes")
-        latest_enrollments = self._get_latest_enrollments(class_ids)
+        latest_enrollments = self._get_latest_enrollments(class_ids, chunk_size=50)
 
         # Separate enrollments into inserts (status changed) and updates (status unchanged)
         to_insert = []
@@ -706,13 +722,18 @@ class ScraperService:
         return total_inserted + len(to_update_ids)
 
     def _get_latest_enrollments(
-        self, class_ids: List[int]
+        self, class_ids: List[int], chunk_size: int = 50
     ) -> Dict[int, Dict[str, Any]]:
         """
-        Fetch the most recent enrollment for each class_id.
+        Fetch the most recent enrollment for each class_id in chunks.
+
+        Chunks the query to avoid statement timeout on large class sets (e.g. OSU ~23k classes).
+        DISTINCT ON over 23k class_ids can exceed the 5-minute statement_timeout; chunking
+        into smaller IN/ANY lists keeps each query fast.
 
         Args:
             class_ids: List of class IDs to fetch enrollments for
+            chunk_size: Number of class_ids per query chunk (default: 50)
 
         Returns:
             Dictionary mapping class_id to {'id': enrollment_id, 'status': enrollment_status}
@@ -722,38 +743,53 @@ class ScraperService:
         if not class_ids:
             return {}
 
-        # Use DISTINCT ON to get the most recent enrollment per class
-        # This is a PostgreSQL-specific feature that's very efficient
-        query = text("""
-            SELECT DISTINCT ON (class_id) class_id, id, enrollment_status
-            FROM enrollments
-            WHERE class_id = ANY(:class_ids)
-            ORDER BY class_id, scraped_at DESC
-        """)
-
-        result = self._execute_with_retry(query, {"class_ids": class_ids})
-
         latest_enrollments = {}
-        for row in result:
-            latest_enrollments[row[0]] = {  # class_id
-                "id": row[1],  # enrollment id
-                "status": row[2],  # enrollment_status
-            }
 
-        logger.debug(f"Found {len(latest_enrollments)} existing enrollments")
+        # Process class_ids in chunks to avoid timeout on large batches
+        for i in range(0, len(class_ids), chunk_size):
+            chunk = class_ids[i : i + chunk_size]
+
+            # Use DISTINCT ON to get the most recent enrollment per class
+            # This is a PostgreSQL-specific feature that's very efficient
+            query = text("""
+                SELECT DISTINCT ON (class_id) class_id, id, enrollment_status
+                FROM enrollments
+                WHERE class_id = ANY(:class_ids)
+                ORDER BY class_id, scraped_at DESC
+            """)
+
+            result = self._execute_with_retry(query, {"class_ids": chunk})
+
+            for row in result:
+                latest_enrollments[row[0]] = {  # class_id
+                    "id": row[1],  # enrollment id
+                    "status": row[2],  # enrollment_status
+                }
+
+            logger.debug(
+                f"Fetched latest enrollments for chunk {i // chunk_size + 1}: "
+                f"{len(chunk)} class_ids, {result.rowcount} found"
+            )
+
+        logger.debug(
+            f"Found {len(latest_enrollments)} existing enrollments across all chunks"
+        )
         return latest_enrollments
 
     def _batch_update_enrollment_timestamps(
-        self, enrollment_ids: List[int], scraped_at: datetime, batch_size: int = 100
+        self, enrollment_ids: List[int], scraped_at: datetime, batch_size: int = 50
     ) -> int:
         """
         Update scraped_at timestamp for existing enrollment records in batches.
         Used when status hasn't changed but we want to track last scrape time.
 
+        Reduced batch_size from 100 to 50 to match _get_latest_enrollments chunking
+        and minimize timeout risk on large updates.
+
         Args:
             enrollment_ids: List of enrollment IDs to update
             scraped_at: New timestamp to set
-            batch_size: Number of records to update per batch (default: 100)
+            batch_size: Number of records to update per batch (default: 50)
 
         Returns:
             Number of enrollments updated
