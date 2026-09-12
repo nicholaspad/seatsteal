@@ -154,13 +154,13 @@ class ScraperJob:
             else:
                 # Determine outcome: partial (0 courses) vs error (exception/failure)
                 outcome = result.stats.get("outcome", "error")
-                
+
                 # Only mark scraper as "error" for hard failures, not partials
                 scraper_status = "error" if outcome == "error" else "completed"
                 self.lock.release(
                     scraper_status, error_message=result.error, duration_ms=duration_ms
                 )
-                
+
                 if outcome == "partial":
                     logger.warning(
                         f"⚠️  Scraper job for {self.college.name} completed with issues after {duration_ms}ms: {result.error}"
@@ -175,8 +175,8 @@ class ScraperJob:
                     try:
                         log_service = ScraperLogService(self.db)
                         await log_service.complete_log(
-                            log_id, 
-                            outcome=outcome, 
+                            log_id,
+                            outcome=outcome,
                             error_message=result.error,
                             courses_created=result.stats.get("courses_saved", 0),
                             classes_created=result.stats.get("classes_saved", 0),
@@ -235,21 +235,30 @@ class ScraperJob:
                 if stats.get("success", False):
                     return JobResult(success=True, stats=stats)
                 else:
-                    # Scrape failed
-                    last_error = stats.get("error", "Unknown error during scraping")
+                    # Scrape failed - extract error with fallback to generic message
+                    error_from_stats = stats.get("error") or ""
+                    last_error = (
+                        error_from_stats
+                        if error_from_stats
+                        else "Unknown error during scraping"
+                    )
                     last_stats = stats
-                    
+
                     # Check outcome to determine if retry is appropriate
                     outcome = stats.get("outcome", "error")
-                    
+
                     # Non-retryable outcomes: partial (0 courses/enrollments) and budget_exceeded
                     if outcome in ["partial", "budget_exceeded"]:
-                        outcome_label = "Partial failure" if outcome == "partial" else "Budget exceeded (non-retryable)"
+                        outcome_label = (
+                            "Partial failure"
+                            if outcome == "partial"
+                            else "Budget exceeded (non-retryable)"
+                        )
                         logger.warning(
                             f"⚠️  {outcome_label} for {self.college.name} (attempt {attempt}): {last_error}"
                         )
                         return JobResult(success=False, error=last_error, stats=stats)
-                    
+
                     # Hard error - log and potentially retry
                     logger.error(
                         f"❌ Attempt {attempt}/{self.config.retry_attempts} failed for {self.college.name}: {last_error}"
@@ -277,9 +286,9 @@ class ScraperJob:
 
         # All retries exhausted - return failure with stats if available
         return JobResult(
-            success=False, 
+            success=False,
             error=last_error or "Unknown error during scraping",
-            stats=last_stats or {}
+            stats=last_stats or {},
         )
 
     def can_run(self) -> bool:
