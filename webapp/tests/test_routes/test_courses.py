@@ -199,6 +199,131 @@ class TestGetCourseClasses:
         # Might have test_class from fixture or be empty
         assert isinstance(data["data"], list)
 
+    @pytest.mark.unit
+    async def test_get_course_classes_hides_no_enrollment(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_course: Course,
+        test_college: College,
+    ):
+        """Test that classes without enrollment snapshots are hidden."""
+        from models.class_model import Class
+        from models.enrollment import Enrollment
+        from datetime import datetime, timezone
+
+        # Create class WITH enrollment - should appear
+        class_with_enrollment = Class(
+            course_id=test_course.id,
+            class_number="11111",
+            section_code="Z1",
+            is_active=True,
+        )
+        test_db.add(class_with_enrollment)
+        test_db.flush()
+
+        enrollment = Enrollment(
+            class_id=class_with_enrollment.class_id,
+            college_id=test_college.id,
+            enrollment_status="closed",
+            scraped_at=datetime.now(timezone.utc),
+        )
+        test_db.add(enrollment)
+
+        # Create class WITHOUT enrollment - should NOT appear
+        class_without_enrollment = Class(
+            course_id=test_course.id,
+            class_number="24073",
+            section_code="Z4",
+            is_active=True,
+        )
+        test_db.add(class_without_enrollment)
+
+        test_db.commit()
+
+        # Query the API
+        response = await client.get(f"/api/courses/{test_course.id}/classes")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+        returned_class_ids = [c["classId"] for c in data["data"]]
+
+        # Class with enrollment should be present
+        assert class_with_enrollment.class_id in returned_class_ids
+
+        # Class without enrollment should be HIDDEN
+        assert class_without_enrollment.class_id not in returned_class_ids
+
+    @pytest.mark.unit
+    async def test_get_course_classes_multiple_with_and_without_enrollment(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_course: Course,
+        test_college: College,
+    ):
+        """Test that only classes with enrollment snapshots are returned when mixed."""
+        from models.class_model import Class
+        from models.enrollment import Enrollment
+        from datetime import datetime, timezone
+
+        # Create 3 classes with enrollment
+        classes_with_enrollment = []
+        for i in range(3):
+            cls = Class(
+                course_id=test_course.id,
+                class_number=f"5000{i}",
+                section_code=f"E{i}",
+                is_active=True,
+            )
+            test_db.add(cls)
+            test_db.flush()
+
+            enrollment = Enrollment(
+                class_id=cls.class_id,
+                college_id=test_college.id,
+                enrollment_status="open" if i % 2 == 0 else "closed",
+                scraped_at=datetime.now(timezone.utc),
+            )
+            test_db.add(enrollment)
+            classes_with_enrollment.append(cls)
+
+        # Create 2 classes WITHOUT enrollment (stale/leftover)
+        classes_without_enrollment = []
+        for i in range(2):
+            cls = Class(
+                course_id=test_course.id,
+                class_number=f"6000{i}",
+                section_code=f"N{i}",
+                is_active=True,
+            )
+            test_db.add(cls)
+            classes_without_enrollment.append(cls)
+
+        test_db.commit()
+
+        # Query the API
+        response = await client.get(f"/api/courses/{test_course.id}/classes")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+        returned_class_ids = [c["classId"] for c in data["data"]]
+
+        # All classes with enrollment should be present
+        for cls in classes_with_enrollment:
+            assert cls.class_id in returned_class_ids
+
+        # All classes without enrollment should be HIDDEN
+        for cls in classes_without_enrollment:
+            assert cls.class_id not in returned_class_ids
+
+        # Should return exactly 3 classes (only those with enrollment)
+        assert len(returned_class_ids) == 3
+
 
 class TestGetCourseSummary:
     """Tests for GET /api/courses/{course_id}/summary endpoint."""
