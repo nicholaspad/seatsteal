@@ -191,6 +191,10 @@ async def get_courses(
                 for class_obj in classes:
                     enrollment_data = enrollments_by_class.get(class_obj.class_id)
 
+                    # Skip classes without enrollment snapshots (general hide rule)
+                    if not enrollment_data:
+                        continue
+
                     # Build class response
                     class_data = ClassInCourse(
                         class_id=class_obj.class_id,
@@ -200,16 +204,16 @@ async def get_courses(
                         created_at=class_obj.created_at,
                         updated_at=class_obj.updated_at,
                         is_active=class_obj.is_active,
-                        current_enrollment=(
-                            EnrollmentStatus(
-                                enrollment_status=enrollment_data["enrollment_status"],
-                                scraped_at=enrollment_data["scraped_at"].isoformat(),
-                            )
-                            if enrollment_data
-                            else None
+                        current_enrollment=EnrollmentStatus(
+                            enrollment_status=enrollment_data["enrollment_status"],
+                            scraped_at=enrollment_data["scraped_at"].isoformat(),
                         ),
                     )
                     classes_with_enrollment.append(class_data)
+
+                # Skip courses with no classes after filtering (don't show empty cards)
+                if not classes_with_enrollment:
+                    continue
 
                 # Build course response
                 course_data = CourseWithClasses(
@@ -352,9 +356,13 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
                 if latest_scraper_update is None or scraped_at > latest_scraper_update:
                     latest_scraper_update = scraped_at
 
-            # Build class responses
+            # Build class responses - only include classes with enrollment snapshots
             for class_obj in classes:
                 enrollment_data = enrollments_by_class.get(class_obj.class_id)
+
+                # Skip classes without enrollment snapshots (general hide rule)
+                if not enrollment_data:
+                    continue
 
                 class_data = ClassInCourse(
                     class_id=class_obj.class_id,
@@ -364,13 +372,9 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
                     created_at=class_obj.created_at,
                     updated_at=class_obj.updated_at,
                     is_active=class_obj.is_active,
-                    current_enrollment=(
-                        EnrollmentStatus(
-                            enrollment_status=enrollment_data["enrollment_status"],
-                            scraped_at=enrollment_data["scraped_at"].isoformat(),
-                        )
-                        if enrollment_data
-                        else None
+                    current_enrollment=EnrollmentStatus(
+                        enrollment_status=enrollment_data["enrollment_status"],
+                        scraped_at=enrollment_data["scraped_at"].isoformat(),
                     ),
                 )
                 classes_with_enrollment.append(class_data)

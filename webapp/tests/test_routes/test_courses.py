@@ -19,8 +19,9 @@ class TestGetCourses:
         client: AsyncClient,
         test_course: Course,
         test_class: Class,
+        test_enrollment,
     ):
-        """Test successfully getting courses."""
+        """Test successfully getting courses (requires enrollment for classes to appear)."""
         response = await client.get("/api/courses/")
 
         assert response.status_code == 200
@@ -53,8 +54,10 @@ class TestGetCourses:
         self,
         client: AsyncClient,
         test_course: Course,
+        test_class: Class,
+        test_enrollment,
     ):
-        """Test courses with search query."""
+        """Test courses with search query (requires enrollment for course to appear)."""
         response = await client.get(f"/api/courses/?q={test_course.course_code}")
 
         assert response.status_code == 200
@@ -96,6 +99,175 @@ class TestGetCourses:
         data = response_json["data"]
         assert len(data["data"]) == 0
         assert data["pagination"]["total"] == 0
+
+    @pytest.mark.unit
+    async def test_get_courses_hides_classes_without_enrollment(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        """Test that courses list hides classes without enrollment and excludes empty courses."""
+        from models.course import Course
+        from models.class_model import Class
+        from models.enrollment import Enrollment
+        from datetime import datetime, timezone
+
+        # Course 1: Has class WITH enrollment - should appear
+        course_with_enrollment = Course(
+            college_id=test_college.id,
+            course_code="VALID101",
+            title="Course With Enrollment",
+            is_active=True,
+        )
+        test_db.add(course_with_enrollment)
+        test_db.flush()
+
+        class_with_enrollment = Class(
+            course_id=course_with_enrollment.id,
+            class_number="11111",
+            section_code="A",
+            is_active=True,
+        )
+        test_db.add(class_with_enrollment)
+        test_db.flush()
+
+        enrollment = Enrollment(
+            class_id=class_with_enrollment.class_id,
+            college_id=test_college.id,
+            enrollment_status="open",
+            scraped_at=datetime.now(timezone.utc),
+        )
+        test_db.add(enrollment)
+
+        # Course 2: Has ONLY classes WITHOUT enrollment - should NOT appear
+        course_without_enrollment = Course(
+            college_id=test_college.id,
+            course_code="STALE999",
+            title="Odasis Leftover Course",
+            is_active=True,
+        )
+        test_db.add(course_without_enrollment)
+        test_db.flush()
+
+        # Create 2 stale classes like Rutgers Odasis Z4/Z2
+        for i, section in enumerate(["Z4", "Z2"]):
+            stale_class = Class(
+                course_id=course_without_enrollment.id,
+                class_number=f"2407{3+i}",
+                section_code=section,
+                is_active=True,
+            )
+            test_db.add(stale_class)
+
+        # Course 3: Mixed - has classes WITH and WITHOUT enrollment
+        course_mixed = Course(
+            college_id=test_college.id,
+            course_code="MIXED202",
+            title="Mixed Course",
+            is_active=True,
+        )
+        test_db.add(course_mixed)
+        test_db.flush()
+
+        # Class with enrollment
+        class_with_enroll_mixed = Class(
+            course_id=course_mixed.id,
+            class_number="22222",
+            section_code="B",
+            is_active=True,
+        )
+        test_db.add(class_with_enroll_mixed)
+        test_db.flush()
+
+        enrollment_mixed = Enrollment(
+            class_id=class_with_enroll_mixed.class_id,
+            college_id=test_college.id,
+            enrollment_status="closed",
+            scraped_at=datetime.now(timezone.utc),
+        )
+        test_db.add(enrollment_mixed)
+
+        # Class without enrollment (stale)
+        class_without_enroll_mixed = Class(
+            course_id=course_mixed.id,
+            class_number="22223",
+            section_code="C",
+            is_active=True,
+        )
+        test_db.add(class_without_enroll_mixed)
+
+        test_db.commit()
+
+        # Query the API
+        response = await client.get("/api/courses/")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        courses = response_json["data"]["data"]
+
+        # Extract course codes
+        returned_course_codes = [c["courseCode"] for c in courses]
+
+        # Course with enrollment should appear
+        assert "VALID101" in returned_course_codes
+
+        # Course with ONLY stale classes should NOT appear (empty card removed)
+        assert "STALE999" not in returned_course_codes
+
+        # Mixed course should appear
+        assert "MIXED202" in returned_course_codes
+
+        # Verify mixed course only has 1 class (the one with enrollment)
+        mixed_course_data = next(c for c in courses if c["courseCode"] == "MIXED202")
+        assert len(mixed_course_data["classes"]) == 1
+        assert mixed_course_data["classes"][0]["sectionCode"] == "B"
+        assert mixed_course_data["classes"][0]["currentEnrollment"] is not None
+
+    @pytest.mark.unit
+    async def test_get_courses_search_excludes_leftover_courses(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        """Test that searching for Odasis-style leftover courses returns no results."""
+        from models.course import Course
+        from models.class_model import Class
+
+        # Create Odasis-style leftover course with no enrollment
+        odasis_course = Course(
+            college_id=test_college.id,
+            course_code="01:001:161",
+            title="Odasis Program",
+            is_active=True,
+        )
+        test_db.add(odasis_course)
+        test_db.flush()
+
+        # Create Z4 and Z2 sections like in prod
+        for crn, section in [(24073, "Z4"), (24075, "Z2")]:
+            stale_class = Class(
+                course_id=odasis_course.id,
+                class_number=str(crn),
+                section_code=section,
+                is_active=True,
+            )
+            test_db.add(stale_class)
+
+        test_db.commit()
+
+        # Search for Odasis - should return 0 results
+        response = await client.get("/api/courses/?q=Odasis")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        courses = response_json["data"]["data"]
+
+        # Should not find any courses (all classes filtered out)
+        assert len(courses) == 0
 
 
 class TestGetCourse:
@@ -153,6 +325,101 @@ class TestGetCourse:
         response = await client.get(f"/api/courses/{inactive_course.id}")
 
         assert response.status_code == 404
+
+    @pytest.mark.unit
+    async def test_get_course_detail_hides_classes_without_enrollment(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        """Test that course detail endpoint hides classes without enrollment."""
+        from models.course import Course
+        from models.class_model import Class
+        from models.enrollment import Enrollment
+        from datetime import datetime, timezone
+
+        # Create course with mixed classes
+        course = Course(
+            college_id=test_college.id,
+            course_code="MIXED303",
+            title="Course With Mixed Classes",
+            is_active=True,
+        )
+        test_db.add(course)
+        test_db.flush()
+
+        # Class 1: WITH enrollment - should appear
+        class_with_enrollment = Class(
+            course_id=course.id,
+            class_number="30001",
+            section_code="A",
+            is_active=True,
+        )
+        test_db.add(class_with_enrollment)
+        test_db.flush()
+
+        enrollment = Enrollment(
+            class_id=class_with_enrollment.class_id,
+            college_id=test_college.id,
+            enrollment_status="open",
+            scraped_at=datetime.now(timezone.utc),
+        )
+        test_db.add(enrollment)
+
+        # Class 2: WITHOUT enrollment - should be hidden
+        class_without_enrollment = Class(
+            course_id=course.id,
+            class_number="30002",
+            section_code="Z9",
+            is_active=True,
+        )
+        test_db.add(class_without_enrollment)
+
+        # Class 3: WITH enrollment - should appear
+        class_with_enrollment_2 = Class(
+            course_id=course.id,
+            class_number="30003",
+            section_code="B",
+            is_active=True,
+        )
+        test_db.add(class_with_enrollment_2)
+        test_db.flush()
+
+        enrollment_2 = Enrollment(
+            class_id=class_with_enrollment_2.class_id,
+            college_id=test_college.id,
+            enrollment_status="closed",
+            scraped_at=datetime.now(timezone.utc),
+        )
+        test_db.add(enrollment_2)
+
+        test_db.commit()
+
+        # Query the API
+        response = await client.get(f"/api/courses/{course.id}")
+
+        assert response.status_code == 200
+        response_json = response.json()
+        assert response_json["success"] is True
+        course_data = response_json["data"]
+
+        # Should have exactly 2 classes (the ones with enrollment)
+        assert len(course_data["classes"]) == 2
+
+        # Verify the correct classes are returned
+        section_codes = [c["sectionCode"] for c in course_data["classes"]]
+        assert "A" in section_codes
+        assert "B" in section_codes
+        assert "Z9" not in section_codes
+
+        # All returned classes should have currentEnrollment
+        for class_data in course_data["classes"]:
+            assert class_data["currentEnrollment"] is not None
+            assert class_data["currentEnrollment"]["enrollmentStatus"] in [
+                "open",
+                "closed",
+            ]
 
 
 class TestGetCourseClasses:
