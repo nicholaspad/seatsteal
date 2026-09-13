@@ -164,8 +164,9 @@ class TestGetCourseClasses:
         client: AsyncClient,
         test_course: Course,
         test_class: Class,
+        test_enrollment,
     ):
-        """Test successfully getting course classes."""
+        """Test successfully getting course classes (requires enrollment for class to appear)."""
         response = await client.get(f"/api/courses/{test_course.id}/classes")
 
         assert response.status_code == 200
