@@ -54,8 +54,10 @@ class TestGetCourses:
         self,
         client: AsyncClient,
         test_course: Course,
+        test_class: Class,
+        test_enrollment,
     ):
-        """Test courses with search query."""
+        """Test courses with search query (requires enrollment for course to appear)."""
         response = await client.get(f"/api/courses/?q={test_course.course_code}")
 
         assert response.status_code == 200
@@ -414,7 +416,10 @@ class TestGetCourse:
         # All returned classes should have currentEnrollment
         for class_data in course_data["classes"]:
             assert class_data["currentEnrollment"] is not None
-            assert class_data["currentEnrollment"]["enrollmentStatus"] in ["open", "closed"]
+            assert class_data["currentEnrollment"]["enrollmentStatus"] in [
+                "open",
+                "closed",
+            ]
 
 
 class TestGetCourseClasses:
