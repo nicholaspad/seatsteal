@@ -414,7 +414,7 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{course_id}/classes")
 async def get_course_classes(course_id: int, db: Session = Depends(get_db)):
-    """Get classes for a specific course"""
+    """Get classes for a specific course (only returns classes with enrollment snapshots)"""
     try:
         # Verify course exists
         course_result = db.execute(
@@ -475,9 +475,14 @@ async def get_course_classes(course_id: int, db: Session = Depends(get_db)):
                 for row in latest_enrollments_list
             }
 
-            # Build class responses
+            # Build class responses - ONLY include classes with enrollment snapshots
+            # This prevents "?" status from appearing in the UI for leftover/stale classes
             for class_obj in classes:
                 enrollment_data = enrollments_by_class.get(class_obj.class_id)
+
+                # Skip classes without enrollment snapshots (general hide rule)
+                if not enrollment_data:
+                    continue
 
                 class_data = {
                     "classId": class_obj.class_id,
@@ -487,14 +492,10 @@ async def get_course_classes(course_id: int, db: Session = Depends(get_db)):
                     "createdAt": class_obj.created_at,
                     "updatedAt": class_obj.updated_at,
                     "isActive": class_obj.is_active,
-                    "currentEnrollment": (
-                        {
-                            "enrollmentStatus": enrollment_data["enrollment_status"],
-                            "scrapedAt": enrollment_data["scraped_at"].isoformat(),
-                        }
-                        if enrollment_data
-                        else None
-                    ),
+                    "currentEnrollment": {
+                        "enrollmentStatus": enrollment_data["enrollment_status"],
+                        "scrapedAt": enrollment_data["scraped_at"].isoformat(),
+                    },
                 }
                 classes_with_enrollment.append(class_data)
 
