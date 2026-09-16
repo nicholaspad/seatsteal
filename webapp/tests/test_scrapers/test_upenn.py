@@ -15,7 +15,6 @@ from scraper.scrapers.upenn import UPennScraper
 from models.college import College
 from tests.test_scrapers.conftest import create_mock_response
 
-
 # Sample UPenn FOSE API response data
 SAMPLE_UPENN_COURSE_LIST = [
     {
@@ -143,6 +142,14 @@ class TestUPennScraper:
 
         assert scraper._map_status_code("X") == "Closed"
         assert scraper._map_status_code("x") == "Closed"
+
+    @pytest.mark.unit
+    def test_map_status_code_full(self, mock_upenn_db_session):
+        """Test status code mapping for full status (FOSE 'F')."""
+        scraper = UPennScraper(mock_upenn_db_session)
+
+        assert scraper._map_status_code("F") == "Closed"
+        assert scraper._map_status_code("f") == "Closed"
 
     @pytest.mark.unit
     def test_map_status_code_unknown(self, mock_upenn_db_session):
@@ -284,6 +291,27 @@ class TestUPennScraper:
 
         # Should return None because the only class has Unknown status
         assert result is None
+
+    @pytest.mark.unit
+    async def test_fetch_course_classes_keeps_full_status(self, mock_upenn_db_session):
+        """Test that Full (F) sections are kept as Closed, not discarded."""
+        scraper = UPennScraper(mock_upenn_db_session)
+
+        course = {
+            "code": "CIS 1100",
+            "title": "Introduction to Computer Programming",
+            "crn": "12348",
+            "no": "003",
+            "stat": "F",
+            "linked_crns": [],
+        }
+
+        result = await scraper._fetch_course_classes(course)
+
+        assert result is not None
+        assert len(result["classes"]) == 1
+        assert result["classes"][0]["status"] == "Closed"
+        assert result["classes"][0]["class_number"] == "12348"
 
     @pytest.mark.unit
     async def test_fetch_course_classes_with_missing_code(self, mock_upenn_db_session):
