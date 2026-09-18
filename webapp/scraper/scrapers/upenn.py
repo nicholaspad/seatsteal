@@ -413,6 +413,8 @@ class UPennScraper(BaseScraper):
             return "Closed"
         elif status_code_upper == "X":  # Cancelled
             return "Closed"
+        elif status_code_upper == "F":  # Full
+            return "Closed"
         else:
             return "Unknown"
 
