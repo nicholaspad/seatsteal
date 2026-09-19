@@ -135,6 +135,43 @@
   .gradient-premium-combo svg {
     color: rgb(59 130 246);
   }
+
+  /*
+   * Landing hero headline: blocky all-caps, one line on iPhone 17 Pro (~393px).
+   *
+   * Bebas Neue "COURSE FULL?" is 4.28em wide (4.50em with 0.02em tracking).
+   * The frame is a container query: 16px inline padding on a 393px viewport
+   * leaves a 361px content box. 21.8cqi ≈ 79px, so the headline fills that
+   * line without wrapping or ellipsis. vw is a fallback before cqi.
+   * Desktop is capped at 9rem so it stays large without going billboard-sized.
+   */
+  .hero-headline-frame {
+    container-type: inline-size;
+    width: 100%;
+    max-width: 100%;
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+  }
+
+  .hero-headline {
+    font-family:
+      "Bebas Neue", Impact, Haettenschweiler, "Arial Narrow", sans-serif;
+    font-weight: 400;
+    font-synthesis: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: keep-all;
+    line-height: 0.95;
+    letter-spacing: 0.02em;
+    width: 100%;
+    max-width: 100%;
+    /* 20.1vw ≈ 79px at 393px; 21.8cqi fills the 361px padded content box */
+    font-size: clamp(2.75rem, 20.1vw, 9rem);
+    font-size: clamp(2.75rem, 21.8cqi, 9rem);
+  }
 }
 
 @layer base {

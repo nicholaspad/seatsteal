@@ -14,6 +14,13 @@ export default {
     extend: {
       fontFamily: {
         sans: ["Geist Sans", "sans-serif"],
+        display: [
+          "Bebas Neue",
+          "Impact",
+          "Haettenschweiler",
+          "Arial Narrow",
+          "sans-serif",
+        ],
       },
       colors: {
         border: "hsl(var(--border))",

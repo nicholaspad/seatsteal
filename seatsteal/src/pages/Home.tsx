@@ -1,6 +1,7 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import "@fontsource/bebas-neue";
 import { FAQSection } from "@/components/home/faq-section";
 import { PricingTiers } from "@/components/home/pricing-tiers";
 import { ReferralAlert } from "@/components/referral/ReferralAlert";
@@ -72,15 +73,14 @@ export default function Home() {
 
             {/* Main content - centered vertically */}
             <div className="flex-1 flex items-center justify-center">
-              <div className="container mx-auto px-4 text-center space-y-8 relative z-10">
+              <div className="w-full text-center space-y-8 relative z-10">
                 <div className="space-y-4">
-                  <h1
-                    className="text-6xl md:text-8xl lg:text-9xl tracking-tight text-white drop-shadow-lg"
-                    style={{ fontWeight: 800 }}
-                  >
-                    Course full?
-                  </h1>
-                  <p className="text-2xl md:text-3xl text-gray-200 drop-shadow-md flex items-center justify-center gap-3">
+                  <div className="hero-headline-frame">
+                    <h1 className="hero-headline font-display text-white drop-shadow-lg">
+                      COURSE FULL?
+                    </h1>
+                  </div>
+                  <p className="text-2xl md:text-3xl text-gray-200 drop-shadow-md flex items-center justify-center gap-3 px-4">
                     <span className="relative w-5 h-5">
                       {/* Radar sweep animation */}
                       <span className="absolute inset-0 rounded-full bg-green-500/20"></span>
@@ -92,7 +92,7 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-12">
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-12 px-4">
                   <Button
                     asChild
                     size="lg"
