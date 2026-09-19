@@ -35,6 +35,13 @@ describe("Home Page", () => {
       ).toBeInTheDocument();
     });
 
+    it("keeps the iPhone mockup in a clipped slot above the fold", () => {
+      renderAnonymous(<Home />);
+
+      expect(screen.getByTestId("iphone-mockup-slot")).toBeInTheDocument();
+      expect(screen.getByTestId("iphone-notification")).toBeInTheDocument();
+    });
+
     it("keeps the hero headline on one uppercase line", () => {
       renderAnonymous(<Home />);
 
