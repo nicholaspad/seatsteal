@@ -1,6 +1,7 @@
 import { IonContent, IonPage } from "@ionic/react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import "@fontsource/bebas-neue";
 import { FAQSection } from "@/components/home/faq-section";
 import { PricingTiers } from "@/components/home/pricing-tiers";
 import { ReferralAlert } from "@/components/referral/ReferralAlert";
@@ -66,22 +67,22 @@ export default function Home() {
       <IonContent>
         <ReferralAlert />
         <div className="bg-black text-foreground">
-          {/* Hero Section */}
-          <section className="min-h-screen flex flex-col relative overflow-hidden bg-black">
+          {/* Hero fills the visible frame minus header (~4rem) + footer (~3rem)
+              so the phone peek sits flush above Privacy/Terms/Feedback. */}
+          <section className="relative flex min-h-[calc(100svh-7rem)] flex-col overflow-hidden bg-black">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-black"></div>
 
-            {/* Main content - centered vertically */}
-            <div className="flex-1 flex items-center justify-center">
-              <div className="container mx-auto px-4 text-center space-y-8 relative z-10">
+            {/* Main content - centered in the space above the phone peek */}
+            <div className="relative z-10 flex flex-1 flex-col items-center justify-center">
+              <div className="w-full space-y-8 text-center">
                 <div className="space-y-4">
-                  <h1
-                    className="text-6xl md:text-8xl lg:text-9xl tracking-tight text-white drop-shadow-lg"
-                    style={{ fontWeight: 800 }}
-                  >
-                    Course full?
-                  </h1>
-                  <p className="text-2xl md:text-3xl text-gray-200 drop-shadow-md flex items-center justify-center gap-3">
-                    <span className="relative w-5 h-5">
+                  <div className="hero-headline-frame">
+                    <h1 className="hero-headline font-display text-white drop-shadow-lg">
+                      COURSE FULL?
+                    </h1>
+                  </div>
+                  <p className="flex items-center justify-center gap-3 px-4 text-2xl text-gray-200 drop-shadow-md md:text-3xl">
+                    <span className="relative h-5 w-5">
                       {/* Radar sweep animation */}
                       <span className="absolute inset-0 rounded-full bg-green-500/20"></span>
                       <span className="absolute inset-0 rounded-full bg-gradient-conic from-transparent via-transparent to-green-400 animate-radar"></span>
@@ -92,11 +93,11 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-12">
+                <div className="mt-8 flex flex-col items-center justify-center gap-4 px-4 sm:mt-12 sm:flex-row">
                   <Button
                     asChild
                     size="lg"
-                    className="text-lg px-6 py-4 bg-white text-black hover:bg-white/90"
+                    className="bg-white px-6 py-4 text-lg text-black hover:bg-white/90"
                   >
                     <a href="/login">Get started</a>
                   </Button>
@@ -104,7 +105,7 @@ export default function Home() {
                     asChild
                     size="lg"
                     variant="outline"
-                    className="text-lg px-6 py-4 border-white bg-black text-white hover:bg-white/10"
+                    className="border-white bg-black px-6 py-4 text-lg text-white hover:bg-white/10"
                   >
                     <a
                       href="https://forms.gle/nh2T76j8Pysp1rax5"
@@ -118,8 +119,13 @@ export default function Home() {
               </div>
             </div>
 
-            {/* iPhone Mockup - positioned at bottom, only top visible */}
-            <IPhoneMockup />
+            {/* Clip just below the banner so the date is covered, not revealed */}
+            <div
+              className="relative z-0 h-[148px] w-full shrink-0 overflow-hidden md:h-[156px]"
+              data-testid="iphone-mockup-slot"
+            >
+              <IPhoneMockup />
+            </div>
           </section>
 
           {/* Social Proof Stats */}

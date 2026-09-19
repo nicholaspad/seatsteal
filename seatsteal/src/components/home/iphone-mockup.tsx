@@ -1,44 +1,46 @@
 import { useEffect, useState, useRef } from "react";
 
+type NotificationPhase = "idle" | "arming" | "dropping" | "settled";
+
+const ARM_DELAY_MS = 900;
+const DROP_DELAY_MS = 1120;
+
 export function IPhoneMockup() {
-  const [showNotification, setShowNotification] = useState(false);
-  const [hasTriggered, setHasTriggered] = useState(false);
+  const [phase, setPhase] = useState<NotificationPhase>("idle");
   const containerRef = useRef<HTMLDivElement>(null);
+  const notificationVisible = phase === "dropping" || phase === "settled";
 
   useEffect(() => {
-    if (hasTriggered) return;
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
 
-    // Find the IonContent's shadow DOM scroll container
-    const ionContent = document.querySelector("ion-content");
-    if (!ionContent) return;
+    if (reducedMotion) {
+      setPhase("settled");
+      return;
+    }
 
-    const handleScroll = (e: Event) => {
-      const scrollEl = e.target as HTMLElement;
-      // Require scrolling down at least 250px before showing notification
-      if (!hasTriggered && scrollEl.scrollTop > 250) {
-        setShowNotification(true);
-        setHasTriggered(true);
-      }
-    };
-
-    // IonContent uses a shadow DOM, need to get the scroll element
-    ionContent.getScrollElement().then((scrollEl) => {
-      scrollEl.addEventListener("scroll", handleScroll, {
-        passive: true,
-      });
-    });
+    const armTimer = window.setTimeout(() => setPhase("arming"), ARM_DELAY_MS);
+    const dropTimer = window.setTimeout(
+      () => setPhase("dropping"),
+      DROP_DELAY_MS,
+    );
+    const settleTimer = window.setTimeout(
+      () => setPhase("settled"),
+      DROP_DELAY_MS + 720,
+    );
 
     return () => {
-      ionContent.getScrollElement().then((scrollEl) => {
-        scrollEl.removeEventListener("scroll", handleScroll);
-      });
+      window.clearTimeout(armTimer);
+      window.clearTimeout(dropTimer);
+      window.clearTimeout(settleTimer);
     };
-  }, [hasTriggered]);
+  }, []);
 
   return (
     <div
       ref={containerRef}
-      className="absolute -bottom-[500px] md:-bottom-[580px] left-1/2 -translate-x-1/2 w-[320px] md:w-[380px] z-0"
+      className="absolute left-1/2 top-0 z-0 w-[320px] -translate-x-1/2 md:w-[380px]"
     >
       {/* iPhone Frame */}
       <div className="relative">
@@ -56,49 +58,59 @@ export function IPhoneMockup() {
                 <div className="absolute bottom-[20%] left-[30%] w-36 h-36 bg-blue-600/20 rounded-full blur-3xl animate-pulse-slow"></div>
               </div>
 
-              {/* Dynamic Island */}
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[100px] h-[32px] bg-black rounded-full z-30"></div>
-
-              {/* Push Notification */}
+              {/* Dynamic Island — pulses before the banner drops out of it */}
               <div
-                className={`absolute top-14 left-3 right-3 z-40 transition-all duration-500 ease-out ${
-                  showNotification
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 -translate-y-4"
+                className={`iphone-island absolute top-3 left-1/2 w-[100px] h-[32px] bg-black rounded-full z-50 ${
+                  phase === "arming" ? "iphone-island-arming" : ""
                 }`}
+              />
+
+              {/* Push Notification — springs out of the Dynamic Island */}
+              <div
+                className={`iphone-banner absolute top-[52px] left-2.5 right-2.5 z-40 ${
+                  phase === "dropping"
+                    ? "iphone-banner-dropping"
+                    : phase === "settled"
+                      ? "iphone-banner-settled"
+                      : ""
+                }`}
+                data-testid="iphone-notification"
+                aria-hidden={!notificationVisible}
               >
-                <div className="bg-white/90 backdrop-blur-xl rounded-2xl p-3 shadow-lg">
-                  <div className="flex items-start gap-3">
-                    {/* iMessage icon */}
-                    <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                <div className="relative overflow-hidden rounded-[20px] bg-white/80 backdrop-blur-2xl shadow-[0_10px_28px_rgba(0,0,0,0.28)] ring-1 ring-white/40">
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/70" />
+                  <div className="flex items-start gap-2.5 p-2.5">
+                    {/* iMessage app icon */}
+                    <div className="w-[38px] h-[38px] rounded-[10px] bg-gradient-to-b from-[#5AFD6E] to-[#20C45A] flex items-center justify-center flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
                       <svg
-                        className="w-6 h-6 text-white"
+                        className="w-[22px] h-[22px] text-white"
                         viewBox="0 0 24 24"
                         fill="currentColor"
+                        aria-hidden="true"
                       >
-                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+                        <path d="M12 2C6.48 2 2 5.92 2 10.75c0 2.86 1.67 5.38 4.24 6.95L5.2 21.4c-.16.38.27.73.62.51l4.55-2.85c.53.1 1.07.14 1.63.14 5.52 0 10-3.92 10-8.75S17.52 2 12 2z" />
                       </svg>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-gray-900 uppercase tracking-wide">
-                          SeatSteal
+                    <div className="flex-1 min-w-0 pt-px">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-black/55 tracking-[0.04em]">
+                          MESSAGES
                         </span>
-                        <span className="text-xs text-gray-500">now</span>
+                        <span className="text-[11px] text-black/40">now</span>
                       </div>
-                      <p className="text-sm font-medium text-gray-900 mt-0.5">
-                        🎉 Seat available in Intro to CS!
+                      <p className="text-[13px] font-semibold text-black tracking-tight leading-tight mt-0.5">
+                        SeatSteal
                       </p>
-                      <p className="text-sm text-gray-600 leading-snug">
-                        Intro to CS (CS 103) 01 at Rutgers is OPEN!
+                      <p className="text-[13px] text-black/70 leading-snug">
+                        Seat available in Intro to CS (CS 103) at Rutgers
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Date widget area */}
-              <div className="absolute top-24 left-0 right-0 text-center text-white z-10 mt-8">
+              {/* Date sits behind the banner so the drop covers it */}
+              <div className="absolute top-[62px] left-0 right-0 z-10 text-center text-white">
                 <p className="text-sm font-medium opacity-90">
                   {new Date().toLocaleDateString("en-US", {
                     weekday: "long",

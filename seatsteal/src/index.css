@@ -103,6 +103,40 @@
   }
 }
 
+/* iPhone mockup: Dynamic Island "live activity" pulse, then banner drop */
+@keyframes island-arm {
+  0% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+  45% {
+    transform: translateX(-50%) scale(1.16, 1.08);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+@keyframes banner-from-island {
+  0% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.55, 0.28);
+    filter: blur(6px);
+  }
+  62% {
+    opacity: 1;
+    transform: translateY(4px) scale(1.03, 1.045);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 @layer utilities {
   .animate-radar {
     animation: radar-sweep 2s linear infinite;
@@ -134,6 +168,83 @@
 
   .gradient-premium-combo svg {
     color: rgb(59 130 246);
+  }
+
+  /*
+   * Landing hero headline: blocky all-caps, one line on iPhone 17 Pro (~393px).
+   *
+   * Bebas Neue "COURSE FULL?" is 4.28em wide (4.50em with 0.02em tracking).
+   * The frame is a container query: 16px inline padding on a 393px viewport
+   * leaves a 361px content box. 21.8cqi ≈ 79px, so the headline fills that
+   * line without wrapping or ellipsis. vw is a fallback before cqi.
+   * Desktop is capped at 9rem so it stays large without going billboard-sized.
+   */
+  .hero-headline-frame {
+    container-type: inline-size;
+    width: 100%;
+    max-width: 100%;
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+  }
+
+  .hero-headline {
+    font-family:
+      "Bebas Neue", Impact, Haettenschweiler, "Arial Narrow", sans-serif;
+    font-weight: 400;
+    font-synthesis: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: keep-all;
+    line-height: 0.95;
+    letter-spacing: 0.02em;
+    width: 100%;
+    max-width: 100%;
+    /* 20.1vw ≈ 79px at 393px; 21.8cqi fills the 361px padded content box */
+    font-size: clamp(2.75rem, 20.1vw, 9rem);
+    font-size: clamp(2.75rem, 21.8cqi, 9rem);
+  }
+
+  .iphone-island {
+    transform: translateX(-50%);
+  }
+
+  .iphone-island-arming {
+    animation: island-arm 420ms cubic-bezier(0.22, 1.15, 0.36, 1) both;
+  }
+
+  .iphone-banner {
+    transform-origin: top center;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-18px) scale(0.55, 0.28);
+  }
+
+  .iphone-banner-dropping {
+    animation: banner-from-island 720ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
+    pointer-events: auto;
+  }
+
+  .iphone-banner-settled {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .iphone-island-arming,
+    .iphone-banner-dropping {
+      animation: none;
+    }
+
+    .iphone-banner-dropping,
+    .iphone-banner-settled {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
   }
 }
 

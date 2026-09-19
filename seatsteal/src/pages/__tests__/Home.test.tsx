@@ -24,10 +24,34 @@ describe("Home Page", () => {
     it("renders hero section with main headline", () => {
       renderAnonymous(<Home />);
 
-      expect(screen.getByText("Course full?")).toBeInTheDocument();
+      const headline = screen.getByRole("heading", {
+        level: 1,
+        name: "COURSE FULL?",
+      });
+      expect(headline).toBeInTheDocument();
+      expect(headline).toHaveClass("hero-headline");
       expect(
         screen.getByText("Get notified when a seat opens up."),
       ).toBeInTheDocument();
+    });
+
+    it("keeps the iPhone mockup in a clipped slot above the fold", () => {
+      renderAnonymous(<Home />);
+
+      expect(screen.getByTestId("iphone-mockup-slot")).toBeInTheDocument();
+      expect(screen.getByTestId("iphone-notification")).toBeInTheDocument();
+    });
+
+    it("keeps the hero headline on one uppercase line", () => {
+      renderAnonymous(<Home />);
+
+      const headline = screen.getByRole("heading", {
+        level: 1,
+        name: "COURSE FULL?",
+      });
+      expect(headline).toHaveClass("hero-headline");
+      expect(headline.className).not.toMatch(/truncate|ellipsis/);
+      expect(headline.parentElement).toHaveClass("hero-headline-frame");
     });
 
     it("renders call-to-action buttons", () => {
@@ -70,7 +94,7 @@ describe("Home Page", () => {
       renderAnonymous(<Home />);
 
       // Page should still render even if API fails
-      expect(screen.getByText("Course full?")).toBeInTheDocument();
+      expect(screen.getByText("COURSE FULL?")).toBeInTheDocument();
     });
 
     it("handles empty colleges array gracefully", async () => {
@@ -83,7 +107,7 @@ describe("Home Page", () => {
 
       // Page should still render with empty colleges
       await waitFor(() => {
-        expect(screen.getByText("Course full?")).toBeInTheDocument();
+        expect(screen.getByText("COURSE FULL?")).toBeInTheDocument();
         expect(screen.getByText("FAQs")).toBeInTheDocument();
       });
     });
