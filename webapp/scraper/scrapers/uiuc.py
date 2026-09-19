@@ -434,6 +434,12 @@ class UiucScraper(BaseScraper):
             tasks = [fetch_one(subject, course_id) for subject, course_id in batch]
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
+            # Consecutive structure-miss abort may have fired mid-batch; raise the
+            # streak error rather than the first course's exhausted-retry exception.
+            if self._soft_block_abort:
+                logger.error(str(self._soft_block_abort))
+                raise self._soft_block_abort
+
             # Process results and handle exceptions
             for idx, result in enumerate(batch_results):
                 subject, course_id = batch[idx]
@@ -450,10 +456,7 @@ class UiucScraper(BaseScraper):
                     courses_failed += 1
                     logger.warning(f"HTTP error for {subject} {course_id}: {result}")
                 elif isinstance(result, UiucSoftBlockError):
-                    # Consecutive structure-miss abort — fail immediately (do not burn remaining IDs)
-                    if self._soft_block_abort or "consecutive structure-miss" in str(
-                        result
-                    ):
+                    if "consecutive structure-miss" in str(result):
                         logger.error(str(result))
                         raise result
                     courses_failed += 1

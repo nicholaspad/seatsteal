@@ -1302,7 +1302,7 @@ async def test_malformed_html_parse_failure_integration(scraper):
             return mock_response
 
         # Mock returns different responses based on course_id
-        mock_fetch.side_effect = lambda url: make_response(url.split("/")[-1])
+        mock_fetch.side_effect = lambda url, **kwargs: make_response(url.split("/")[-1])
 
         # Should raise RuntimeError due to >20% parse failure rate
         with pytest.raises(RuntimeError, match="Material partial failure"):
@@ -1490,7 +1490,7 @@ async def test_material_partial_small_run(scraper):
             return mock_response
 
         # Mock returns different responses based on course_id
-        mock_fetch.side_effect = lambda url: make_response(url.split("/")[-1])
+        mock_fetch.side_effect = lambda url, **kwargs: make_response(url.split("/")[-1])
 
         # Should raise RuntimeError due to >20% failure rate (2/5 = 40%)
         # Even though total_courses = 5 ≤ 10, material-partial should still apply
