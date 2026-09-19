@@ -1513,6 +1513,15 @@ def _mock_http_response(status_code: int, content: bytes, headers=None):
     return mock_response
 
 
+def test_soft_block_pacing_constants(scraper):
+    """Serial crawl + longer waits after log 11063 still tripped at conc=2."""
+    assert scraper.MAX_CONCURRENT_COURSES == 1
+    assert scraper.INTER_BATCH_SLEEP_SECONDS == 3.0
+    assert scraper.INTER_BATCH_SLEEP_JITTER == 0.5
+    assert scraper.RETRY_BACKOFF_DELAYS == [4, 8, 16]
+    assert scraper.MAX_CONSECUTIVE_SOFT_BLOCKS == 15
+
+
 def test_is_course_html_soft_block_missing_heading(scraper):
     """HTTP 200 body without h1.fw-bold is a soft-block."""
     assert scraper._is_course_html_soft_block(SAMPLE_COURSE_HTML_SOFT_BLOCK.encode())
@@ -1614,8 +1623,9 @@ async def test_consecutive_soft_block_abort(scraper):
         ):
             await scraper._fetch_courses_concurrent("2026", "fall", course_ids)
 
-        # Response-level abort at MAX_CONSECUTIVE_SOFT_BLOCKS, plus at most a
-        # couple of in-flight requests (concurrency=2). Must not fetch all 50.
+        # Response-level abort at MAX_CONSECUTIVE_SOFT_BLOCKS. Serial
+        # concurrency=1 means no extra in-flight fetches. Must not fetch all 50.
+        assert scraper.MAX_CONCURRENT_COURSES == 1
         assert scraper.MAX_CONSECUTIVE_SOFT_BLOCKS == 15
         assert mock_get.call_count >= scraper.MAX_CONSECUTIVE_SOFT_BLOCKS
         assert mock_get.call_count < 30

@@ -34,15 +34,15 @@ class UiucScraper(BaseScraper):
     """
 
     BASE_URL = "https://courses.illinois.edu"
-    MAX_CONCURRENT_COURSES = 2  # Low concurrency to avoid Course Explorer soft throttle
+    MAX_CONCURRENT_COURSES = 1  # Serial course pages — conc=2 still tripped soft-block
     RETRY_BACKOFF_DELAYS = [
-        2,
         4,
         8,
+        16,
     ]  # Exponential backoff for 429 / 5xx / soft-block (seconds)
     MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB response size cap
-    INTER_BATCH_SLEEP_SECONDS = 1.5  # Pause between course-page batches
-    INTER_BATCH_SLEEP_JITTER = 0.3  # +/- jitter on inter-batch sleep
+    INTER_BATCH_SLEEP_SECONDS = 3.0  # Pause between course-page batches
+    INTER_BATCH_SLEEP_JITTER = 0.5  # +/- jitter on inter-batch sleep
     MAX_CONSECUTIVE_SOFT_BLOCKS = (
         15  # Abort after this many structure-miss responses in a row
     )
