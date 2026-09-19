@@ -109,8 +109,8 @@ export function IPhoneMockup() {
                 </div>
               </div>
 
-              {/* Date stays put so the banner covers it instead of shoving it down */}
-              <div className="absolute top-24 left-0 right-0 z-10 mt-8 text-center text-white">
+              {/* Date sits behind the banner so the drop covers it */}
+              <div className="absolute top-[62px] left-0 right-0 z-10 text-center text-white">
                 <p className="text-sm font-medium opacity-90">
                   {new Date().toLocaleDateString("en-US", {
                     weekday: "long",

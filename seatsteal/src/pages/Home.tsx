@@ -121,7 +121,7 @@ export default function Home() {
 
             {/* Clip just below the banner so the date is covered, not revealed */}
             <div
-              className="relative z-0 h-[152px] w-full shrink-0 overflow-hidden md:h-[164px]"
+              className="relative z-0 h-[148px] w-full shrink-0 overflow-hidden md:h-[156px]"
               data-testid="iphone-mockup-slot"
             >
               <IPhoneMockup />
