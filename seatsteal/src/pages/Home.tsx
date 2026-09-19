@@ -67,11 +67,9 @@ export default function Home() {
       <IonContent>
         <ReferralAlert />
         <div className="bg-black text-foreground">
-          {/* Hero Section
-              Height accounts for the app header (4rem) + footer (~3.5rem)
-              so the iPhone peek sits above Privacy/Terms/Feedback instead
-              of sliding under it on a 393px-wide phone. */}
-          <section className="relative flex min-h-[calc(100dvh-8rem-env(safe-area-inset-bottom,0px))] flex-col overflow-hidden bg-black">
+          {/* Hero fills the visible frame minus header (~4rem) + footer (~3rem)
+              so the phone peek sits flush above Privacy/Terms/Feedback. */}
+          <section className="relative flex min-h-[calc(100svh-7rem)] flex-col overflow-hidden bg-black">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-black"></div>
 
             {/* Main content - centered in the space above the phone peek */}
@@ -121,9 +119,9 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Clipped phone slot: island + banner stay in-flow above the footer */}
+            {/* Clip just below the banner so the date is covered, not revealed */}
             <div
-              className="relative z-0 h-[168px] w-full shrink-0 overflow-hidden md:h-[208px]"
+              className="relative z-0 h-[152px] w-full shrink-0 overflow-hidden md:h-[164px]"
               data-testid="iphone-mockup-slot"
             >
               <IPhoneMockup />

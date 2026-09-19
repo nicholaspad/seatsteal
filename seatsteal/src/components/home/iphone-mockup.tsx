@@ -109,12 +109,8 @@ export function IPhoneMockup() {
                 </div>
               </div>
 
-              {/* Date widget area */}
-              <div
-                className={`absolute left-0 right-0 text-center text-white z-10 transition-all duration-700 ease-out ${
-                  notificationVisible ? "top-40 mt-2" : "top-24 mt-8"
-                }`}
-              >
+              {/* Date stays put so the banner covers it instead of shoving it down */}
+              <div className="absolute top-24 left-0 right-0 z-10 mt-8 text-center text-white">
                 <p className="text-sm font-medium opacity-90">
                   {new Date().toLocaleDateString("en-US", {
                     weekday: "long",
