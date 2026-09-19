@@ -11,7 +11,7 @@ from pathlib import Path
 webapp_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from scraper.scrapers.uiuc import UiucScraper
+from scraper.scrapers.uiuc import UiucScraper, UiucSoftBlockError
 from models.college import College
 
 # Sample XML response for subjects index (/cisapp/explorer/schedule/{year}/{season}.xml)
@@ -73,6 +73,29 @@ SAMPLE_COURSE_HTML_STATUSCODE_NOT_AVAILABILITY = """
             </tr>
         </tbody>
     </table>
+</body>
+</html>
+"""
+
+# HTTP 200 soft-throttle body: missing h1.fw-bold and #schedule-course-table
+SAMPLE_COURSE_HTML_SOFT_BLOCK = """
+<!DOCTYPE html>
+<html>
+<head><title>Course Explorer</title></head>
+<body>
+    <p>Please wait</p>
+</body>
+</html>
+"""
+
+# HTTP 200 with heading but no schedule table (also a structure-miss)
+SAMPLE_COURSE_HTML_SOFT_BLOCK_NO_TABLE = """
+<!DOCTYPE html>
+<html>
+<head><title>CS 124</title></head>
+<body>
+    <h1 class="fw-bold">CS 124</h1>
+    <div class="app-label">Introduction to Computer Science I</div>
 </body>
 </html>
 """
@@ -335,6 +358,13 @@ def scraper(mock_db_session):
     # Set a default budget for unit tests (avoid budget exhaustion in individual method tests)
     scraper_instance.request_budget = 1000
     return scraper_instance
+
+
+@pytest.fixture(autouse=True)
+def _fast_uiuc_sleep():
+    """Skip real backoff / inter-batch sleeps in unit tests."""
+    with patch("scraper.scrapers.uiuc.asyncio.sleep", new_callable=AsyncMock):
+        yield
 
 
 def test_parse_term_code_fall_2026(scraper):
@@ -1272,7 +1302,7 @@ async def test_malformed_html_parse_failure_integration(scraper):
             return mock_response
 
         # Mock returns different responses based on course_id
-        mock_fetch.side_effect = lambda url: make_response(url.split("/")[-1])
+        mock_fetch.side_effect = lambda url, **kwargs: make_response(url.split("/")[-1])
 
         # Should raise RuntimeError due to >20% parse failure rate
         with pytest.raises(RuntimeError, match="Material partial failure"):
@@ -1460,11 +1490,168 @@ async def test_material_partial_small_run(scraper):
             return mock_response
 
         # Mock returns different responses based on course_id
-        mock_fetch.side_effect = lambda url: make_response(url.split("/")[-1])
+        mock_fetch.side_effect = lambda url, **kwargs: make_response(url.split("/")[-1])
 
         # Should raise RuntimeError due to >20% failure rate (2/5 = 40%)
         # Even though total_courses = 5 ≤ 10, material-partial should still apply
         with pytest.raises(RuntimeError, match="Material partial failure.*2/5"):
+            await scraper._fetch_courses_concurrent("2026", "fall", course_ids)
+
+    await scraper.client.aclose()
+
+
+def _mock_http_response(status_code: int, content: bytes, headers=None):
+    """Build a minimal httpx-like response mock."""
+    mock_response = MagicMock()
+    mock_response.status_code = status_code
+    mock_response.content = content
+    mock_response.headers = headers or {
+        "content-type": "text/html",
+        "Content-Length": str(len(content)),
+    }
+    mock_response.raise_for_status = MagicMock()
+    return mock_response
+
+
+def test_is_course_html_soft_block_missing_heading(scraper):
+    """HTTP 200 body without h1.fw-bold is a soft-block."""
+    assert scraper._is_course_html_soft_block(SAMPLE_COURSE_HTML_SOFT_BLOCK.encode())
+
+
+def test_is_course_html_soft_block_missing_table(scraper):
+    """HTTP 200 body with heading but no #schedule-course-table is a soft-block."""
+    assert scraper._is_course_html_soft_block(
+        SAMPLE_COURSE_HTML_SOFT_BLOCK_NO_TABLE.encode()
+    )
+
+
+def test_is_course_html_soft_block_valid_open_and_closed(scraper):
+    """Normal Open/Closed course HTML has expected chrome and is not a soft-block."""
+    assert not scraper._is_course_html_soft_block(SAMPLE_COURSE_HTML_OPEN.encode())
+    assert not scraper._is_course_html_soft_block(SAMPLE_COURSE_HTML_CLOSED.encode())
+
+
+@pytest.mark.asyncio
+async def test_soft_block_200_without_heading_retries_then_fails(scraper):
+    """HTTP 200 without course heading is retried with 429-style backoff, then fails."""
+    await scraper._ensure_client()
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = _mock_http_response(
+            200, SAMPLE_COURSE_HTML_SOFT_BLOCK.encode()
+        )
+
+        with pytest.raises(UiucSoftBlockError, match="structure-miss"):
+            await scraper._fetch_course_html("2026", "fall", "CS", "124")
+
+        # 1 initial + 3 backoff retries (same as 429 / 5xx)
+        assert mock_get.call_count == 4
+        assert scraper.soft_block_count == 4
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_soft_block_retry_then_success(scraper):
+    """A structure-miss HTTP 200 is retried and a later real course page parses."""
+    await scraper._ensure_client()
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.side_effect = [
+            _mock_http_response(200, SAMPLE_COURSE_HTML_SOFT_BLOCK.encode()),
+            _mock_http_response(200, SAMPLE_COURSE_HTML_OPEN.encode()),
+        ]
+
+        classes = await scraper._fetch_course_html("2026", "fall", "CS", "124")
+
+        assert mock_get.call_count == 2
+        assert len(classes) == 2
+        assert classes[0]["course_code"] == "CS 124"
+        assert classes[0]["status"] == "Open"
+        assert classes[1]["status"] == "Open"
+        assert scraper.consecutive_soft_blocks == 0
+        assert scraper.soft_block_count == 1
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_soft_block_retry_then_closed_html_parses(scraper):
+    """After a soft-block retry, Closed course HTML still parses as Closed."""
+    await scraper._ensure_client()
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.side_effect = [
+            _mock_http_response(200, SAMPLE_COURSE_HTML_SOFT_BLOCK.encode()),
+            _mock_http_response(200, SAMPLE_COURSE_HTML_CLOSED.encode()),
+        ]
+
+        classes = await scraper._fetch_course_html("2026", "fall", "CS", "173")
+
+        assert len(classes) == 1
+        assert classes[0]["course_code"] == "CS 173"
+        assert classes[0]["status"] == "Closed"
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_consecutive_soft_block_abort(scraper):
+    """Abort after a streak of structure-miss responses instead of burning the catalog."""
+    await scraper._ensure_client()
+
+    # Large catalog: without consecutive abort this would keep fetching (and later
+    # trip the unchanged >20% material-partial threshold after hundreds of IDs).
+    course_ids = [("CS", f"{i:03d}") for i in range(50)]
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = _mock_http_response(
+            200, SAMPLE_COURSE_HTML_SOFT_BLOCK.encode()
+        )
+
+        with pytest.raises(
+            UiucSoftBlockError, match=r"UIUC soft-block: \d+ consecutive structure-miss"
+        ):
+            await scraper._fetch_courses_concurrent("2026", "fall", course_ids)
+
+        # Response-level abort at MAX_CONSECUTIVE_SOFT_BLOCKS, plus at most a
+        # couple of in-flight requests (concurrency=2). Must not fetch all 50.
+        assert scraper.MAX_CONSECUTIVE_SOFT_BLOCKS == 15
+        assert mock_get.call_count >= scraper.MAX_CONSECUTIVE_SOFT_BLOCKS
+        assert mock_get.call_count < 30
+        assert scraper.soft_block_count >= scraper.MAX_CONSECUTIVE_SOFT_BLOCKS
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_material_failure_message_includes_ops_counts(scraper):
+    """Material-partial log still uses the >20% threshold and includes ops counts."""
+    await scraper._ensure_client()
+
+    course_ids = [("CS", f"{i:03d}") for i in range(5)]
+
+    async def mock_fetch_html(year, season, subject, course_id):
+        if course_id in ["001", "003"]:
+            return []
+        return [
+            {
+                "course_code": f"{subject} {course_id}",
+                "title": "Test",
+                "class_number": f"{course_id}99",
+                "section": "AL1",
+                "status": "Open",
+            }
+        ]
+
+    with patch.object(scraper, "_fetch_course_html", new=mock_fetch_html):
+        with pytest.raises(
+            RuntimeError,
+            match=(
+                r"Material partial failure: 2/5.*"
+                r"success=\d+.*soft-block=\d+.*http-error=\d+"
+            ),
+        ):
             await scraper._fetch_courses_concurrent("2026", "fall", course_ids)
 
     await scraper.client.aclose()
