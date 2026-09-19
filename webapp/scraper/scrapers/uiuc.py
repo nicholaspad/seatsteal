@@ -1,11 +1,16 @@
 from typing import List, Dict, Any, Optional, Tuple
 import asyncio
+import random
 import httpx
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 from scraper.base import BaseScraper
 from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
+
+
+class UiucSoftBlockError(RuntimeError):
+    """Illinois Course Explorer returned HTTP 200 without expected page chrome."""
 
 
 class UiucScraper(BaseScraper):
@@ -29,9 +34,18 @@ class UiucScraper(BaseScraper):
     """
 
     BASE_URL = "https://courses.illinois.edu"
-    MAX_CONCURRENT_COURSES = 4  # Bounded concurrency for course page fetches
-    RETRY_BACKOFF_DELAYS = [2, 4, 8]  # Exponential backoff for retries (seconds)
+    MAX_CONCURRENT_COURSES = 2  # Low concurrency to avoid Course Explorer soft throttle
+    RETRY_BACKOFF_DELAYS = [
+        2,
+        4,
+        8,
+    ]  # Exponential backoff for 429 / 5xx / soft-block (seconds)
     MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB response size cap
+    INTER_BATCH_SLEEP_SECONDS = 1.5  # Pause between course-page batches
+    INTER_BATCH_SLEEP_JITTER = 0.3  # +/- jitter on inter-batch sleep
+    MAX_CONSECUTIVE_SOFT_BLOCKS = (
+        15  # Abort after this many structure-miss responses in a row
+    )
 
     # Budget multipliers for calculating dynamic request budget
     BUDGET_PER_SUBJECT_XML = 1  # 1 request per subject XML fetch
@@ -52,6 +66,12 @@ class UiucScraper(BaseScraper):
         self.request_budget = 1000
         self.budget_lock = asyncio.Lock()  # Synchronize budget checks
         self.failed_courses = 0  # Track failures for material partial detection
+        self.consecutive_soft_blocks = 0  # Streak of HTTP 200 structure-miss responses
+        self.soft_block_count = 0  # Total structure-miss responses this run
+        self.http_error_count = 0  # HTTP errors observed while fetching course HTML
+        self.course_success_count = 0  # Course pages that parsed with classes
+        self.soft_block_lock = asyncio.Lock()
+        self._soft_block_abort: Optional[UiucSoftBlockError] = None
         logger.info(
             f"Initialized UIUC scraper with term: {self.current_term}, discovery budget: {self.request_budget}"
         )
@@ -376,7 +396,8 @@ class UiucScraper(BaseScraper):
         Fetch course details from HTML with bounded concurrency.
 
         Fail-loud strategy: Track failures (exceptions AND empty-success) and abort
-        on material partial failure, 401/403, or budget exhaustion.
+        on material partial failure, 401/403, budget exhaustion, or consecutive
+        Course Explorer soft-blocks (HTTP 200 without page chrome).
 
         Args:
             year: Year string
@@ -400,6 +421,8 @@ class UiucScraper(BaseScraper):
 
         async def fetch_one(subject: str, course_id: str):
             async with semaphore:
+                if self._soft_block_abort:
+                    raise self._soft_block_abort
                 return await self._fetch_course_html(year, season, subject, course_id)
 
         # Process in batches to respect rate limits
@@ -417,6 +440,7 @@ class UiucScraper(BaseScraper):
 
                 # Check for critical exceptions that should fail immediately
                 if isinstance(result, httpx.HTTPStatusError):
+                    self.http_error_count += 1
                     if result.response.status_code in [401, 403]:
                         logger.error(
                             f"Auth error ({result.response.status_code}) - failing immediately"
@@ -425,6 +449,15 @@ class UiucScraper(BaseScraper):
                     # Other HTTP errors count as failures
                     courses_failed += 1
                     logger.warning(f"HTTP error for {subject} {course_id}: {result}")
+                elif isinstance(result, UiucSoftBlockError):
+                    # Consecutive structure-miss abort — fail immediately (do not burn remaining IDs)
+                    if self._soft_block_abort or "consecutive structure-miss" in str(
+                        result
+                    ):
+                        logger.error(str(result))
+                        raise result
+                    courses_failed += 1
+                    logger.warning(f"Soft-block for {subject} {course_id}: {result}")
                 elif isinstance(result, RuntimeError):
                     # Budget exhaustion or response size - fail immediately
                     if "budget" in str(result).lower() or "size" in str(result).lower():
@@ -442,6 +475,7 @@ class UiucScraper(BaseScraper):
                         # Success with classes
                         all_classes.extend(result)
                         courses_with_classes += 1
+                        self.course_success_count += 1
                     else:
                         # Empty success - malformed HTML or no sections offered
                         courses_empty_success += 1
@@ -470,13 +504,16 @@ class UiucScraper(BaseScraper):
                 error_msg = (
                     f"Material partial failure: {total_failures}/{total_courses} "
                     f"courses failed ({fail_rate:.1%}) - "
-                    f"{courses_failed} exceptions + {courses_empty_success} empty-success"
+                    f"{courses_failed} exceptions + {courses_empty_success} empty-success "
+                    f"(success={self.course_success_count}, "
+                    f"soft-block={self.soft_block_count}, "
+                    f"http-error={self.http_error_count})"
                 )
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
 
-            # Rate limiting between batches
-            await asyncio.sleep(0.2)
+            # Rate limiting between batches (paced to avoid Course Explorer soft throttle)
+            await self._inter_batch_sleep()
 
         # Final summary
         total_failures = courses_failed + courses_empty_success
@@ -520,13 +557,14 @@ class UiucScraper(BaseScraper):
         """
         url = f"{self.BASE_URL}/schedule/{year}/{season}/{subject}/{course_id}"
 
-        response = await self._fetch_with_retry(url)
+        response = await self._fetch_with_retry(url, require_course_chrome=True)
 
         # Parse HTML
         soup = BeautifulSoup(response.content, "lxml")
 
         # Find course heading and title
         # Official DOM: <h1 class="fw-bold">CS 124</h1> with title in .app-label
+        # Soft-block (HTTP 200 without chrome) is retried in _fetch_with_retry.
         title_elem = soup.find("h1", class_="fw-bold")
         if not title_elem:
             raise ValueError(f"No course heading found for {subject} {course_id}")
@@ -759,15 +797,108 @@ class UiucScraper(BaseScraper):
         )
         return courses_data
 
-    async def _fetch_with_retry(self, url: str) -> httpx.Response:
+    def _is_course_html_soft_block(self, content: bytes) -> bool:
         """
-        Fetch URL with retry logic for 429 and 5xx errors.
+        Return True when an HTTP 200 course page is missing expected chrome.
+
+        Illinois Course Explorer soft-throttles with HTTP 200 bodies that omit
+        ``h1.fw-bold`` and/or ``#schedule-course-table``. Those are not real
+        course pages and must be retried, not counted as permanent parse failures.
+        """
+        if not content:
+            return True
+        soup = BeautifulSoup(content, "lxml")
+        heading = soup.find("h1", class_="fw-bold")
+        schedule_table = soup.find("table", id="schedule-course-table")
+        return heading is None or schedule_table is None
+
+    def _log_soft_block_response(self, url: str, response: httpx.Response) -> None:
+        """Log status, content-type, body size, and a short title/snippet."""
+        headers = getattr(response, "headers", None)
+        content_type = "unknown"
+        if headers is not None:
+            try:
+                content_type = (
+                    headers.get("content-type")
+                    or headers.get("Content-Type")
+                    or "unknown"
+                )
+            except Exception:
+                content_type = "unknown"
+
+        try:
+            body = response.content or b""
+            body_size = len(body)
+        except Exception:
+            body = b""
+            body_size = 0
+
+        title = ""
+        snippet = ""
+        try:
+            text = body.decode("utf-8", errors="replace") if body else ""
+            soup = BeautifulSoup(body, "lxml") if body else None
+            if soup:
+                title_elem = soup.find("title")
+                if title_elem:
+                    title = title_elem.get_text(strip=True)[:120]
+            snippet = " ".join(text.split())[:180]
+        except Exception:
+            title = ""
+            snippet = ""
+
+        logger.warning(
+            f"UIUC soft-block (structure-miss) for {url}: "
+            f"status={getattr(response, 'status_code', 'unknown')} "
+            f"content-type={content_type} body_size={body_size} "
+            f"title={title!r} snippet={snippet!r}"
+        )
+
+    async def _record_soft_block(self, url: str, response: httpx.Response) -> None:
+        """
+        Count a structure-miss response and abort if the consecutive streak is too long.
+
+        Raises:
+            UiucSoftBlockError: If consecutive structure-miss responses hit the abort threshold
+        """
+        self._log_soft_block_response(url, response)
+        async with self.soft_block_lock:
+            self.consecutive_soft_blocks += 1
+            self.soft_block_count += 1
+            n = self.consecutive_soft_blocks
+            if n >= self.MAX_CONSECUTIVE_SOFT_BLOCKS:
+                err = UiucSoftBlockError(
+                    f"UIUC soft-block: {n} consecutive structure-miss responses"
+                )
+                self._soft_block_abort = err
+                raise err
+
+    async def _record_course_chrome_ok(self) -> None:
+        """Reset the consecutive structure-miss streak after a real course page."""
+        async with self.soft_block_lock:
+            self.consecutive_soft_blocks = 0
+
+    async def _inter_batch_sleep(self) -> None:
+        """Sleep between course-page batches with small jitter."""
+        jitter = random.uniform(
+            -self.INTER_BATCH_SLEEP_JITTER, self.INTER_BATCH_SLEEP_JITTER
+        )
+        await asyncio.sleep(max(0.1, self.INTER_BATCH_SLEEP_SECONDS + jitter))
+
+    async def _fetch_with_retry(
+        self, url: str, require_course_chrome: bool = False
+    ) -> httpx.Response:
+        """
+        Fetch URL with retry logic for 429, 5xx, and course-page soft-block.
 
         Counts EVERY outbound HTTP attempt against request budget.
         Enforces hard response-size cap.
 
         Args:
             url: URL to fetch
+            require_course_chrome: When True, HTTP 200 bodies missing
+                ``h1.fw-bold`` and/or ``#schedule-course-table`` are treated as
+                soft-blocks and retried with the same backoff as 429.
 
         Returns:
             HTTP response
@@ -775,11 +906,16 @@ class UiucScraper(BaseScraper):
         Raises:
             httpx.HTTPError: If all retries fail or on auth errors (401/403)
             RuntimeError: If request budget exhausted or response too large
+            UiucSoftBlockError: If course chrome is missing after retries, or
+                after too many consecutive structure-miss responses
         """
         last_exception = None
 
         for attempt, delay in enumerate([0] + self.RETRY_BACKOFF_DELAYS):
             try:
+                if self._soft_block_abort:
+                    raise self._soft_block_abort
+
                 if delay > 0:
                     logger.info(f"Retrying {url} after {delay}s delay")
                     await asyncio.sleep(delay)
@@ -830,6 +966,22 @@ class UiucScraper(BaseScraper):
 
                 # Success or client error (4xx other than 429/401/403)
                 response.raise_for_status()
+
+                # Course Explorer soft-block: HTTP 200 without page chrome
+                if require_course_chrome and self._is_course_html_soft_block(
+                    response.content
+                ):
+                    await self._record_soft_block(url, response)
+                    last_exception = UiucSoftBlockError(
+                        f"Soft-block (structure-miss) for {url}"
+                    )
+                    if attempt < len(self.RETRY_BACKOFF_DELAYS):
+                        continue
+                    raise last_exception
+
+                if require_course_chrome:
+                    await self._record_course_chrome_ok()
+
                 return response
 
             except Exception as e:
@@ -837,7 +989,7 @@ class UiucScraper(BaseScraper):
                 # Check if this is an auth error - fail immediately
                 if hasattr(e, "response") and e.response.status_code in [401, 403]:
                     raise
-                # Check if this is budget or size error - fail immediately
+                # Check if this is budget, size, or soft-block abort - fail immediately
                 if isinstance(e, RuntimeError):
                     raise
                 if attempt >= len(self.RETRY_BACKOFF_DELAYS):
