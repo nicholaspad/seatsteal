@@ -13,6 +13,18 @@ class PurdueBudgetExceededError(Exception):
     Non-retryable budget error for Purdue scraper.
     Signals that request budget was exceeded and retry will not help.
     """
+
+    pass
+
+
+class PurdueEmptySubjectError(Exception):
+    """
+    A single Banner subject returned zero CRNs.
+
+    Legitimate for some subjects during ALL fan-out. Named department
+    scrapes still fail loud.
+    """
+
     pass
 
 
@@ -21,8 +33,9 @@ class PurdueScraper(BaseScraper):
     Purdue University course scraper.
 
     Scrapes course data from Purdue's Banner self-service system.
-    Strategy: Validate term via picker → Fetch subjects → POST course search →
-    parse CRN list → deduplicate → fetch detail pages for seat counts.
+    Strategy: Validate term via picker → Fetch subjects once → POST course
+    search per subject → parse CRN list → deduplicate → fetch detail pages
+    for seat counts (listing HTML has no Open/Closed).
 
     Term codes: YYYYTT Banner format (e.g., "202710" = Fall 2026)
     - YYYY: 4-digit year
@@ -32,17 +45,31 @@ class PurdueScraper(BaseScraper):
     - Validate DB term exists in picker (prefer registerable)
     - Extract CRN from href query (not text split - handles hyphenated titles)
     - Deduplicate by CRN before detail fetches
-    - Use bounded concurrency (4) for detail pages
+    - Use bounded concurrency (4) for subject listings and detail pages
     - Retry with backoff on 429/5xx and transient transport errors
     - Fail loud on any detail fetch failure (no partial success)
+    - ALL fan-out: skip subjects with zero CRNs; fail loud if catalog is empty
     - Never POST registration actions
     - Parse SEPARATE Capacity/Actual/Remaining cells for Seats AND Waitlist Seats
+    - Do NOT recurse scrape_courses per subject (that re-POSTs subjects)
     """
 
     BASE_URL = "https://selfservice.mypurdue.purdue.edu/prod"
-    MAX_TOTAL_REQUESTS = 3000  # Hard budget sized for CS subject (~500-1000 CRNs), not full catalog
+    # Full-catalog budget (verified 2026-09-20 against term 202710):
+    # 1 picker + 1 subjects POST + 159 subject listings + 21,549 unique CRN
+    # detail GETs = 21,710 baseline.
+    # Listing pages have no Open/Closed; details are required.
+    # sel_subj=% full-catalog listing times out (not viable).
+    # Preflight reserves unique_CRNs + 5% retry (min 500), not 4× every CRN.
+    # Mid-run counter still fail-loud if retries actually burn the budget.
+    # 26000 = 21710 + ~20 subject growth + ~10% CRN growth + ~1500 retry.
+    MAX_TOTAL_REQUESTS = 26000
     MAX_RETRIES = 3  # Retry count for transient errors
-    ALLOWED_DEPARTMENTS = ["CS"]  # Production allowlist: only CS is scraped
+    LISTING_CONCURRENCY = 4
+    DETAIL_CONCURRENCY = 4
+    DETAIL_RETRY_RESERVE_RATIO = 0.05
+    DETAIL_RETRY_RESERVE_MIN = 500
+    HTTP_TIMEOUT_SECONDS = 60.0  # Large subject listings (EPCS/VIP) take ~20-30s
 
     def __init__(self, db_session=None):
         super().__init__("purdue")
@@ -55,7 +82,7 @@ class PurdueScraper(BaseScraper):
         """Ensure HTTP client is initialized"""
         if self.client is None:
             self.client = httpx.AsyncClient(
-                timeout=30.0,
+                timeout=self.HTTP_TIMEOUT_SECONDS,
                 follow_redirects=True,
                 headers={
                     "User-Agent": "SeatSteal/1.0",
@@ -81,87 +108,58 @@ class PurdueScraper(BaseScraper):
             f"Scraping Purdue {department} courses (limit: {limit}, term: {self.current_term})"
         )
 
-        # Map ALL to allowlist expansion (production compatibility)
-        # run_scraper.py loop defaults subject="ALL" for all colleges
-        if department.upper() == "ALL":
-            logger.info(
-                f"ALL mapped to allowlist {self.ALLOWED_DEPARTMENTS} "
-                f"(never fans out to full 159-subject catalog)"
-            )
-            # Scrape only allowlisted departments (currently just CS)
-            # Return combined results from all allowlisted departments
-            all_courses = []
-            for allowed_dept in self.ALLOWED_DEPARTMENTS:
-                logger.info(f"Scraping allowlisted department: {allowed_dept}")
-                dept_courses = await self.scrape_courses(allowed_dept, limit)
-                all_courses.extend(dept_courses)
-            return all_courses
-
-        # ENFORCE ALLOWLIST: Only allowlisted departments (reject non-allowlisted named departments)
-        if department.upper() not in [d.upper() for d in self.ALLOWED_DEPARTMENTS]:
-            raise ValueError(
-                f"Purdue scraper only supports allowlisted departments: {', '.join(self.ALLOWED_DEPARTMENTS)}. "
-                f"Requested department '{department}' is not allowed. "
-                f"Full catalog scraping exceeds budget (3000 requests)."
-            )
-
         await self._ensure_client()
 
         try:
             # CRITICAL: Validate term via picker before scraping
             await self._validate_term_via_picker()
 
-            # Fetch subjects for the term
+            # Fetch subjects once. ALL must not recurse into scrape_courses —
+            # that would re-POST picker+subjects per department and blow the budget.
             subjects = await self._fetch_subjects()
             logger.info(
                 f"CARDINALITY: Discovered {len(subjects)} total subjects for term {self.current_term}"
             )
 
-            # Filter by department if not ALL
-            if department.upper() != "ALL":
-                subjects = [s for s in subjects if s.upper() == department.upper()]
-                if not subjects:
+            is_all = department.upper() == "ALL"
+            if is_all:
+                target_subjects = subjects
+                logger.info(
+                    f"ALL fans out to {len(target_subjects)} discovered subjects "
+                    f"(single subjects fetch; empty subjects skipped)"
+                )
+            else:
+                target_subjects = [
+                    s for s in subjects if s.upper() == department.upper()
+                ]
+                if not target_subjects:
                     logger.warning(
                         f"No subject found matching department: {department}"
                     )
                     return []
                 logger.info(
-                    f"CARDINALITY: Filtered to {len(subjects)} subject(s) for department {department}: {subjects}"
+                    f"CARDINALITY: Filtered to {len(target_subjects)} subject(s) "
+                    f"for department {department}: {target_subjects}"
                 )
 
-            # Collect all CRN entries from subject searches
-            all_crn_entries = []
-            listing_requests = 0
-            for subject in subjects:
-                logger.info(f"Fetching course list for subject: {subject}")
-                listing_requests += 1
-                crn_entries = await self._fetch_subject_crns(subject)
-                all_crn_entries.extend(crn_entries)
-                logger.info(
-                    f"Subject {subject}: {len(crn_entries)} raw entries "
-                    f"(total raw: {len(all_crn_entries)}, listing requests: {listing_requests})"
-                )
-
-                # Check request budget after each subject
-                if self.total_request_count > self.MAX_TOTAL_REQUESTS:
-                    raise PurdueBudgetExceededError(
-                        f"Request budget exceeded during listing: {self.total_request_count} > "
-                        f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
-                        f"CARDINALITY: {len(subjects)} subjects requested, {listing_requests} listing requests, "
-                        f"{len(all_crn_entries)} raw entries so far. "
-                        f"This is a non-retryable error - reduce scope or increase budget."
-                    )
-
-                # Rate limiting between subjects
-                await asyncio.sleep(0.2)
+            all_crn_entries, listing_requests = await self._fetch_all_subject_crns(
+                target_subjects, is_all=is_all
+            )
 
             # Deduplicate by CRN before detail fetches
             unique_crns = self._deduplicate_crns(all_crn_entries)
             original_unique_count = len(unique_crns)
             logger.info(
-                f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                f"CARDINALITY: {len(target_subjects)} subjects, {listing_requests} listing requests, "
                 f"{len(all_crn_entries)} raw entries → {original_unique_count} unique CRNs"
             )
+
+            if is_all and original_unique_count == 0:
+                raise Exception(
+                    f"No courses found across {len(target_subjects)} subjects "
+                    f"for term {self.current_term}. "
+                    f"This may indicate a breaking change in Banner or empty term data."
+                )
 
             # Check if limit would truncate (fail loud unless explicit acknowledgment)
             # This prevents silent partial success where truncated results appear as full scrape
@@ -169,14 +167,18 @@ class PurdueScraper(BaseScraper):
                 raise PurdueBudgetExceededError(
                     f"LIMIT TRUNCATION: {original_unique_count} unique CRNs > limit={limit}. "
                     f"Failing loud to prevent silent partial success. "
-                    f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                    f"CARDINALITY: {len(target_subjects)} subjects, {listing_requests} listing requests, "
                     f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs. "
                     f"To scrape bounded subset, reduce subject scope (use specific department, not ALL). "
                     f"Never return truncated results as unqualified success."
                 )
 
-            # Check if detail fetches would exceed budget (worst-case estimate with all retries)
-            projected_detail_requests = original_unique_count * (1 + self.MAX_RETRIES)
+            # Realistic detail projection: 1 GET per CRN + modest retry reserve.
+            # Do NOT use unique_CRNs * (1+MAX_RETRIES); that 4× reserve aborted a
+            # completable Fall catalog (21,549 CRNs → 85k projected vs ~22k actual).
+            projected_detail_requests = self._projected_detail_requests(
+                original_unique_count
+            )
             if (
                 self.total_request_count + projected_detail_requests
                 > self.MAX_TOTAL_REQUESTS
@@ -185,7 +187,7 @@ class PurdueScraper(BaseScraper):
                     f"Request budget would be exceeded by details: "
                     f"{self.total_request_count} + {projected_detail_requests} (projected) > "
                     f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
-                    f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                    f"CARDINALITY: {len(target_subjects)} subjects, {listing_requests} listing requests, "
                     f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs, "
                     f"{projected_detail_requests} projected detail requests. "
                     f"This is a non-retryable error - reduce scope or increase budget."
@@ -198,7 +200,7 @@ class PurdueScraper(BaseScraper):
 
             logger.info(
                 f"Successfully scraped {len(courses_data)} courses from Purdue. "
-                f"CARDINALITY: {len(subjects)} subjects, {listing_requests} listing requests, "
+                f"CARDINALITY: {len(target_subjects)} subjects, {listing_requests} listing requests, "
                 f"{len(all_crn_entries)} raw entries, {original_unique_count} unique CRNs, "
                 f"{projected_detail_requests} projected detail requests, "
                 f"{actual_detail_requests} actual detail requests, "
@@ -213,6 +215,84 @@ class PurdueScraper(BaseScraper):
             if self.client:
                 await self.client.aclose()
                 self.client = None
+
+    def _projected_detail_requests(self, unique_crn_count: int) -> int:
+        """
+        Realistic detail-phase request projection.
+
+        One GET per unique CRN plus a modest retry reserve. Retries rarely fire
+        on Banner details (~124ms live CS sample). The mid-run counter still
+        fail-loud if retries actually consume the budget.
+        """
+        reserve = max(
+            self.DETAIL_RETRY_RESERVE_MIN,
+            int(unique_crn_count * self.DETAIL_RETRY_RESERVE_RATIO),
+        )
+        return unique_crn_count + reserve
+
+    async def _fetch_all_subject_crns(
+        self, subjects: List[str], is_all: bool
+    ) -> Tuple[List[Dict[str, str]], int]:
+        """
+        Fetch CRN listings for subjects with bounded concurrency.
+
+        ALL fan-out skips subjects that return zero CRNs. Named department
+        scrapes fail loud on an empty listing. Network/parse errors always
+        fail loud.
+        """
+        semaphore = asyncio.Semaphore(self.LISTING_CONCURRENCY)
+        all_crn_entries: List[Dict[str, str]] = []
+        listing_requests = 0
+        skipped_empty: List[str] = []
+
+        async def fetch_one(subject: str) -> Tuple[str, List[Dict[str, str]]]:
+            async with semaphore:
+                logger.info(f"Fetching course list for subject: {subject}")
+                entries = await self._fetch_subject_crns(subject)
+                await asyncio.sleep(0.2)
+                return subject, entries
+
+        batch_size = 20
+        for i in range(0, len(subjects), batch_size):
+            batch = subjects[i : i + batch_size]
+            batch_results = await asyncio.gather(*[fetch_one(s) for s in batch])
+            listing_requests += len(batch)
+
+            if self.total_request_count > self.MAX_TOTAL_REQUESTS:
+                raise PurdueBudgetExceededError(
+                    f"Request budget exceeded during listing: {self.total_request_count} > "
+                    f"{self.MAX_TOTAL_REQUESTS}. Failing loud, no partial success. "
+                    f"CARDINALITY: {len(subjects)} subjects requested, {listing_requests} listing requests, "
+                    f"{len(all_crn_entries)} raw entries so far. "
+                    f"This is a non-retryable error - reduce scope or increase budget."
+                )
+
+            for subject, crn_entries in batch_results:
+                if not crn_entries:
+                    if is_all:
+                        logger.warning(
+                            f"Skipping empty subject {subject} during ALL fan-out "
+                            f"(Banner returned zero CRNs)"
+                        )
+                        skipped_empty.append(subject)
+                        continue
+                    raise PurdueEmptySubjectError(
+                        f"Subject {subject} returned zero CRNs for term {self.current_term}. "
+                        f"Named department scrapes fail loud on empty listings."
+                    )
+                all_crn_entries.extend(crn_entries)
+                logger.info(
+                    f"Subject {subject}: {len(crn_entries)} raw entries "
+                    f"(total raw: {len(all_crn_entries)}, listing requests: {listing_requests})"
+                )
+
+        if skipped_empty:
+            logger.info(
+                f"ALL fan-out skipped {len(skipped_empty)} empty subject(s): "
+                f"{skipped_empty[:20]}{'...' if len(skipped_empty) > 20 else ''}"
+            )
+
+        return all_crn_entries, listing_requests
 
     async def _validate_term_via_picker(self):
         """
@@ -613,14 +693,17 @@ class PurdueScraper(BaseScraper):
             List of course dictionaries grouped by course_code
         """
 
-        # Fetch detail pages with bounded concurrency (4 concurrent requests)
-        semaphore = asyncio.Semaphore(4)
+        # Fetch detail pages with bounded concurrency
+        semaphore = asyncio.Semaphore(self.DETAIL_CONCURRENCY)
 
         async def fetch_with_semaphore(entry):
             async with semaphore:
                 return await self._fetch_crn_detail(entry)
 
-        logger.info(f"Fetching {len(crn_entries)} detail pages with concurrency=4...")
+        logger.info(
+            f"Fetching {len(crn_entries)} detail pages with "
+            f"concurrency={self.DETAIL_CONCURRENCY}..."
+        )
 
         # Process in batches for progress logging
         batch_size = 50
