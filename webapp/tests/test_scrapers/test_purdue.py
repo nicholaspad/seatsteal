@@ -11,7 +11,11 @@ from pathlib import Path
 webapp_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from scraper.scrapers.purdue import PurdueScraper, PurdueBudgetExceededError
+from scraper.scrapers.purdue import (
+    PurdueScraper,
+    PurdueBudgetExceededError,
+    PurdueEmptySubjectError,
+)
 from models.college import College
 import httpx
 
@@ -325,49 +329,243 @@ def scraper(mock_db_session):
     return PurdueScraper(db_session=mock_db_session)
 
 
+def _subject_code(course_code: str) -> str:
+    """Extract Banner subject code from course_code (e.g. 'CS 18000' → 'CS')."""
+    return course_code.split(" ", 1)[0]
+
+
+def _listing_html_for_subject(subject: str, crn: str, number: str) -> str:
+    """Minimal Banner listing HTML with one CRN for a named subject."""
+    return f"""
+<html>
+<body>
+<table class="datadisplaytable">
+    <tr>
+        <td>
+            <a href="/prod/bwckschd.p_disp_detail_sched?term_in=202710&crn_in={crn}">
+                Intro - {crn} - {subject} {number} - 001
+            </a>
+        </td>
+    </tr>
+</table>
+</body>
+</html>
+"""
+
+
 @pytest.mark.asyncio
 async def test_scraper_initialization(scraper):
-    """Test that scraper initializes with correct term code and allowlist."""
+    """Test that scraper initializes with correct term code and full-catalog budget."""
     assert scraper.college_short_name == "purdue"
     assert scraper.current_term == "202710"
     assert scraper.total_request_count == 0
-    assert scraper.ALLOWED_DEPARTMENTS == ["CS"]
+    assert not hasattr(scraper, "ALLOWED_DEPARTMENTS")
+    # 1 picker + 1 subjects + 159 listings + 21549 details = 21710; 26000 leaves headroom
+    assert scraper.MAX_TOTAL_REQUESTS == 26000
+    assert scraper.LISTING_CONCURRENCY == 4
+    assert scraper.DETAIL_CONCURRENCY == 4
+    assert scraper.HTTP_TIMEOUT_SECONDS == 60.0
 
 
 @pytest.mark.asyncio
-async def test_all_department_maps_to_allowlist(scraper):
+async def test_full_catalog_budget_covers_verified_fall_cardinality(scraper):
     """
-    Test that department='ALL' maps to allowlist (e.g., CS) instead of full 159-subject catalog.
-    Production compatibility: run_scraper.py defaults subject='ALL' for all colleges.
+    Live Fall 2026 (term 202710, verified 2026-09-20):
+    159 subjects, 21549 unique CRNs.
+    Baseline = 1 picker + 1 subjects + 159 listings + 21549 details = 21710.
+    Preflight adds 5% retry reserve (min 500). Budget 26000 covers that
+    plus growth without a 4× abort.
+    """
+    verified_subjects = 159
+    verified_unique_crns = 21549
+    baseline_requests = 1 + 1 + verified_subjects + verified_unique_crns
+    projected = scraper._projected_detail_requests(verified_unique_crns)
+    # 4× every CRN is the historical abort (21387 * 4 = 85548)
+    pessimistic_4x = verified_unique_crns * (1 + scraper.MAX_RETRIES)
+    assert scraper.MAX_TOTAL_REQUESTS == 26000
+    assert baseline_requests < scraper.MAX_TOTAL_REQUESTS
+    assert (1 + 1 + verified_subjects + projected) < scraper.MAX_TOTAL_REQUESTS
+    assert pessimistic_4x > scraper.MAX_TOTAL_REQUESTS
+    assert projected == verified_unique_crns + max(
+        scraper.DETAIL_RETRY_RESERVE_MIN,
+        int(verified_unique_crns * scraper.DETAIL_RETRY_RESERVE_RATIO),
+    )
+    assert scraper.MAX_TOTAL_REQUESTS - baseline_requests >= 2000
+
+
+@pytest.mark.asyncio
+async def test_all_department_fans_out_to_all_subjects(scraper):
+    """
+    department='ALL' fans out to every subject from the single subjects POST.
+    Must not recurse scrape_courses (that would re-fetch subjects per dept).
     """
     await scraper._ensure_client()
+    fetched_subjects = []
 
-    # Mock responses for CS scraping (since ALL maps to ["CS"])
+    async def fake_fetch_subject_crns(subject: str):
+        fetched_subjects.append(subject)
+        return [
+            {
+                "crn": f"{subject}1",
+                "course_code": f"{subject} 101",
+                "title": f"{subject} Course",
+                "section": "001",
+            }
+        ]
+
+    async def fake_fetch_detail(entry):
+        return {
+            "class_number": entry["crn"],
+            "course_code": entry["course_code"],
+            "title": entry["title"],
+            "section": entry["section"],
+            "status": "Open",
+        }
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(
+            scraper, "_fetch_subjects", new_callable=AsyncMock
+        ) as mock_subjects:
+            mock_subjects.return_value = ["CS", "MA", "ECE"]
+            with patch.object(
+                scraper, "_fetch_subject_crns", side_effect=fake_fetch_subject_crns
+            ):
+                with patch.object(
+                    scraper, "_fetch_crn_detail", side_effect=fake_fetch_detail
+                ):
+                    courses = await scraper.scrape_courses("ALL", limit=None)
+
+    assert mock_subjects.await_count == 1
+    assert sorted(fetched_subjects) == ["CS", "ECE", "MA"]
+    assert sorted(_subject_code(c["course_code"]) for c in courses) == [
+        "CS",
+        "ECE",
+        "MA",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_all_uses_single_subjects_fetch_over_http(scraper):
+    """ALL must POST subjects once, then listing POSTs for every fixture subject."""
+    await scraper._ensure_client()
+    requested_listing_subjects = []
+
+    async def mock_request(method, url, **kwargs):
+        response = MagicMock()
+        if "p_disp_dyn_sched" in url:
+            response.text = SAMPLE_TERM_PICKER_HTML
+            response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
+            return response
+        if "p_proc_term_date" in url:
+            response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
+            return response
+        if "p_get_crse_unsec" in url:
+            subject = kwargs.get("data", {}).get("sel_subj", [None, None])[1]
+            requested_listing_subjects.append(subject)
+            html = _listing_html_for_subject(
+                subject, f"10{len(requested_listing_subjects)}", "10100"
+            )
+            response.content = html.encode("utf-8")
+            return response
+        if "p_disp_detail_sched" in url:
+            response.content = SAMPLE_DETAIL_OPEN_HTML.encode("utf-8")
+            return response
+        raise AssertionError(f"Unexpected request {method} {url}")
+
+    with patch.object(scraper, "_make_request_with_retry", side_effect=mock_request):
+        courses = await scraper.scrape_courses("ALL", limit=None)
+
+    assert sorted(requested_listing_subjects) == ["CS", "ECE", "MA"]
+    assert len(courses) == 3
+
+
+@pytest.mark.asyncio
+async def test_named_departments_other_than_cs_work(scraper):
+    """Explicit single-department scrapes (MA, ECE) work for debugging."""
+    await scraper._ensure_client()
+
+    for dept in ("MA", "ECE"):
+        requested_subjects = []
+
+        async def fake_fetch_subject_crns(subject: str, _dept=dept):
+            requested_subjects.append(subject)
+            return [
+                {
+                    "crn": f"{_dept}1",
+                    "course_code": f"{_dept} 101",
+                    "title": f"{_dept} Course",
+                    "section": "001",
+                }
+            ]
+
+        async def fake_fetch_detail(entry):
+            return {
+                "class_number": entry["crn"],
+                "course_code": entry["course_code"],
+                "title": entry["title"],
+                "section": entry["section"],
+                "status": "Open",
+            }
+
+        with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+            with patch.object(
+                scraper, "_fetch_subjects", new_callable=AsyncMock
+            ) as mock_subjects:
+                mock_subjects.return_value = ["CS", "MA", "ECE"]
+                with patch.object(
+                    scraper, "_fetch_subject_crns", side_effect=fake_fetch_subject_crns
+                ):
+                    with patch.object(
+                        scraper, "_fetch_crn_detail", side_effect=fake_fetch_detail
+                    ):
+                        courses = await scraper.scrape_courses(dept)
+
+        assert requested_subjects == [dept]
+        assert len(courses) == 1
+        assert _subject_code(courses[0]["course_code"]) == dept
+
+
+@pytest.mark.asyncio
+async def test_unknown_department_returns_empty(scraper):
+    """Unknown subject codes are a no-op, not an allowlist rejection."""
+    await scraper._ensure_client()
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(
+            scraper, "_fetch_subjects", new_callable=AsyncMock
+        ) as mock_subjects:
+            mock_subjects.return_value = ["CS", "MA", "ECE"]
+            with patch.object(
+                scraper, "_fetch_subject_crns", new_callable=AsyncMock
+            ) as mock_crns:
+                courses = await scraper.scrape_courses("NOTASUBJ")
+
+    assert courses == []
+    mock_crns.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cs_named_department_works(scraper):
+    """Test that an explicit CS department scrape still works."""
+    await scraper._ensure_client()
+
     with patch.object(
         scraper, "_make_request_with_retry", new_callable=AsyncMock
     ) as mock_request:
-        # Mock picker response
         picker_response = MagicMock()
         picker_response.text = SAMPLE_TERM_PICKER_HTML
         picker_response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
-        picker_response.raise_for_status = MagicMock()
 
-        # Mock subjects response
         subjects_response = MagicMock()
         subjects_response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
-        subjects_response.raise_for_status = MagicMock()
 
-        # Mock course list response
         course_list_response = MagicMock()
         course_list_response.content = (
             SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode("utf-8")
         )
-        course_list_response.raise_for_status = MagicMock()
 
-        # Mock detail responses
         detail_response = MagicMock()
         detail_response.content = SAMPLE_DETAIL_OPEN_HTML.encode("utf-8")
-        detail_response.raise_for_status = MagicMock()
 
         mock_request.side_effect = [
             picker_response,
@@ -377,83 +575,100 @@ async def test_all_department_maps_to_allowlist(scraper):
             detail_response,
         ]
 
-        # Scrape with department='ALL' - should map to allowlist (CS)
-        courses = await scraper.scrape_courses("ALL", limit=None)
-
-        # Verify:
-        # 1. Should succeed (not raise)
-        # 2. Should return CS courses (not empty, not full catalog)
-        # 3. All course_codes should start with "CS" (allowlist subject)
-        assert len(courses) > 0, "ALL should map to CS and return courses"
-        assert all(
-            c["course_code"].startswith("CS") for c in courses
-        ), "ALL should only scrape CS (allowlist) - all course_codes should start with 'CS'"
-
-
-@pytest.mark.asyncio
-async def test_non_allowlisted_department_rejected(scraper):
-    """Test that non-allowlisted departments (e.g., MA, ECE) are rejected."""
-    await scraper._ensure_client()
-
-    # Try Mathematics (not in allowlist)
-    with pytest.raises(ValueError) as exc_info:
-        await scraper.scrape_courses("MA")
-    
-    error_msg = str(exc_info.value)
-    assert "only supports allowlisted departments" in error_msg
-    assert "CS" in error_msg
-    assert "MA" in error_msg or "'MA'" in error_msg
-
-    # Try ECE (not in allowlist)
-    with pytest.raises(ValueError) as exc_info:
-        await scraper.scrape_courses("ECE")
-    
-    error_msg = str(exc_info.value)
-    assert "only supports allowlisted departments" in error_msg
-    assert "ECE" in error_msg or "'ECE'" in error_msg
-
-
-@pytest.mark.asyncio
-async def test_cs_allowlisted_department_works(scraper):
-    """Test that CS (allowlisted) department can be scraped."""
-    await scraper._ensure_client()
-
-    with patch.object(
-        scraper, "_make_request_with_retry", new_callable=AsyncMock
-    ) as mock_request:
-        # Mock picker response
-        picker_response = MagicMock()
-        picker_response.text = SAMPLE_TERM_PICKER_HTML
-        picker_response.content = SAMPLE_TERM_PICKER_HTML.encode("utf-8")
-
-        # Mock subjects response
-        subjects_response = MagicMock()
-        subjects_response.content = SAMPLE_SUBJECTS_HTML.encode("utf-8")
-
-        # Mock course list response
-        course_list_response = MagicMock()
-        course_list_response.content = (
-            SAMPLE_COURSE_LIST_WITH_HYPHENATED_TITLE_HTML.encode("utf-8")
-        )
-
-        # Mock detail responses
-        detail_response = MagicMock()
-        detail_response.content = SAMPLE_DETAIL_OPEN_HTML.encode("utf-8")
-
-        # Set up side effect to return appropriate responses
-        mock_request.side_effect = [
-            picker_response,  # GET term picker
-            subjects_response,  # POST subjects
-            course_list_response,  # POST course list for CS
-            detail_response,  # GET detail for CRN 12345
-            detail_response,  # GET detail for CRN 12346
-        ]
-
-        # CS should work (in allowlist)
         courses = await scraper.scrape_courses("CS")
 
-        # Should succeed and return courses
         assert len(courses) > 0
+        assert all(c["course_code"].startswith("CS") for c in courses)
+
+
+@pytest.mark.asyncio
+async def test_all_continues_past_empty_subject(scraper):
+    """ALL fan-out skips subjects with zero CRNs and keeps non-empty subjects."""
+    await scraper._ensure_client()
+    fetched_subjects = []
+
+    async def fake_fetch_subject_crns(subject: str):
+        fetched_subjects.append(subject)
+        if subject in {"ZZZ", "EMPTY"}:
+            return []
+        return [
+            {
+                "crn": "12345",
+                "course_code": "CS 18000",
+                "title": "OOP",
+                "section": "001",
+            }
+        ]
+
+    async def fake_fetch_detail(entry):
+        return {
+            "class_number": entry["crn"],
+            "course_code": entry["course_code"],
+            "title": entry["title"],
+            "section": entry["section"],
+            "status": "Open",
+        }
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(
+            scraper, "_fetch_subjects", new_callable=AsyncMock
+        ) as mock_subjects:
+            mock_subjects.return_value = ["ZZZ", "CS", "EMPTY"]
+            with patch.object(
+                scraper, "_fetch_subject_crns", side_effect=fake_fetch_subject_crns
+            ):
+                with patch.object(
+                    scraper, "_fetch_crn_detail", side_effect=fake_fetch_detail
+                ):
+                    courses = await scraper.scrape_courses("ALL")
+
+    assert sorted(fetched_subjects) == ["CS", "EMPTY", "ZZZ"]
+    assert len(courses) == 1
+    assert courses[0]["course_code"] == "CS 18000"
+
+
+@pytest.mark.asyncio
+async def test_named_empty_department_fails_loud(scraper):
+    """Named department scrape still fails loud on zero-CRN listings."""
+    await scraper._ensure_client()
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(
+            scraper, "_fetch_subjects", new_callable=AsyncMock
+        ) as mock_subjects:
+            mock_subjects.return_value = ["CS", "MA"]
+            with patch.object(
+                scraper, "_fetch_subject_crns", new_callable=AsyncMock
+            ) as mock_crns:
+                mock_crns.return_value = []
+                with pytest.raises(PurdueEmptySubjectError) as exc_info:
+                    await scraper.scrape_courses("CS")
+
+    assert "zero CRNs" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_all_empty_catalog_fails_loud(scraper):
+    """ALL that finds zero CRNs across all subjects still fails loud."""
+    await scraper._ensure_client()
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(
+            scraper, "_fetch_subjects", new_callable=AsyncMock
+        ) as mock_subjects:
+            mock_subjects.return_value = ["ZZZ", "EMPTY"]
+            with patch.object(
+                scraper, "_fetch_subject_crns", new_callable=AsyncMock
+            ) as mock_crns:
+                mock_crns.return_value = []
+                with pytest.raises(Exception) as exc_info:
+                    await scraper.scrape_courses("ALL")
+
+    error_msg = str(exc_info.value)
+    assert "No courses found across" in error_msg
+    assert (
+        "empty term data" in error_msg.lower() or "breaking change" in error_msg.lower()
+    )
 
 
 def test_parse_term_picker(scraper):
@@ -821,35 +1036,89 @@ async def test_budget_error_is_non_retryable(scraper):
 
 
 @pytest.mark.asyncio
-async def test_budget_preflight_uses_worst_case_estimate(scraper):
-    """Test that preflight budget check uses worst-case (1+MAX_RETRIES) multiplier."""
+async def test_budget_preflight_uses_realistic_not_4x_estimate(scraper):
+    """
+    Preflight uses 1 GET per CRN + 5% reserve (min 500), not CRNs * (1+MAX_RETRIES).
+    Historical 4× would abort a completable catalog.
+    """
     await scraper._ensure_client()
 
-    # Set up scenario: 161 listing + 750 CRNs
-    # Preflight: 161 + (750 * 4) = 3161 > 3000 -> should FAIL
+    # 161 used + 750 CRNs.
+    # Old 4×: 161 + 3000 = 3161 > 3000 FAIL
+    # New: 161 + 750 + 500 = 1411 < 3000 PASS
     scraper.total_request_count = 161
     scraper.MAX_TOTAL_REQUESTS = 3000
 
-    # Create 750 CRNs (will exceed with 4x multiplier)
     all_crn_entries = [
         {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
         for i in range(750)
     ]
 
-    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
-        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
-            mock_subjects.return_value = ["CS"]
-            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
-                mock_crns.return_value = all_crn_entries
+    async def fake_group(entries):
+        return [
+            {
+                "course_code": entry["course_code"],
+                "title": entry["title"],
+                "classes": [
+                    {
+                        "class_number": entry["crn"],
+                        "section": entry["section"],
+                        "status": "Open",
+                    }
+                ],
+            }
+            for entry in entries
+        ]
 
-                # Should raise PurdueBudgetExceededError due to preflight
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(
+            scraper, "_fetch_subjects", new_callable=AsyncMock
+        ) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(
+                scraper, "_fetch_subject_crns", new_callable=AsyncMock
+            ) as mock_crns:
+                mock_crns.return_value = all_crn_entries
+                with patch.object(
+                    scraper, "_fetch_details_and_group", side_effect=fake_group
+                ):
+                    courses = await scraper.scrape_courses("CS")
+
+    assert len(courses) == 750
+    assert scraper._projected_detail_requests(750) == 750 + 500
+    assert 161 + (750 * (1 + scraper.MAX_RETRIES)) > 3000
+
+
+@pytest.mark.asyncio
+async def test_budget_preflight_fails_loud_when_details_cannot_fit(scraper):
+    """Realistic preflight still fail-loud when unique CRNs cannot fit the budget."""
+    await scraper._ensure_client()
+
+    # 200 used + 25000 CRNs + 1250 reserve = 26450 > 26000
+    scraper.total_request_count = 200
+    scraper.MAX_TOTAL_REQUESTS = 26000
+
+    all_crn_entries = [
+        {"crn": str(i), "course_code": f"CS {i}", "title": "Test", "section": "001"}
+        for i in range(25000)
+    ]
+
+    with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
+        with patch.object(
+            scraper, "_fetch_subjects", new_callable=AsyncMock
+        ) as mock_subjects:
+            mock_subjects.return_value = ["CS"]
+            with patch.object(
+                scraper, "_fetch_subject_crns", new_callable=AsyncMock
+            ) as mock_crns:
+                mock_crns.return_value = all_crn_entries
                 with pytest.raises(PurdueBudgetExceededError) as exc_info:
                     await scraper.scrape_courses("CS")
-                
-                error_msg = str(exc_info.value).lower()
-                assert "budget" in error_msg
-                assert "would be exceeded" in error_msg
-                assert "no partial success" in error_msg
+
+    error_msg = str(exc_info.value).lower()
+    assert "budget" in error_msg
+    assert "would be exceeded" in error_msg
+    assert "no partial success" in error_msg
 
 
 @pytest.mark.asyncio
@@ -860,7 +1129,7 @@ async def test_limit_truncation_fails_loud(scraper):
     # Set up scenario: 2000 CRNs but limit=100
     # Should FAIL with truncation error (not silently truncate)
     scraper.total_request_count = 161
-    scraper.MAX_TOTAL_REQUESTS = 3000
+    scraper.MAX_TOTAL_REQUESTS = 26000
 
     # Create 2000 CRN entries
     all_crn_entries = [
@@ -869,15 +1138,19 @@ async def test_limit_truncation_fails_loud(scraper):
     ]
 
     with patch.object(scraper, "_validate_term_via_picker", new_callable=AsyncMock):
-        with patch.object(scraper, "_fetch_subjects", new_callable=AsyncMock) as mock_subjects:
+        with patch.object(
+            scraper, "_fetch_subjects", new_callable=AsyncMock
+        ) as mock_subjects:
             mock_subjects.return_value = ["CS"]
-            with patch.object(scraper, "_fetch_subject_crns", new_callable=AsyncMock) as mock_crns:
+            with patch.object(
+                scraper, "_fetch_subject_crns", new_callable=AsyncMock
+            ) as mock_crns:
                 mock_crns.return_value = all_crn_entries
 
                 # Should raise PurdueBudgetExceededError for truncation
                 with pytest.raises(PurdueBudgetExceededError) as exc_info:
                     await scraper.scrape_courses("CS", limit=100)
-                
+
                 error_msg = str(exc_info.value)
                 assert "LIMIT TRUNCATION" in error_msg or "truncat" in error_msg.lower()
                 assert "2000" in error_msg  # Total CRNs
@@ -1086,7 +1359,8 @@ async def test_bounded_concurrency_enforced(scraper):
     with patch.object(scraper, "_fetch_crn_detail", side_effect=mock_fetch_detail):
         await scraper._fetch_details_and_group(crn_entries)
 
-    # Max concurrent should be 4 (semaphore limit)
+    # Max concurrent should match DETAIL_CONCURRENCY
+    assert max_concurrent == scraper.DETAIL_CONCURRENCY
     assert max_concurrent == 4
 
 
@@ -1111,19 +1385,19 @@ async def test_budget_exceeded_consumes_one_attempt_not_three():
     from scraper.scraper_job import ScraperJob, JobConfig
     from scraper.services.scraper_service import ScraperService
     from unittest.mock import AsyncMock, MagicMock, patch
-    
+
     # Create mock college and db session
     mock_college = MagicMock()
     mock_college.id = 20
     mock_college.name = "Purdue University"
     mock_college.short_name = "purdue"
     mock_college.is_active = True
-    
+
     mock_db = MagicMock()
-    
+
     # Track how many times scrape_college is called
     attempt_count = 0
-    
+
     async def mock_scrape_college(*args, **kwargs):
         nonlocal attempt_count
         attempt_count += 1
@@ -1139,29 +1413,33 @@ async def test_budget_exceeded_consumes_one_attempt_not_three():
             "outcome": "budget_exceeded",  # Non-retryable outcome
             "error": "Request budget would be exceeded by details: 161 + 85548 > 3000",
         }
-    
+
     # Create job with 3 retry attempts (default)
     config = JobConfig(subject="ALL", limit=None, retry_attempts=3)
     job = ScraperJob(mock_college, mock_db, config)
-    
+
     # Mock the lock and log service
-    with patch.object(job.lock, 'acquire', return_value=MagicMock(success=True)):
-        with patch.object(job.lock, 'release'):
-            with patch.object(job.lock, 'get_scraper_id', return_value=1):
-                with patch('scraper.scraper_job.ScraperLogService') as mock_log_service:
+    with patch.object(job.lock, "acquire", return_value=MagicMock(success=True)):
+        with patch.object(job.lock, "release"):
+            with patch.object(job.lock, "get_scraper_id", return_value=1):
+                with patch("scraper.scraper_job.ScraperLogService") as mock_log_service:
                     mock_log_service_instance = AsyncMock()
                     mock_log_service_instance.start_log = AsyncMock(return_value=1)
                     mock_log_service_instance.complete_log = AsyncMock()
                     mock_log_service.return_value = mock_log_service_instance
-                    
+
                     # Patch ScraperService.scrape_college to return budget_exceeded
-                    with patch.object(ScraperService, 'scrape_college', side_effect=mock_scrape_college):
+                    with patch.object(
+                        ScraperService,
+                        "scrape_college",
+                        side_effect=mock_scrape_college,
+                    ):
                         result = await job.execute()
-    
+
     # CRITICAL: Should have called scrape_college ONCE, not three times
     # budget_exceeded outcome should prevent retry
-    assert attempt_count == 1, f"Expected 1 attempt, got {attempt_count}. budget_exceeded should not retry!"
+    assert (
+        attempt_count == 1
+    ), f"Expected 1 attempt, got {attempt_count}. budget_exceeded should not retry!"
     assert result.success is False
     assert "budget" in result.error.lower()
-
-

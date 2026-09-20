@@ -214,11 +214,14 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 
 **Source:** Uses official Banner self-service HTML pages (https://selfservice.mypurdue.purdue.edu/prod/)
 
-**Method:** Banner term picker → POST course search by subject → parse CRN list → fetch detail pages for seat availability
+**Method:** Banner term picker → single subjects POST → per-subject course search POSTs → parse CRN list → fetch detail pages for seat availability
 
 **Important Notes:**
 - **Term selection**: Banner term picker shows terms with and without "(View only)" suffix. Only terms WITHOUT "(View only)" are registerable. The scraper should use registerable terms.
 - **Purdue.io API**: A public API exists at purdue.io but it is catalog-only (no real-time seat availability). Must use official Banner self-service for Open/Closed status.
+- **Full catalog (`department=ALL`)**: Fans out to every Banner subject for the term. Subjects are fetched once (do not recurse per department). Empty subjects (zero CRNs) are skipped during ALL; named department scrapes still fail loud.
+- **Listing pages have no Open/Closed**: Detail GETs are required. A single `sel_subj=%` catalog listing times out and is not used.
+- **Fall 2026 (`202710`) cardinality** (verified 2026-09-20): 159 subjects, 35,596 raw CRNs, 21,549 unique CRNs. Request budget: 26,000 (1 picker + 1 subjects + 159 listings + 21,549 details + growth/retry headroom). Preflight uses 1× CRNs + 5% retry reserve, not 4×.
 
 ---
 
