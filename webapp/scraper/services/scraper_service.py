@@ -41,7 +41,7 @@ SCRAPER_MAP = {
     "asu": AsuScraper,  # ScrollId-based pagination with subject-first strategy
     "purdue": PurdueScraper,  # Banner HTML scraping with CRN deduplication
     "uiuc": UiucScraper,  # XML discovery + HTML status parsing
-    "ncsu": NcsuScraper,  # PeopleSoft ACS Class Search with CSC-only allowlist
+    "ncsu": NcsuScraper,  # PeopleSoft ACS Class Search (full catalog; CS=Crop Science, CSC=CompSci)
 }
 
 

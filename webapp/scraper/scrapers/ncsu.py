@@ -36,10 +36,10 @@ class NcsuScraper(BaseScraper):
 
     CRITICAL:
     - At NC State, CS = Crop Science, CSC = Computer Science
-    - ONLY allowlist CSC (never CS as CompSci)
+    - Never treat CS as CompSci; scrape both as distinct ACS subject codes
     - Use Class # (from td.class-num) as identity, not section alone
     - Map Open→Open; Closed/Reserved/Waitlist/unknown→Closed (Reserved→Closed enables reserve-release alerts)
-    - Department ALL → expand only to ALLOWED_DEPARTMENTS=["CSC"] (never ~199 subjects)
+    - Department ALL → fan out to every subject returned by subjects.php (~199 Fall subjects)
     - Response is JSON {"html":"<section class=course...>", "json":{...}}
     - Parse the HTML field with BeautifulSoup, NOT the json field
     - User-Agent: SeatSteal/1.0, X-Requested-With: XMLHttpRequest
@@ -47,10 +47,15 @@ class NcsuScraper(BaseScraper):
     """
 
     BASE_URL = "https://webappprd.acs.ncsu.edu/php/coursecat"
-    MAX_TOTAL_REQUESTS = 50
+    # Full-catalog budget (verified 2026-09-20 against strm=2268):
+    # 1 subjects.php + 199 search.php POSTs = 200 requests.
+    # MAX_RETRIES=3: retries increment total_request_count, so a flaky
+    # request can consume up to 4 slots. 350 = 200 baseline + ~25 subject
+    # growth + ~125 retry headroom, inside the 250-400 safe band, without
+    # loosening fail-loud / empty-success rules.
+    MAX_TOTAL_REQUESTS = 350
     MAX_RESPONSE_SIZE = 5 * 1024 * 1024  # 5MB
     MAX_RETRIES = 3
-    ALLOWED_DEPARTMENTS = ["CSC"]
 
     def __init__(self, db_session=None):
         super().__init__("ncsu")
@@ -90,49 +95,42 @@ class NcsuScraper(BaseScraper):
             f"Scraping NC State {department} courses (limit: {limit}, term: {self.current_term})"
         )
 
-        # Map ALL to allowlist expansion (production compatibility)
-        if department.upper() == "ALL":
-            logger.info(
-                f"ALL mapped to allowlist {self.ALLOWED_DEPARTMENTS} "
-                f"(never fans out to full ~199-subject catalog)"
-            )
-            all_courses = []
-            for allowed_dept in self.ALLOWED_DEPARTMENTS:
-                logger.info(f"Scraping allowlisted department: {allowed_dept}")
-                dept_courses = await self.scrape_courses(allowed_dept, limit)
-                all_courses.extend(dept_courses)
-            return all_courses
-
-        # ENFORCE ALLOWLIST: Only allowlisted departments
-        if department.upper() not in [d.upper() for d in self.ALLOWED_DEPARTMENTS]:
-            raise ValueError(
-                f"NC State scraper only supports allowlisted departments: {', '.join(self.ALLOWED_DEPARTMENTS)}. "
-                f"Requested department '{department}' is not allowed. "
-                f"Full catalog scraping exceeds budget ({self.MAX_TOTAL_REQUESTS} requests)."
-            )
-
         await self._ensure_client()
 
         try:
-            # Fetch subjects to validate department exists
+            # Fetch subjects once. ALL must not recurse into scrape_courses —
+            # that would re-POST subjects.php per department and blow the budget.
             subjects = await self._fetch_subjects()
             logger.info(
                 f"CARDINALITY: Discovered {len(subjects)} total subjects for term {self.current_term}"
             )
 
-            # Filter by department
-            if department.upper() not in [s.upper() for s in subjects]:
-                logger.warning(f"No subject found matching department: {department}")
-                return []
+            if department.upper() == "ALL":
+                # CS = Crop Science, CSC = Computer Science — scrape both as ACS codes
+                departments = subjects
+                logger.info(
+                    f"ALL fans out to {len(departments)} discovered subjects "
+                    f"(includes CS=Crop Science and CSC=Computer Science; CS is not CompSci)"
+                )
+            else:
+                if department.upper() not in [s.upper() for s in subjects]:
+                    logger.warning(
+                        f"No subject found matching department: {department}"
+                    )
+                    return []
+                departments = [department]
 
-            # Fetch courses for the department
-            courses_data = await self._fetch_department_courses(department)
+            all_courses = []
+            for dept in departments:
+                logger.info(f"Scraping department: {dept}")
+                dept_courses = await self._fetch_department_courses(dept)
+                all_courses.extend(dept_courses)
 
             logger.info(
-                f"Successfully scraped {len(courses_data)} courses from NC State {department}. "
+                f"Successfully scraped {len(all_courses)} courses from NC State {department}. "
                 f"Total requests: {self.total_request_count}"
             )
-            return courses_data
+            return all_courses
 
         except Exception as e:
             logger.error(f"Failed to scrape NC State {department}: {e}")

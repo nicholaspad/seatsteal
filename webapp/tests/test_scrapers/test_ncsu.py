@@ -60,22 +60,45 @@ def scraper(mock_db_session):
 
 @pytest.mark.asyncio
 async def test_scraper_initialization(scraper):
-    """Test that scraper initializes with correct term code and allowlist."""
+    """Test that scraper initializes with correct term code and full-catalog budget."""
     assert scraper.college_short_name == "ncsu"
     assert scraper.current_term == "2268"
     assert scraper.total_request_count == 0
-    assert scraper.ALLOWED_DEPARTMENTS == ["CSC"]
+    assert not hasattr(scraper, "ALLOWED_DEPARTMENTS")
     assert scraper.MAX_RESPONSE_SIZE == 5 * 1024 * 1024
+    # 1 subjects.php + 199 Fall search.php = 200; 350 leaves retry/growth headroom
+    assert scraper.MAX_TOTAL_REQUESTS == 350
 
 
 @pytest.mark.asyncio
-async def test_csc_is_allowlisted_not_cs(scraper):
+async def test_cs_is_crop_science_not_compsci(scraper):
     """
-    CRITICAL: Test that CSC (Computer Science) is allowlisted, NOT CS (Crop Science).
-    This is the CS vs CSC trap mentioned in requirements.
+    CRITICAL: CS = Crop Science, CSC = Computer Science.
+    Full catalog scrapes both ACS codes; CS must never be treated as CompSci.
     """
-    assert "CSC" in scraper.ALLOWED_DEPARTMENTS
-    assert "CS" not in scraper.ALLOWED_DEPARTMENTS
+    subjects_fixture = load_fixture("subjects.json")
+    subjects_list = json.loads(subjects_fixture["subj_js"])
+
+    cs_entry = next(s for s in subjects_list if s.startswith("CS "))
+    csc_entry = next(s for s in subjects_list if s.startswith("CSC "))
+
+    assert "Crop Science" in cs_entry
+    assert "Computer Science" in csc_entry
+    assert "Computer Science" not in cs_entry
+
+
+@pytest.mark.asyncio
+async def test_full_catalog_budget_covers_verified_fall_cardinality(scraper):
+    """
+    Live Fall 2026 (strm=2268, verified 2026-09-20): 199 subjects.
+    Baseline = 1 subjects.php + 199 search.php = 200.
+    Budget 350 covers that plus retry/growth headroom without fail-loud abort.
+    """
+    verified_fall_subjects = 199
+    baseline_requests = 1 + verified_fall_subjects
+    assert scraper.MAX_TOTAL_REQUESTS == 350
+    assert baseline_requests < scraper.MAX_TOTAL_REQUESTS
+    assert scraper.MAX_TOTAL_REQUESTS - baseline_requests >= 100
 
 
 @pytest.mark.asyncio
@@ -223,86 +246,145 @@ async def test_normalize_ncsu_status(scraper):
     assert scraper._normalize_ncsu_status(None) == "Closed"
 
 
+def _subject_code(course_code: str) -> str:
+    """Extract ACS subject code; do not use startswith('CS') (matches CSC)."""
+    return course_code.split(" ", 1)[0]
+
+
 @pytest.mark.asyncio
-async def test_all_department_maps_to_csc_allowlist(scraper):
+async def test_all_department_fans_out_to_all_subjects(scraper):
     """
-    Test that department='ALL' maps to CSC allowlist (not full ~199-subject catalog).
+    Test that department='ALL' fans out to every subject from subjects.php,
+    including both CS (Crop Science) and CSC (Computer Science).
+    """
+    await scraper._ensure_client()
+
+    subjects_fixture = load_fixture("subjects.json")
+    expected_subjects = [
+        entry.split(" - ", 1)[0].strip()
+        for entry in json.loads(subjects_fixture["subj_js"])
+    ]
+    assert "CS" in expected_subjects
+    assert "CSC" in expected_subjects
+
+    fetched_departments = []
+
+    async def fake_fetch_department_courses(department: str):
+        fetched_departments.append(department)
+        return [
+            {
+                "course_code": f"{department} 101",
+                "title": f"{department} Course",
+                "classes": [
+                    {
+                        "class_number": "1",
+                        "section": "001",
+                        "status": "Open",
+                    }
+                ],
+            }
+        ]
+
+    with patch.object(
+        scraper, "_make_request_with_retry", new_callable=AsyncMock
+    ) as mock_request:
+        subjects_response = MagicMock()
+        subjects_response.json.return_value = subjects_fixture
+        mock_request.return_value = subjects_response
+
+        with patch.object(
+            scraper,
+            "_fetch_department_courses",
+            side_effect=fake_fetch_department_courses,
+        ):
+            courses = await scraper.scrape_courses("ALL", limit=None)
+
+    assert fetched_departments == expected_subjects
+    assert [_subject_code(c["course_code"]) for c in courses] == expected_subjects
+    assert mock_request.call_count == 1
+    assert "subjects.php" in mock_request.call_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_cs_crop_science_scrapes_as_own_subject(scraper):
+    """
+    CRITICAL: CS is Crop Science. Scrape CS as that ACS code; do not remap to CSC.
     """
     await scraper._ensure_client()
 
     subjects_fixture = load_fixture("subjects.json")
     search_fixture = load_fixture("search_csc_open_closed.json")
+    requested_subjects = []
+
+    async def mock_request(method, url, **kwargs):
+        response = MagicMock()
+        if "subjects.php" in url:
+            response.json.return_value = subjects_fixture
+            return response
+        requested_subjects.append(kwargs.get("data", {}).get("subject"))
+        response.json.return_value = search_fixture
+        return response
+
+    with patch.object(scraper, "_make_request_with_retry", side_effect=mock_request):
+        courses = await scraper.scrape_courses("CS")
+
+    assert requested_subjects == ["CS"]
+    assert "CSC" not in requested_subjects
+    assert len(courses) > 0
+
+
+@pytest.mark.asyncio
+async def test_named_departments_other_than_csc_work(scraper):
+    """Explicit single-department scrapes (MA, ECE) work for debugging."""
+    await scraper._ensure_client()
+
+    subjects_fixture = load_fixture("subjects.json")
+    search_fixture = load_fixture("search_csc_open_closed.json")
+
+    for dept in ("MA", "ECE"):
+        requested_subjects = []
+
+        async def mock_request(method, url, **kwargs):
+            response = MagicMock()
+            if "subjects.php" in url:
+                response.json.return_value = subjects_fixture
+                return response
+            requested_subjects.append(kwargs.get("data", {}).get("subject"))
+            response.json.return_value = search_fixture
+            return response
+
+        with patch.object(
+            scraper, "_make_request_with_retry", side_effect=mock_request
+        ):
+            courses = await scraper.scrape_courses(dept)
+
+        assert requested_subjects == [dept]
+        assert len(courses) > 0
+
+
+@pytest.mark.asyncio
+async def test_unknown_department_returns_empty(scraper):
+    """Unknown subject codes are a no-op, not an allowlist rejection."""
+    await scraper._ensure_client()
+
+    subjects_fixture = load_fixture("subjects.json")
 
     with patch.object(
         scraper, "_make_request_with_retry", new_callable=AsyncMock
     ) as mock_request:
-        # Mock subjects response
         subjects_response = MagicMock()
         subjects_response.json.return_value = subjects_fixture
+        mock_request.return_value = subjects_response
 
-        # Mock search response for CSC
-        search_response = MagicMock()
-        search_response.json.return_value = search_fixture
+        courses = await scraper.scrape_courses("NOTASUBJ")
 
-        mock_request.side_effect = [
-            subjects_response,  # POST subjects
-            search_response,  # POST search for CSC
-        ]
-
-        # Scrape with department='ALL'
-        courses = await scraper.scrape_courses("ALL", limit=None)
-
-        # Verify:
-        # 1. Should succeed
-        # 2. Should return CSC courses only
-        # 3. All course_codes should start with "CSC"
-        assert len(courses) > 0, "ALL should map to CSC and return courses"
-        assert all(
-            c["course_code"].startswith("CSC") for c in courses
-        ), "ALL should only scrape CSC (allowlist)"
+    assert courses == []
+    assert mock_request.call_count == 1
 
 
 @pytest.mark.asyncio
-async def test_cs_crop_science_rejected(scraper):
-    """
-    CRITICAL: Test that CS (Crop Science) is rejected, not confused with Computer Science.
-    """
-    await scraper._ensure_client()
-
-    # Try CS (Crop Science) - should be rejected
-    with pytest.raises(ValueError) as exc_info:
-        await scraper.scrape_courses("CS")
-
-    error_msg = str(exc_info.value)
-    assert "only supports allowlisted departments" in error_msg
-    assert "CSC" in error_msg
-    assert "CS" in error_msg or "'CS'" in error_msg
-
-
-@pytest.mark.asyncio
-async def test_non_allowlisted_department_rejected(scraper):
-    """Test that non-allowlisted departments (e.g., MA, ECE) are rejected."""
-    await scraper._ensure_client()
-
-    # Try Mathematics (not in allowlist)
-    with pytest.raises(ValueError) as exc_info:
-        await scraper.scrape_courses("MA")
-
-    error_msg = str(exc_info.value)
-    assert "only supports allowlisted departments" in error_msg
-    assert "CSC" in error_msg
-
-    # Try ECE (not in allowlist)
-    with pytest.raises(ValueError) as exc_info:
-        await scraper.scrape_courses("ECE")
-
-    error_msg = str(exc_info.value)
-    assert "only supports allowlisted departments" in error_msg
-
-
-@pytest.mark.asyncio
-async def test_csc_allowlisted_department_works(scraper):
-    """Test that CSC (allowlisted) department can be scraped."""
+async def test_explicit_csc_department_works(scraper):
+    """Test that an explicit CSC (Computer Science) scrape still works."""
     await scraper._ensure_client()
 
     subjects_fixture = load_fixture("subjects.json")
@@ -324,11 +406,12 @@ async def test_csc_allowlisted_department_works(scraper):
             search_response,
         ]
 
-        # CSC should work (in allowlist)
         courses = await scraper.scrape_courses("CSC")
 
         # Should succeed and return courses
         assert len(courses) > 0
+        search_call = mock_request.call_args_list[1]
+        assert search_call.kwargs["data"]["subject"] == "CSC"
 
 
 @pytest.mark.asyncio
