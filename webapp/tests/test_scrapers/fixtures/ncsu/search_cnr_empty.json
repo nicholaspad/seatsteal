@@ -1,0 +1,9 @@
+{
+  "html": "<div class=\"alert alert-info\" id=\"no-result-alert\">No results were found for this query.</div>",
+  "json": {
+    "inputs": {
+      "term": "2268",
+      "subject": "CNR"
+    }
+  }
+}

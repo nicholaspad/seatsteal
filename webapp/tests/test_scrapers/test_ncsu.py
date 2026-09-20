@@ -11,7 +11,11 @@ import sys
 webapp_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from scraper.scrapers.ncsu import NcsuScraper, NcsuBudgetExceededError
+from scraper.scrapers.ncsu import (
+    NcsuScraper,
+    NcsuBudgetExceededError,
+    NcsuEmptySubjectError,
+)
 from models.college import College
 import httpx
 
@@ -209,13 +213,134 @@ async def test_empty_html_fails_loud(scraper):
     search_fixture = load_fixture("search_csc_empty.json")
     html_content = search_fixture["html"]
 
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(NcsuEmptySubjectError) as exc_info:
         scraper._parse_courses_from_html(html_content, "CSC")
 
     error_msg = str(exc_info.value)
     assert (
         "No course sections found" in error_msg
         or "breaking change" in error_msg.lower()
+    )
+
+
+@pytest.mark.asyncio
+async def test_all_continues_past_empty_subject(scraper):
+    """
+    ALL fan-out must skip subjects with empty HTML or zero course sections
+    (live CNR shape: no-result-alert, no <section class="course">) and still
+    return courses from non-empty subjects.
+    """
+    await scraper._ensure_client()
+
+    subjects_payload = {
+        "subj_js": json.dumps(
+            [
+                "CNR - College of Natural Resources",
+                "AA - Advanced Analytics",
+                "CSC - Computer Science",
+            ]
+        )
+    }
+    search_cnr = load_fixture("search_cnr_empty.json")
+    search_empty_html = load_fixture("search_csc_empty.json")
+    search_csc = load_fixture("search_csc_open_closed.json")
+    requested_subjects = []
+
+    async def mock_request(method, url, **kwargs):
+        response = MagicMock()
+        if "subjects.php" in url:
+            response.json.return_value = subjects_payload
+            return response
+        subject = kwargs.get("data", {}).get("subject")
+        requested_subjects.append(subject)
+        if subject == "CNR":
+            response.json.return_value = search_cnr
+        elif subject == "AA":
+            response.json.return_value = search_empty_html
+        elif subject == "CSC":
+            response.json.return_value = search_csc
+        else:
+            raise AssertionError(f"Unexpected subject {subject}")
+        return response
+
+    with patch.object(scraper, "_make_request_with_retry", side_effect=mock_request):
+        courses = await scraper.scrape_courses("ALL")
+
+    assert requested_subjects == ["CNR", "AA", "CSC"]
+    assert len(courses) > 0
+    assert all(_subject_code(c["course_code"]) == "CSC" for c in courses)
+    assert not any(_subject_code(c["course_code"]) in {"CNR", "AA"} for c in courses)
+
+
+@pytest.mark.asyncio
+async def test_named_empty_department_fails_loud(scraper):
+    """Named department scrape still fails loud on empty / no-section HTML."""
+    await scraper._ensure_client()
+
+    subjects_fixture = load_fixture("subjects.json")
+    empty_searches = [
+        load_fixture("search_cnr_empty.json"),
+        load_fixture("search_csc_empty.json"),
+    ]
+
+    for empty_search in empty_searches:
+
+        async def mock_request(method, url, **kwargs):
+            response = MagicMock()
+            if "subjects.php" in url:
+                response.json.return_value = subjects_fixture
+                return response
+            response.json.return_value = empty_search
+            return response
+
+        with patch.object(
+            scraper, "_make_request_with_retry", side_effect=mock_request
+        ):
+            with pytest.raises(NcsuEmptySubjectError) as exc_info:
+                await scraper.scrape_courses("CSC")
+
+        error_msg = str(exc_info.value)
+        assert (
+            "No course sections found" in error_msg or "Empty HTML content" in error_msg
+        )
+
+
+@pytest.mark.asyncio
+async def test_all_empty_catalog_fails_loud(scraper):
+    """ALL that finds zero courses across all subjects still fails loud."""
+    await scraper._ensure_client()
+
+    subjects_payload = {
+        "subj_js": json.dumps(
+            [
+                "CNR - College of Natural Resources",
+                "AA - Advanced Analytics",
+            ]
+        )
+    }
+    search_cnr = load_fixture("search_cnr_empty.json")
+    search_empty_html = load_fixture("search_csc_empty.json")
+
+    async def mock_request(method, url, **kwargs):
+        response = MagicMock()
+        if "subjects.php" in url:
+            response.json.return_value = subjects_payload
+            return response
+        subject = kwargs.get("data", {}).get("subject")
+        if subject == "CNR":
+            response.json.return_value = search_cnr
+        else:
+            response.json.return_value = search_empty_html
+        return response
+
+    with patch.object(scraper, "_make_request_with_retry", side_effect=mock_request):
+        with pytest.raises(Exception) as exc_info:
+            await scraper.scrape_courses("ALL")
+
+    error_msg = str(exc_info.value)
+    assert "No courses found across" in error_msg
+    assert (
+        "empty term data" in error_msg.lower() or "breaking change" in error_msg.lower()
     )
 
 
@@ -694,6 +819,7 @@ async def test_fixtures_exist():
         "search_csc_open_closed.json",
         "search_csc_reserved.json",
         "search_csc_empty.json",
+        "search_cnr_empty.json",
     ]
 
     for fixture in required_fixtures:

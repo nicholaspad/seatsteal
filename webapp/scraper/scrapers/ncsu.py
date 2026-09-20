@@ -18,6 +18,17 @@ class NcsuBudgetExceededError(Exception):
     pass
 
 
+class NcsuEmptySubjectError(Exception):
+    """
+    A single ACS subject returned empty HTML or zero course sections.
+
+    Legitimate for some subjects during ALL fan-out (e.g. CNR Fall 2026
+    returns a no-result-alert). Named department scrapes still fail loud.
+    """
+
+    pass
+
+
 class NcsuScraper(BaseScraper):
     """
     NC State University course scraper.
@@ -43,7 +54,9 @@ class NcsuScraper(BaseScraper):
     - Response is JSON {"html":"<section class=course...>", "json":{...}}
     - Parse the HTML field with BeautifulSoup, NOT the json field
     - User-Agent: SeatSteal/1.0, X-Requested-With: XMLHttpRequest
-    - Fail loud on budget exceeded, empty response, or unparseable data
+    - Fail loud on budget exceeded, empty named-department response, or unparseable data
+    - ALL fan-out: skip subjects with empty HTML / zero course sections; fail
+      loud if the completed catalog has 0 courses
     """
 
     BASE_URL = "https://webappprd.acs.ncsu.edu/php/coursecat"
@@ -120,11 +133,27 @@ class NcsuScraper(BaseScraper):
                     return []
                 departments = [department]
 
+            is_all = department.upper() == "ALL"
             all_courses = []
             for dept in departments:
                 logger.info(f"Scraping department: {dept}")
-                dept_courses = await self._fetch_department_courses(dept)
+                try:
+                    dept_courses = await self._fetch_department_courses(dept)
+                except NcsuEmptySubjectError as e:
+                    if is_all:
+                        logger.warning(
+                            f"Skipping empty subject {dept} during ALL fan-out: {e}"
+                        )
+                        continue
+                    raise
                 all_courses.extend(dept_courses)
+
+            if is_all and not all_courses:
+                raise Exception(
+                    f"No courses found across {len(departments)} subjects "
+                    f"for term {self.current_term}. "
+                    f"This may indicate a breaking change in the API or empty term data."
+                )
 
             logger.info(
                 f"Successfully scraped {len(all_courses)} courses from NC State {department}. "
@@ -239,7 +268,7 @@ class NcsuScraper(BaseScraper):
             html_content = response_data["html"]
 
             if not html_content or html_content.strip() == "":
-                raise Exception(
+                raise NcsuEmptySubjectError(
                     f"Empty HTML content in search response for {department}. "
                     f"This may indicate no courses or a breaking API change."
                 )
@@ -252,6 +281,8 @@ class NcsuScraper(BaseScraper):
             )
             return courses_data
 
+        except NcsuEmptySubjectError:
+            raise
         except Exception as e:
             logger.error(f"Error fetching courses for {department}: {e}")
             raise
@@ -292,8 +323,8 @@ class NcsuScraper(BaseScraper):
         course_sections = soup.find_all("section", class_="course")
 
         if not course_sections:
-            # Fail loud if no courses found (may indicate breaking API change)
-            raise Exception(
+            # Named dept: fail loud. ALL fan-out catches this and skips.
+            raise NcsuEmptySubjectError(
                 f"No course sections found in HTML for {department}. "
                 f"This may indicate a breaking change in the API or empty term data."
             )
