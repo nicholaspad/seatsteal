@@ -305,16 +305,17 @@ curl -s "https://one.uf.edu/apix/soc/terms" | python3 -c "import json,sys; [prin
 **CRITICAL Department Trap:**
 - **CS = Crop Science** (NOT Computer Science!)
 - **CSC = Computer Science**
-- ONLY allowlist CSC for Computer Science courses
-- Never allowlist CS as CompSci
+- Full catalog scrapes every ACS subject code, including both CS and CSC
+- Never treat CS as CompSci — they are different subjects
 
 **Notes:**
 - Use Class # (from td.class-num) as the unique identifier, not section alone
 - User-Agent: SeatSteal/1.0
 - X-Requested-With: XMLHttpRequest (required on POSTs)
 - MAX_RESPONSE_SIZE: 5MB guard against runaway responses
-- Request budget: 50 max for single-department scraping (CSC)
-- ALL department maps to CSC allowlist only (never expands to full ~199-subject catalog)
+- Request budget: 350 (1 subjects.php + ~199 search.php ≈ 200, plus retry/growth headroom)
+- ALL department fans out to every subject returned by subjects.php
+- Named department scrapes (CSC, CS, MA, …) still work for debugging
 
 ---
 
