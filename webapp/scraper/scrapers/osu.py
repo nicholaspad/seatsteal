@@ -1,8 +1,63 @@
 from typing import List, Dict, Any, Optional
+import asyncio
 import httpx
 from scraper.base import BaseScraper
 from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
+
+# OSU Content API. Mid-shard httpx/httpcore disconnects often have empty str(e);
+# format_osu_request_error keeps type/repr/URL visible so scraper_job does not
+# substitute "Unknown error during scraping".
+OSU_CONTENT_API_URL = "https://content.osu.edu/v2/classes/search"
+
+# Limited page-level retries, then abort the attempt (do not keep walking shards
+# with a dead client, and do not burn 3x full-catalog cycles on a doomed page).
+PAGE_MAX_ATTEMPTS = 3
+PAGE_RETRY_BACKOFF_S = (0.5, 1.0)
+HTTP_TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
+
+
+def format_osu_request_error(
+    exc: BaseException,
+    params: Optional[Dict[str, str]] = None,
+    url: str = OSU_CONTENT_API_URL,
+) -> str:
+    """Format an OSU API exception so empty str(e) still identifies the failure.
+
+    httpx/httpcore transport disconnects frequently have empty ``str(e)`` even
+    when ``repr(e)`` and the request (shard/catalog-number, page) are useful.
+    Named HTTP errors keep their original message.
+    """
+    message = str(exc).strip()
+    exc_type = type(exc).__name__
+    exc_repr = repr(exc)
+
+    if message:
+        detail = f"{exc_type}: {message}"
+    else:
+        detail = f"{exc_type}: {exc_repr}"
+
+    cause = exc.__cause__ or exc.__context__
+    if cause is not None:
+        cause_msg = str(cause).strip() or repr(cause)
+        cause_type = type(cause).__name__
+        if cause_msg and cause_msg not in detail:
+            detail = f"{detail} (cause: {cause_type}: {cause_msg})"
+
+    request_desc = f"url={url}"
+    if params:
+        request_desc = f"{request_desc} params={params}"
+
+    return f"{detail} [{request_desc}]"
+
+
+def _is_retryable_osu_error(exc: BaseException) -> bool:
+    """Retry transport/timeout and empty-str exceptions; not named HTTP errors."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return False
+    if isinstance(exc, (httpx.TransportError, httpx.TimeoutException)):
+        return True
+    return not str(exc).strip()
 
 
 class OsuScraper(BaseScraper):
@@ -27,7 +82,7 @@ class OsuScraper(BaseScraper):
     Catalog-number sharding is the preferred reliable strategy.
     """
 
-    BASE_API_URL = "https://content.osu.edu/v2/classes/search"
+    BASE_API_URL = OSU_CONTENT_API_URL
 
     def __init__(self, db_session=None):
         super().__init__("osu")
@@ -37,16 +92,28 @@ class OsuScraper(BaseScraper):
         logger.info(f"Initialized OSU scraper with term: {self.current_term}")
 
     async def _ensure_client(self):
-        """Ensure HTTP client is initialized"""
+        """Ensure HTTP client is initialized with explicit connect/read timeouts."""
         if self.client is None:
             self.client = httpx.AsyncClient(
-                timeout=30.0,
+                timeout=HTTP_TIMEOUT,
                 follow_redirects=True,
                 headers={
                     "User-Agent": "SeatSteal/1.0",
                     "Accept": "application/json",
                 },
             )
+
+    async def _reset_client(self):
+        """Close a stale client after transport errors and open a fresh one."""
+        if self.client is not None:
+            try:
+                await self.client.aclose()
+            except Exception as close_err:
+                logger.warning(
+                    f"Error closing OSU HTTP client: {format_osu_request_error(close_err)}"
+                )
+            self.client = None
+        await self._ensure_client()
 
     async def scrape_courses(
         self, department: str, limit: Optional[int] = None
@@ -81,7 +148,8 @@ class OsuScraper(BaseScraper):
             return courses_data
 
         except Exception as e:
-            logger.error(f"Failed to scrape OSU {department}: {e}")
+            error_msg = str(e).strip() or format_osu_request_error(e)
+            logger.error(f"Failed to scrape OSU {department}: {error_msg}")
             raise
         finally:
             if self.client:
@@ -266,6 +334,10 @@ class OsuScraper(BaseScraper):
         """
         Make an API request to the OSU Content API.
 
+        Transport / empty-str exceptions get a limited page-level retry (fresh
+        client each time). After that the attempt is aborted so the job can
+        start a clean retry instead of walking remaining shards blindly.
+
         Args:
             params: Query parameters
 
@@ -273,22 +345,52 @@ class OsuScraper(BaseScraper):
             API response data
 
         Raises:
-            Exception: If API request fails
+            httpx.HTTPStatusError: Named HTTP errors (message preserved)
+            RuntimeError: Transport/empty failures after page retries, with
+                type/repr/URL so downstream stats["error"] is never blank
         """
-        try:
-            response = await self.client.get(self.BASE_API_URL, params=params)
-            response.raise_for_status()
-            self.request_count += 1
+        last_error: Optional[BaseException] = None
 
-            data = self.decode_json_response(response)
-            return data
+        for attempt in range(1, PAGE_MAX_ATTEMPTS + 1):
+            await self._ensure_client()
+            if self.client is None:
+                raise RuntimeError("OSU HTTP client failed to initialize")
+            try:
+                response = await self.client.get(self.BASE_API_URL, params=params)
+                response.raise_for_status()
+                self.request_count += 1
+                return self.decode_json_response(response)
 
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error fetching OSU courses: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error fetching OSU courses: {e}")
-            raise
+            except httpx.HTTPStatusError as e:
+                error_msg = format_osu_request_error(e, params)
+                logger.error(f"HTTP error fetching OSU courses: {error_msg}")
+                raise
+
+            except Exception as e:
+                last_error = e
+                error_msg = format_osu_request_error(e, params)
+                retryable = _is_retryable_osu_error(e)
+
+                if retryable and attempt < PAGE_MAX_ATTEMPTS:
+                    logger.warning(
+                        f"Retryable error fetching OSU courses "
+                        f"(attempt {attempt}/{PAGE_MAX_ATTEMPTS}): {error_msg}"
+                    )
+                    await self._reset_client()
+                    backoff = PAGE_RETRY_BACKOFF_S[
+                        min(attempt - 1, len(PAGE_RETRY_BACKOFF_S) - 1)
+                    ]
+                    await asyncio.sleep(backoff)
+                    continue
+
+                logger.error(f"Error fetching OSU courses: {error_msg}")
+                # Wrap so scraper_job does not substitute "Unknown error" when
+                # the original exception has an empty str (httpx disconnects).
+                raise RuntimeError(error_msg) from e
+
+        error_msg = format_osu_request_error(last_error, params)
+        logger.error(f"Error fetching OSU courses: {error_msg}")
+        raise RuntimeError(error_msg) from last_error
 
     def _transform_courses(
         self, raw_courses: List[Dict[str, Any]]
