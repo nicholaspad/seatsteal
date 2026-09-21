@@ -5,12 +5,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import sys
 from pathlib import Path
+import httpx
 
 # Add webapp directory to path
 webapp_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from scraper.scrapers.osu import OsuScraper
+from scraper.scrapers.osu import (
+    OsuScraper,
+    PAGE_MAX_ATTEMPTS,
+    format_osu_request_error,
+)
 from models.college import College
 
 # Sample OSU API response data with classNumber field
@@ -316,3 +321,162 @@ async def test_department_fetch_paginates_past_small_pages(scraper):
         assert mock_request.call_args_list[0][0][0]["p"] == "1"
         assert mock_request.call_args_list[1][0][0]["p"] == "2"
         assert mock_request.call_args_list[2][0][0]["p"] == "3"
+
+
+class _EmptyStrError(Exception):
+    """Mirrors httpx/httpcore transport disconnects whose str(e) is empty."""
+
+    def __str__(self) -> str:
+        return ""
+
+
+def test_format_empty_str_exception_includes_type_and_repr():
+    """Empty str(e) must still log type, repr, and the request shard/page."""
+    exc = _EmptyStrError()
+    params = {"q": "", "term": "1268", "catalog-number": "3xxx", "p": "12"}
+
+    formatted = format_osu_request_error(exc, params)
+
+    assert type(exc).__name__ in formatted
+    assert repr(exc) in formatted
+    assert "catalog-number" in formatted
+    assert "3xxx" in formatted
+    assert "p" in formatted
+    assert "12" in formatted
+    assert "https://content.osu.edu/v2/classes/search" in formatted
+    # Must not collapse to a blank / unknown-style message
+    assert formatted.strip() != ""
+    assert "Unknown error" not in formatted
+
+
+def test_format_named_http_error_surfaces_message():
+    """Known HTTP errors keep their original message (not type-only)."""
+    request = httpx.Request("GET", "https://content.osu.edu/v2/classes/search")
+    response = httpx.Response(503, request=request)
+    exc = httpx.HTTPStatusError(
+        "Server error '503 Service Unavailable' for url 'https://content.osu.edu/v2/classes/search'",
+        request=request,
+        response=response,
+    )
+    params = {"catalog-number": "1xxx", "p": "51"}
+
+    formatted = format_osu_request_error(exc, params)
+
+    assert "503" in formatted
+    assert "Service Unavailable" in formatted or "HTTPStatusError" in formatted
+    assert "1xxx" in formatted
+    assert str(exc).strip() != ""
+    assert str(exc) in formatted or "503" in formatted
+
+
+@pytest.mark.asyncio
+async def test_make_api_request_retries_then_aborts_on_empty_transport(scraper):
+    """Page-level retry on empty transport errors, then abort the attempt."""
+    empty_exc = httpx.RemoteProtocolError("")
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(side_effect=empty_exc)
+    mock_client.aclose = AsyncMock()
+    scraper.client = mock_client
+    params = {"q": "", "term": "1268", "catalog-number": "2xxx", "p": "7"}
+
+    with patch.object(scraper, "_reset_client", new_callable=AsyncMock) as mock_reset:
+        with patch("scraper.scrapers.osu.asyncio.sleep", new_callable=AsyncMock):
+            with patch("scraper.scrapers.osu.logger") as mock_logger:
+                with pytest.raises(RuntimeError) as exc_info:
+                    await scraper._make_api_request(params)
+
+    assert mock_client.get.call_count == PAGE_MAX_ATTEMPTS
+    # Reset before each retry, not after the final abort
+    assert mock_reset.call_count == PAGE_MAX_ATTEMPTS - 1
+
+    error_text = str(exc_info.value)
+    assert "RemoteProtocolError" in error_text
+    assert repr(empty_exc) in error_text or "RemoteProtocolError" in error_text
+    assert "2xxx" in error_text
+    assert "7" in error_text
+
+    logged = " ".join(
+        str(call)
+        for call in mock_logger.warning.call_args_list
+        + mock_logger.error.call_args_list
+    )
+    assert "RemoteProtocolError" in logged
+    assert "2xxx" in logged
+
+
+@pytest.mark.asyncio
+async def test_make_api_request_recovers_after_page_retry(scraper):
+    """A single transport blip should retry the same page and continue."""
+    mock_response = MagicMock()
+    mock_response.content = b'{"data": {"courses": []}}'
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(
+        side_effect=[httpx.RemoteProtocolError(""), mock_response]
+    )
+    mock_client.aclose = AsyncMock()
+    scraper.client = mock_client
+
+    with patch.object(scraper, "_reset_client", new_callable=AsyncMock):
+        with patch("scraper.scrapers.osu.asyncio.sleep", new_callable=AsyncMock):
+            result = await scraper._make_api_request(
+                {"catalog-number": "4xxx", "p": "1"}
+            )
+
+    assert result == {"data": {"courses": []}}
+    assert mock_client.get.call_count == 2
+    assert scraper.request_count == 1
+
+
+@pytest.mark.asyncio
+async def test_make_api_request_http_error_surfaces_message_without_retry(scraper):
+    """Named HTTP errors surface their message and do not burn page retries."""
+    request = httpx.Request("GET", "https://content.osu.edu/v2/classes/search")
+    response = httpx.Response(404, request=request)
+    http_error = httpx.HTTPStatusError(
+        "Client error '404 Not Found' for url 'https://content.osu.edu/v2/classes/search'",
+        request=request,
+        response=response,
+    )
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(side_effect=http_error)
+    scraper.client = mock_client
+    params = {"q": "CSE", "term": "1268", "p": "1"}
+
+    with patch.object(scraper, "_reset_client", new_callable=AsyncMock) as mock_reset:
+        with patch("scraper.scrapers.osu.logger") as mock_logger:
+            with pytest.raises(httpx.HTTPStatusError) as exc_info:
+                await scraper._make_api_request(params)
+
+    assert mock_client.get.call_count == 1
+    mock_reset.assert_not_called()
+    assert "404" in str(exc_info.value)
+    assert "Not Found" in str(exc_info.value)
+
+    logged = " ".join(str(call) for call in mock_logger.error.call_args_list)
+    assert "404" in logged
+    assert "HTTPStatusError" in logged or "404" in logged
+    assert "CSE" in logged or "p" in logged
+
+
+@pytest.mark.asyncio
+async def test_fetch_all_courses_aborts_remaining_shards_after_page_failure(scraper):
+    """Unrecoverable page error must abort the attempt, not finish 8 shards."""
+    with patch.object(
+        scraper,
+        "_make_api_request",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError(
+            "RemoteProtocolError: RemoteProtocolError('') "
+            "[url=https://content.osu.edu/v2/classes/search "
+            "params={'catalog-number': '1xxx', 'p': '3'}]"
+        ),
+    ) as mock_request:
+        with pytest.raises(RuntimeError) as exc_info:
+            await scraper._fetch_all_courses()
+
+    # Failed on shard 1 page 1 — do not walk shards 2-8
+    assert mock_request.call_count == 1
+    assert "RemoteProtocolError" in str(exc_info.value)
