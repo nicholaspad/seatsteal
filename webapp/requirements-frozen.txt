@@ -41,7 +41,7 @@ packaging==26.0
 postgrest==1.1.1
 propcache==0.4.1
 psycopg2-binary==2.9.9
-pyasn1==0.6.2
+pyasn1==0.6.3
 pycparser==3.0
 pydantic==2.10.3
 pydantic-settings==2.7.0
