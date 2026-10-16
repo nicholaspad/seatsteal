@@ -5,7 +5,6 @@ Scraper job orchestration - Manages scraping execution with locking and retry lo
 import time
 import asyncio
 from typing import Dict, Optional, Any
-from datetime import datetime
 from loguru import logger
 from sqlalchemy.orm import Session
 
@@ -13,6 +12,43 @@ from models.college import College
 from scraper.scraper_lock import ScraperLock
 from scraper.services.scraper_log import ScraperLogService
 from scraper.services.scraper_service import ScraperService
+
+# Wall-clock limit for one scraper_logs row (all retry attempts combined).
+DEFAULT_RUN_TIMEOUT_MINUTES = 60
+DEFAULT_LOCK_TIMEOUT_MS = 900000  # 15 minutes
+
+# Schools whose full-catalog scrapes routinely exceed the default.
+RUN_TIMEOUT_MINUTES_BY_SHORT_NAME = {
+    "ncsu": 300,
+    "upenn": 210,
+    "cornell": 210,
+}
+
+
+def run_timeout_minutes_for_college(short_name: Optional[str]) -> int:
+    """Return the per-college wall-clock limit in minutes."""
+    if not short_name:
+        return DEFAULT_RUN_TIMEOUT_MINUTES
+    return RUN_TIMEOUT_MINUTES_BY_SHORT_NAME.get(
+        short_name.lower(), DEFAULT_RUN_TIMEOUT_MINUTES
+    )
+
+
+def job_config_for_college(
+    college: College,
+    subject: str = "ALL",
+    limit: Optional[int] = None,
+    skip_lock: bool = False,
+) -> "JobConfig":
+    """Build JobConfig with the college's run timeout and a matching lock timeout."""
+    timeout_minutes = run_timeout_minutes_for_college(college.short_name)
+    return JobConfig(
+        subject=subject,
+        limit=limit,
+        skip_lock=skip_lock,
+        run_timeout_minutes=timeout_minutes,
+        lock_timeout_ms=max(DEFAULT_LOCK_TIMEOUT_MS, timeout_minutes * 60 * 1000),
+    )
 
 
 class JobResult:
@@ -38,10 +74,12 @@ class JobConfig:
         self,
         subject: str = "ALL",
         limit: Optional[int] = 1000,
-        lock_timeout_ms: int = 900000,  # 15 minutes
+        lock_timeout_ms: int = DEFAULT_LOCK_TIMEOUT_MS,
         retry_attempts: int = 3,
         retry_delay_ms: int = 5000,
         skip_lock: bool = False,
+        run_timeout_minutes: int = DEFAULT_RUN_TIMEOUT_MINUTES,
+        run_timeout_seconds: Optional[float] = None,
     ):
         self.subject = subject
         self.limit = limit
@@ -49,6 +87,13 @@ class JobConfig:
         self.retry_attempts = retry_attempts
         self.retry_delay_ms = retry_delay_ms
         self.skip_lock = skip_lock
+        self.run_timeout_minutes = run_timeout_minutes
+        # Seconds override is for tests; production uses minutes.
+        self.run_timeout_seconds = (
+            run_timeout_seconds
+            if run_timeout_seconds is not None
+            else float(run_timeout_minutes * 60)
+        )
 
 
 class ScraperJob:
@@ -67,7 +112,7 @@ class ScraperJob:
         """
         self.college = college
         self.db = db
-        self.config = config or JobConfig()
+        self.config = config or job_config_for_college(college)
         self.lock = ScraperLock(
             college.id, db, self.config.lock_timeout_ms, self.config.skip_lock
         )
@@ -128,7 +173,10 @@ class ScraperJob:
         logger.info(f"🔒 Acquired lock for {self.college.name}")
 
         try:
-            result = await self._execute_with_retry()
+            result = await asyncio.wait_for(
+                self._execute_with_retry(),
+                timeout=self.config.run_timeout_seconds,
+            )
             duration_ms = int((time.time() - start_time) * 1000)
 
             if result.success:
@@ -188,6 +236,40 @@ class ScraperJob:
 
             result.duration_ms = duration_ms
             return result
+
+        except TimeoutError:
+            duration_ms = int((time.time() - start_time) * 1000)
+            error_message = f"timed out after {self.config.run_timeout_minutes}m"
+
+            try:
+                self.db.rollback()
+            except Exception as rollback_error:
+                logger.warning(
+                    f"Failed to rollback after run timeout for {self.college.name}: "
+                    f"{rollback_error}"
+                )
+
+            self.lock.release(
+                "error", error_message=error_message, duration_ms=duration_ms
+            )
+            logger.error(
+                f"❌ Scraper job for {self.college.name} {error_message} "
+                f"(wall-clock limit reached after {duration_ms}ms)"
+            )
+
+            if log_id:
+                try:
+                    log_service = ScraperLogService(self.db)
+                    await log_service.complete_log(
+                        log_id, outcome="error", error_message=error_message
+                    )
+                    self.db.commit()
+                except Exception as ex:
+                    logger.warning(f"Failed to update log: {ex}")
+
+            return JobResult(
+                success=False, error=error_message, duration_ms=duration_ms
+            )
 
         except Exception as e:
             duration_ms = int((time.time() - start_time) * 1000)

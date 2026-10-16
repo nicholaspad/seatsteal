@@ -15,7 +15,14 @@ import asyncio
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from sqlalchemy.orm import Session
 
-from scraper.scraper_job import ScraperJob, JobConfig, JobResult
+from scraper.scraper_job import (
+    ScraperJob,
+    JobConfig,
+    JobResult,
+    DEFAULT_RUN_TIMEOUT_MINUTES,
+    job_config_for_college,
+    run_timeout_minutes_for_college,
+)
 from models.college import College
 from scraper.scraper_lock import LockResult
 
@@ -91,6 +98,8 @@ class TestJobConfig:
         assert config.retry_attempts == 3
         assert config.retry_delay_ms == 5000
         assert config.skip_lock is False
+        assert config.run_timeout_minutes == DEFAULT_RUN_TIMEOUT_MINUTES
+        assert config.run_timeout_seconds == DEFAULT_RUN_TIMEOUT_MINUTES * 60
 
     def test_job_config_custom_values(self):
         """Test custom configuration values"""
@@ -131,6 +140,37 @@ class TestJobConfig:
         config = JobConfig(limit=None)
 
         assert config.limit is None
+
+
+# ============================================================================
+# Per-college run timeout map
+# ============================================================================
+
+
+class TestCollegeRunTimeoutMap:
+    """Test per-school wall-clock overrides"""
+
+    def test_default_timeout_for_typical_school(self):
+        assert run_timeout_minutes_for_college("brown") == 60
+        assert run_timeout_minutes_for_college("osu") == 60
+        assert run_timeout_minutes_for_college(None) == 60
+
+    def test_override_timeouts(self):
+        assert run_timeout_minutes_for_college("ncsu") == 300
+        assert run_timeout_minutes_for_college("upenn") == 210
+        assert run_timeout_minutes_for_college("cornell") == 210
+
+    def test_override_is_case_insensitive(self):
+        assert run_timeout_minutes_for_college("NCSU") == 300
+        assert run_timeout_minutes_for_college("UPenn") == 210
+
+    def test_job_config_for_college_sets_timeout_and_lock(self):
+        ncsu = College(id=9, name="NC State", short_name="ncsu", is_active=True)
+        config = job_config_for_college(ncsu)
+
+        assert config.run_timeout_minutes == 300
+        assert config.run_timeout_seconds == 300 * 60
+        assert config.lock_timeout_ms == 300 * 60 * 1000
 
 
 # ============================================================================
@@ -984,3 +1024,115 @@ class TestEnrollmentLogging:
                     call_args = mock_log_service.complete_log.call_args
                     assert call_args[1]["enrollments_saved"] == 0
 
+
+# ============================================================================
+# execute() - Wall-clock run timeout
+# ============================================================================
+
+
+class TestExecuteRunTimeout:
+    """Test per-run wall-clock timeout aborts the job and releases the lock"""
+
+    @pytest.mark.asyncio
+    async def test_execute_times_out_and_releases_lock(
+        self, test_college, mock_db, mock_lock, mock_log_service
+    ):
+        """Hung scrape is aborted, lock released, log marked error."""
+
+        async def hang(*args, **kwargs):
+            await asyncio.sleep(1)
+            return {"success": True, "courses_saved": 1, "classes_saved": 1}
+
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = hang
+        config = JobConfig(run_timeout_minutes=60, run_timeout_seconds=0.05)
+
+        with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
+                    job = ScraperJob(test_college, mock_db, config)
+                    result = await job.execute()
+
+        assert result.success is False
+        assert result.error == "timed out after 60m"
+        mock_db.rollback.assert_called()
+        mock_lock.release.assert_called_once()
+        release_args, release_kwargs = mock_lock.release.call_args
+        assert release_args[0] == "error"
+        assert release_kwargs["error_message"] == "timed out after 60m"
+        assert "duration_ms" in release_kwargs
+        mock_log_service.complete_log.assert_called()
+        log_kwargs = mock_log_service.complete_log.call_args[1]
+        assert log_kwargs["outcome"] == "error"
+        assert log_kwargs["error_message"] == "timed out after 60m"
+        mock_db.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_execute_timeout_uses_college_minutes_in_message(
+        self, mock_db, mock_lock, mock_log_service
+    ):
+        """Error message uses the configured college timeout, not elapsed seconds."""
+        ncsu = College(id=2, name="NC State", short_name="ncsu", is_active=True)
+        config = JobConfig(run_timeout_minutes=300, run_timeout_seconds=0.01)
+
+        async def hang(*args, **kwargs):
+            await asyncio.sleep(1)
+            return {"success": True}
+
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = hang
+
+        with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
+                    job = ScraperJob(ncsu, mock_db, config)
+                    result = await job.execute()
+
+        assert result.error == "timed out after 300m"
+        assert mock_lock.release.call_args[1]["error_message"] == "timed out after 300m"
+
+    @pytest.mark.asyncio
+    async def test_execute_timeout_does_not_retry_after_deadline(
+        self, test_college, mock_db, mock_lock, mock_log_service
+    ):
+        """Timeout wraps all retry attempts; a hung first attempt is not retried."""
+        scrape_calls = {"count": 0}
+
+        async def hang(*args, **kwargs):
+            scrape_calls["count"] += 1
+            await asyncio.sleep(1)
+            return {"success": False, "error": "still going"}
+
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = hang
+        config = JobConfig(
+            retry_attempts=3,
+            retry_delay_ms=10,
+            run_timeout_minutes=60,
+            run_timeout_seconds=0.05,
+        )
+
+        with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
+                    job = ScraperJob(test_college, mock_db, config)
+                    result = await job.execute()
+
+        assert result.success is False
+        assert scrape_calls["count"] == 1
+        mock_lock.release.assert_called_once()

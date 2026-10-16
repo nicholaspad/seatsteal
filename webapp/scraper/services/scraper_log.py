@@ -1,7 +1,7 @@
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-from datetime import datetime
+from sqlalchemy import Integer, and_, cast, func, select, update
+from datetime import datetime, timezone
 from loguru import logger
 
 from models.scraper_log import ScraperLog
@@ -141,6 +141,44 @@ class ScraperLogService:
         """
         result = self.db.execute(select(ScraperLog).where(ScraperLog.id == log_id))
         return result.scalar_one_or_none()
+
+    async def mark_orphaned_running_logs(self, process_started_at: datetime) -> int:
+        """
+        Mark leftover `running` scraper_logs rows from a previous process as error.
+
+        Touches only scraper_logs. Rows whose started_at is at or after
+        process_started_at (this process) are left alone.
+        """
+        completed_at = datetime.now(timezone.utc)
+        duration_ms = func.greatest(
+            0,
+            cast(
+                func.extract("epoch", completed_at - ScraperLog.started_at) * 1000,
+                Integer,
+            ),
+        )
+        result = self.db.execute(
+            update(ScraperLog)
+            .where(
+                and_(
+                    ScraperLog.outcome == "running",
+                    ScraperLog.started_at < process_started_at,
+                )
+            )
+            .values(
+                outcome="error",
+                error_message="orphaned by restart",
+                completed_at=completed_at,
+                duration_ms=duration_ms,
+            )
+        )
+        orphan_count = result.rowcount or 0
+        if orphan_count:
+            logger.info(
+                f"Marked {orphan_count} orphaned scraper_logs row(s) as error "
+                f"(started_at before {process_started_at.isoformat()})"
+            )
+        return orphan_count
 
     async def get_last_successful_scrape(self, college_id: int) -> Optional[ScraperLog]:
         """
