@@ -778,6 +778,7 @@ describe("Dashboard Page", () => {
   describe("Stale school plan UI", () => {
     const mockDashboardApis = (college: {
       dataStatus: "ok" | "stale";
+      checkoutBlocked?: boolean;
       name?: string;
     }) => {
       mockFetchWithToasts.mockImplementation((url: string) => {
@@ -791,6 +792,7 @@ describe("Dashboard Page", () => {
                   id: 1,
                   name: college.name ?? "University of Illinois",
                   dataStatus: college.dataStatus,
+                  checkoutBlocked: college.checkoutBlocked ?? false,
                   lastUpdatedAt: "2026-10-16T12:00:00Z",
                 },
               }),
@@ -824,8 +826,8 @@ describe("Dashboard Page", () => {
       });
     };
 
-    it("hides the Upgrade CTA when the user's school is stale", async () => {
-      mockDashboardApis({ dataStatus: "stale" });
+    it("hides the Upgrade CTA when checkout is blocked", async () => {
+      mockDashboardApis({ dataStatus: "stale", checkoutBlocked: true });
 
       renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
 
@@ -836,6 +838,18 @@ describe("Dashboard Page", () => {
       expect(
         screen.queryByRole("link", { name: /upgrade/i }),
       ).not.toBeInTheDocument();
+    });
+
+    it("shows the Upgrade CTA when banner-stale but checkout is not blocked", async () => {
+      mockDashboardApis({ dataStatus: "stale", checkoutBlocked: false });
+
+      renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("link", { name: /upgrade/i }),
+        ).toBeInTheDocument();
+      });
     });
 
     it("shows the Upgrade CTA when the user's school data is ok", async () => {

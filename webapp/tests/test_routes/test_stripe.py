@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from models.user import Profile
 from models.college import College
 from models.scraper import Scraper
+from models.scraper_log import ScraperLog
 from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
 
@@ -140,7 +141,7 @@ class TestCreateCheckoutSession:
         test_user: Profile,
         test_college: College,
     ):
-        """Checkout is blocked when the user's school data is stale."""
+        """Checkout is blocked when there has been no successful scrape in 24h."""
         scraper = Scraper(
             college_id=test_college.id,
             status="error",
@@ -188,6 +189,108 @@ class TestCreateCheckoutSession:
         assert response.status_code == 409
         assert response.json()["detail"]["code"] == "SCHOOL_DATA_UNAVAILABLE"
         mock_checkout.assert_not_called()
+
+    @pytest.mark.unit
+    async def test_create_checkout_session_allows_banner_only_stale(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        test_college: College,
+    ):
+        """Two consecutive errors show the banner but must not block checkout."""
+        last_success = datetime.now(timezone.utc) - timedelta(hours=2)
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="error",
+            last_success_at=last_success,
+        )
+        test_db.add(scraper)
+        test_db.add(
+            StripeCustomer(
+                user_id=test_user.id,
+                stripe_customer_id="cus_banner_only",
+                email=test_user.email,
+            )
+        )
+        test_db.commit()
+        test_db.refresh(scraper)
+        test_db.add_all(
+            [
+                ScraperLog(
+                    scraper_id=scraper.id,
+                    outcome="error",
+                    courses_created=0,
+                    started_at=datetime.now(timezone.utc) - timedelta(minutes=20),
+                    completed_at=datetime.now(timezone.utc) - timedelta(minutes=19),
+                ),
+                ScraperLog(
+                    scraper_id=scraper.id,
+                    outcome="error",
+                    courses_created=0,
+                    started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+                    completed_at=datetime.now(timezone.utc) - timedelta(minutes=4),
+                ),
+            ]
+        )
+        test_db.commit()
+
+        with patch("api.routes.stripe.create_checkout_session") as mock_checkout, patch(
+            "api.routes.stripe.get_price_id_for_tier"
+        ) as mock_price:
+            mock_session = MagicMock()
+            mock_session.id = "cs_banner_only"
+            mock_session.url = "https://checkout.stripe.com/banner-only"
+            mock_checkout.return_value = mock_session
+            mock_price.return_value = "price_test123"
+
+            response = await authenticated_client.post(
+                "/api/stripe/create-checkout-session",
+                json={"tier": "plus"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["sessionId"] == "cs_banner_only"
+        mock_checkout.assert_called_once()
+
+    @pytest.mark.unit
+    async def test_create_checkout_session_fails_open_on_status_error(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        test_college: College,
+    ):
+        """A status-check exception must not block checkout."""
+        test_db.add(
+            StripeCustomer(
+                user_id=test_user.id,
+                stripe_customer_id="cus_fail_open",
+                email=test_user.email,
+            )
+        )
+        test_db.commit()
+
+        with patch(
+            "api.routes.stripe.get_college_data_status",
+            side_effect=RuntimeError("status timeout"),
+        ), patch("api.routes.stripe.create_checkout_session") as mock_checkout, patch(
+            "api.routes.stripe.get_price_id_for_tier"
+        ) as mock_price:
+            mock_session = MagicMock()
+            mock_session.id = "cs_fail_open"
+            mock_session.url = "https://checkout.stripe.com/fail-open"
+            mock_checkout.return_value = mock_session
+            mock_price.return_value = "price_test123"
+
+            response = await authenticated_client.post(
+                "/api/stripe/create-checkout-session",
+                json={"tier": "plus"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["sessionId"] == "cs_fail_open"
+        mock_checkout.assert_called_once()
 
 
 class TestCreatePortalSession:

@@ -9,6 +9,7 @@ from models.college import College
 from models.scraper import Scraper
 from models.scraper_log import ScraperLog
 from utils.college_data_status import (
+    ORPHANED_BY_RESTART_MESSAGE,
     derive_college_data_status,
     get_college_data_status,
     get_colleges_data_status,
@@ -26,24 +27,24 @@ class TestDeriveCollegeDataStatus:
         status = derive_college_data_status(
             has_scraper=True,
             last_success_at=NOW - timedelta(hours=2),
-            latest_outcome="success",
-            latest_courses_created=12,
+            recent_runs=[("success", 12)],
             now=NOW,
         )
         assert status.data_status == "ok"
+        assert status.checkout_blocked is False
         assert status.last_updated_at == NOW - timedelta(hours=2)
 
     @pytest.mark.unit
-    def test_stale_when_no_success_in_24h(self):
+    def test_stale_and_checkout_blocked_when_no_success_in_24h(self):
         last_success = NOW - timedelta(hours=25)
         status = derive_college_data_status(
             has_scraper=True,
             last_success_at=last_success,
-            latest_outcome="success",
-            latest_courses_created=10,
+            recent_runs=[("success", 10)],
             now=NOW,
         )
         assert status.data_status == "stale"
+        assert status.checkout_blocked is True
         assert status.last_updated_at == last_success
 
     @pytest.mark.unit
@@ -51,59 +52,92 @@ class TestDeriveCollegeDataStatus:
         status = derive_college_data_status(
             has_scraper=True,
             last_success_at=None,
-            latest_outcome="error",
-            latest_courses_created=0,
+            recent_runs=[("error", 0)],
             now=NOW,
         )
         assert status.data_status == "stale"
+        assert status.checkout_blocked is True
         assert status.last_updated_at is None
 
     @pytest.mark.unit
-    def test_stale_when_latest_error_with_zero_courses(self):
+    def test_single_error_stays_ok_when_recent_success(self):
         last_success = NOW - timedelta(hours=1)
         status = derive_college_data_status(
             has_scraper=True,
             last_success_at=last_success,
-            latest_outcome="error",
-            latest_courses_created=0,
+            recent_runs=[("error", 0)],
             now=NOW,
         )
-        assert status.data_status == "stale"
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
         assert status.last_updated_at == last_success
 
     @pytest.mark.unit
-    def test_stale_when_latest_partial_with_zero_courses(self):
+    def test_single_zero_course_partial_stays_ok(self):
         status = derive_college_data_status(
             has_scraper=True,
             last_success_at=NOW - timedelta(hours=1),
-            latest_outcome="partial",
-            latest_courses_created=0,
+            recent_runs=[("partial", 0)],
+            now=NOW,
+        )
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
+
+    @pytest.mark.unit
+    def test_two_consecutive_errors_stale_but_checkout_allowed(self):
+        status = derive_college_data_status(
+            has_scraper=True,
+            last_success_at=NOW - timedelta(hours=2),
+            recent_runs=[("error", 0), ("error", 0)],
             now=NOW,
         )
         assert status.data_status == "stale"
+        assert status.checkout_blocked is False
+
+    @pytest.mark.unit
+    def test_error_then_success_then_error_stays_ok(self):
+        status = derive_college_data_status(
+            has_scraper=True,
+            last_success_at=NOW - timedelta(hours=1),
+            recent_runs=[("error", 0), ("success", 8), ("error", 0)],
+            now=NOW,
+        )
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
+
+    @pytest.mark.unit
+    def test_error_and_zero_course_partial_stale(self):
+        status = derive_college_data_status(
+            has_scraper=True,
+            last_success_at=NOW - timedelta(hours=1),
+            recent_runs=[("partial", 0), ("error", 0)],
+            now=NOW,
+        )
+        assert status.data_status == "stale"
+        assert status.checkout_blocked is False
 
     @pytest.mark.unit
     def test_ok_when_latest_partial_created_courses(self):
         status = derive_college_data_status(
             has_scraper=True,
             last_success_at=NOW - timedelta(hours=1),
-            latest_outcome="partial",
-            latest_courses_created=3,
+            recent_runs=[("partial", 3), ("error", 0)],
             now=NOW,
         )
         assert status.data_status == "ok"
+        assert status.checkout_blocked is False
 
     @pytest.mark.unit
-    def test_admin_flag_forces_stale(self):
+    def test_admin_flag_forces_stale_and_blocks_checkout(self):
         status = derive_college_data_status(
             data_available=False,
             has_scraper=True,
             last_success_at=NOW - timedelta(minutes=10),
-            latest_outcome="success",
-            latest_courses_created=20,
+            recent_runs=[("success", 20)],
             now=NOW,
         )
         assert status.data_status == "stale"
+        assert status.checkout_blocked is True
 
     @pytest.mark.unit
     def test_no_scraper_is_ok(self):
@@ -113,6 +147,7 @@ class TestDeriveCollegeDataStatus:
             now=NOW,
         )
         assert status.data_status == "ok"
+        assert status.checkout_blocked is False
         assert status.last_updated_at is None
 
     @pytest.mark.unit
@@ -120,12 +155,12 @@ class TestDeriveCollegeDataStatus:
         status = derive_college_data_status(
             has_scraper=True,
             last_success_at=NOW - timedelta(hours=5),
-            latest_outcome="success",
-            latest_courses_created=4,
+            recent_runs=[("success", 4)],
             now=NOW,
             stale_after_hours=4,
         )
         assert status.data_status == "stale"
+        assert status.checkout_blocked is True
 
     @pytest.mark.unit
     def test_naive_datetime_treated_as_utc(self):
@@ -133,8 +168,7 @@ class TestDeriveCollegeDataStatus:
         status = derive_college_data_status(
             has_scraper=True,
             last_success_at=naive,
-            latest_outcome="success",
-            latest_courses_created=1,
+            recent_runs=[("success", 1)],
             now=NOW,
         )
         assert status.data_status == "ok"
@@ -161,6 +195,7 @@ def _add_log(
     courses_created: int,
     started_at: datetime,
     completed_at: datetime | None = None,
+    error_message: str | None = None,
 ) -> ScraperLog:
     log = ScraperLog(
         scraper_id=scraper.id,
@@ -169,7 +204,8 @@ def _add_log(
         classes_created=0,
         enrollments_saved=0,
         started_at=started_at,
-        completed_at=completed_at or started_at,
+        completed_at=completed_at if completed_at is not None else started_at,
+        error_message=error_message,
     )
     db.add(log)
     db.commit()
@@ -184,6 +220,7 @@ class TestGetCollegeDataStatusFromDb:
     def test_no_scraper_ok(self, test_db: Session, test_college: College):
         status = get_college_data_status(test_db, test_college, now=NOW)
         assert status.data_status == "ok"
+        assert status.checkout_blocked is False
 
     @pytest.mark.unit
     def test_recent_success_ok(self, test_db: Session, test_college: College):
@@ -199,6 +236,7 @@ class TestGetCollegeDataStatusFromDb:
 
         status = get_college_data_status(test_db, test_college, now=NOW)
         assert status.data_status == "ok"
+        assert status.checkout_blocked is False
         assert status.last_updated_at == last_success
 
     @pytest.mark.unit
@@ -208,12 +246,11 @@ class TestGetCollegeDataStatusFromDb:
 
         status = get_college_data_status(test_db, test_college, now=NOW)
         assert status.data_status == "stale"
+        assert status.checkout_blocked is True
         assert status.last_updated_at == last_success
 
     @pytest.mark.unit
-    def test_latest_error_zero_courses_stale(
-        self, test_db: Session, test_college: College
-    ):
+    def test_single_error_stays_ok(self, test_db: Session, test_college: College):
         last_success = NOW - timedelta(hours=2)
         scraper = _add_scraper(test_db, test_college, last_success_at=last_success)
         _add_log(
@@ -232,7 +269,136 @@ class TestGetCollegeDataStatusFromDb:
         )
 
         status = get_college_data_status(test_db, test_college, now=NOW)
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
+
+    @pytest.mark.unit
+    def test_two_consecutive_errors_stale_checkout_allowed(
+        self, test_db: Session, test_college: College
+    ):
+        last_success = NOW - timedelta(hours=3)
+        scraper = _add_scraper(test_db, test_college, last_success_at=last_success)
+        _add_log(
+            test_db,
+            scraper,
+            outcome="success",
+            courses_created=6,
+            started_at=last_success,
+        )
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(minutes=20),
+        )
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(minutes=5),
+        )
+
+        status = get_college_data_status(test_db, test_college, now=NOW)
         assert status.data_status == "stale"
+        assert status.checkout_blocked is False
+
+    @pytest.mark.unit
+    def test_error_then_success_then_error_stays_ok(
+        self, test_db: Session, test_college: College
+    ):
+        last_success = NOW - timedelta(hours=1)
+        scraper = _add_scraper(test_db, test_college, last_success_at=last_success)
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(hours=3),
+        )
+        _add_log(
+            test_db,
+            scraper,
+            outcome="success",
+            courses_created=9,
+            started_at=last_success,
+        )
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(minutes=8),
+        )
+
+        status = get_college_data_status(test_db, test_college, now=NOW)
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
+
+    @pytest.mark.unit
+    def test_orphaned_by_restart_ignored_even_when_completed_at_newest(
+        self, test_db: Session, test_college: College
+    ):
+        last_success = NOW - timedelta(hours=2)
+        scraper = _add_scraper(test_db, test_college, last_success_at=last_success)
+        _add_log(
+            test_db,
+            scraper,
+            outcome="success",
+            courses_created=7,
+            started_at=last_success,
+            completed_at=last_success,
+        )
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(days=3),
+            completed_at=NOW - timedelta(seconds=30),
+            error_message=ORPHANED_BY_RESTART_MESSAGE,
+        )
+
+        status = get_college_data_status(test_db, test_college, now=NOW)
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
+
+    @pytest.mark.unit
+    def test_orders_completed_runs_by_started_at(
+        self, test_db: Session, test_college: College
+    ):
+        last_success = NOW - timedelta(hours=2)
+        scraper = _add_scraper(test_db, test_college, last_success_at=last_success)
+        # Older start, newest completed_at — must not be treated as latest.
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(hours=4),
+            completed_at=NOW - timedelta(seconds=10),
+        )
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(hours=3),
+            completed_at=NOW - timedelta(minutes=2),
+        )
+        _add_log(
+            test_db,
+            scraper,
+            outcome="success",
+            courses_created=4,
+            started_at=NOW - timedelta(minutes=10),
+            completed_at=NOW - timedelta(hours=1),
+        )
+
+        status = get_college_data_status(test_db, test_college, now=NOW)
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
 
     @pytest.mark.unit
     def test_running_log_ignored(self, test_db: Session, test_college: College):
@@ -256,6 +422,7 @@ class TestGetCollegeDataStatusFromDb:
 
         status = get_college_data_status(test_db, test_college, now=NOW)
         assert status.data_status == "ok"
+        assert status.checkout_blocked is False
 
     @pytest.mark.unit
     def test_admin_flag_overrides_healthy_scraper(
@@ -267,6 +434,7 @@ class TestGetCollegeDataStatusFromDb:
 
         status = get_college_data_status(test_db, test_college, now=NOW)
         assert status.data_status == "stale"
+        assert status.checkout_blocked is True
 
     @pytest.mark.unit
     def test_batch_status_map(self, test_db: Session, test_college: College):
@@ -279,4 +447,6 @@ class TestGetCollegeDataStatusFromDb:
 
         status_map = get_colleges_data_status(test_db, [test_college, other], now=NOW)
         assert status_map[test_college.id].data_status == "stale"
+        assert status_map[test_college.id].checkout_blocked is True
         assert status_map[other.id].data_status == "ok"
+        assert status_map[other.id].checkout_blocked is False

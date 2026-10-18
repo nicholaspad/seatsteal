@@ -577,7 +577,10 @@ describe("PricingTiers", () => {
       globalThis.__mockSessionState.user = null;
     });
 
-    it("disables Plus/Pro checkout when the user's school is stale", async () => {
+    const mockCollege = async (college: {
+      dataStatus: "ok" | "stale";
+      checkoutBlocked?: boolean;
+    }) => {
       globalThis.__mockSessionState.user = {
         id: "user123",
         email: "test@example.com",
@@ -600,7 +603,8 @@ describe("PricingTiers", () => {
               data: {
                 id: 1,
                 name: "University of Illinois",
-                dataStatus: "stale",
+                dataStatus: college.dataStatus,
+                checkoutBlocked: college.checkoutBlocked ?? false,
                 lastUpdatedAt: "2026-10-16T12:00:00Z",
               },
             }),
@@ -611,6 +615,10 @@ describe("PricingTiers", () => {
           json: async () => ({ success: true }),
         } as Response;
       });
+    };
+
+    it("disables Plus/Pro checkout when checkout is blocked", async () => {
+      await mockCollege({ dataStatus: "stale", checkoutBlocked: true });
 
       render(<PricingTiers />);
 
@@ -628,6 +636,27 @@ describe("PricingTiers", () => {
       expect(
         screen.getByRole("button", { name: /get started/i }),
       ).not.toBeDisabled();
+    });
+
+    it("keeps Plus/Pro checkout enabled when banner-stale but checkout is not blocked", async () => {
+      await mockCollege({ dataStatus: "stale", checkoutBlocked: false });
+
+      render(<PricingTiers />);
+
+      await waitFor(() => {
+        expect(
+          screen.getAllByRole("button", { name: /subscribe/i }),
+        ).toHaveLength(2);
+      });
+
+      expect(
+        screen.queryByTestId("stale-school-checkout-note"),
+      ).not.toBeInTheDocument();
+      const subscribeButtons = screen.getAllByRole("button", {
+        name: /subscribe/i,
+      });
+      expect(subscribeButtons[0]).not.toBeDisabled();
+      expect(subscribeButtons[1]).not.toBeDisabled();
     });
   });
 });

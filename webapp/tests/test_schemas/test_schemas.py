@@ -387,11 +387,14 @@ class TestCollegeSchemas:
             created_at=now,
             data_status="stale",
             last_updated_at=now,
+            checkout_blocked=True,
         )
 
         assert response.data_status == "stale"
+        assert response.checkout_blocked is True
         dumped = response.model_dump(by_alias=True)
         assert dumped["dataStatus"] == "stale"
+        assert dumped["checkoutBlocked"] is True
         assert dumped["lastUpdatedAt"] == now
 
 

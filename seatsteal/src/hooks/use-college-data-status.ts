@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import type { College } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
-import { isCollegeDataStale } from "@/lib/college-data-status";
+import {
+  isCheckoutBlocked,
+  isCollegeDataStale,
+} from "@/lib/college-data-status";
 import { logError } from "@/lib/logger";
 
 export function useCollegeDataStatus(collegeId?: number | null) {
@@ -43,5 +46,6 @@ export function useCollegeDataStatus(collegeId?: number | null) {
     college,
     loading,
     isStale: isCollegeDataStale(college),
+    checkoutBlocked: isCheckoutBlocked(college),
   };
 }

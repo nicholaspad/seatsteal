@@ -82,7 +82,7 @@ const UserDashboard = memo(function UserDashboard({
 }: UserDashboardProps) {
   const { user, profile } = useSession();
   const { shareCourse } = useShare();
-  const { isStale: schoolDataStale } = useCollegeDataStatus(profile?.collegeId);
+  const { checkoutBlocked } = useCollegeDataStatus(profile?.collegeId);
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithDetails[]>(
     [],
   );
@@ -390,7 +390,7 @@ const UserDashboard = memo(function UserDashboard({
                     Free
                   </Badge>
                 )}
-                {userTier === "free" && !schoolDataStale ? (
+                {userTier === "free" && !checkoutBlocked ? (
                   <Button
                     size="sm"
                     className="h-auto py-1 px-2 text-xs bg-green-600 hover:bg-green-700 text-white"

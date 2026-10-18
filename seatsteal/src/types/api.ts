@@ -14,6 +14,7 @@ export interface College {
   isActive: boolean;
   dataStatus?: CollegeDataStatus;
   lastUpdatedAt?: string | null;
+  checkoutBlocked?: boolean;
 }
 
 export interface Course {

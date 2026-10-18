@@ -56,8 +56,16 @@ async def create_stripe_checkout_session(
         if user.college_id:
             college = db.get(College, user.college_id)
             if college:
-                college_status = get_college_data_status(db, college)
-                if college_status.data_status == "stale":
+                try:
+                    college_status = get_college_data_status(db, college)
+                except Exception as e:
+                    # Fail open: a status-check outage must not block checkout.
+                    logger.warning(
+                        "College data status check failed; allowing checkout: {}",
+                        e,
+                    )
+                    college_status = None
+                if college_status is not None and college_status.checkout_blocked:
                     raise HTTPException(
                         status_code=409,
                         detail={

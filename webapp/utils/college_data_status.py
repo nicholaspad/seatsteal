@@ -1,22 +1,29 @@
 """Derive per-college seat-data availability from scraper health.
 
-A college is stale when:
+A college is **stale** (banner / hide live seat counts) when:
 
 1. An admin has turned off ``data_available``, or
 2. There is a scraper and no successful scrape in the last N hours
    (default 24), or
-3. The latest completed scraper_log is error/partial with 0 courses.
+3. The last two consecutive completed scraper_logs (ordered by
+   ``started_at``, excluding ``running`` and ``orphaned by restart``)
+   are both error or 0-course partial.
 
-Colleges with no scraper row are left ``ok`` so brand-new schools are not
-flagged before their first run. Checkout and the public UI both use this
-signal; notification sending is not affected.
+Checkout and Plus/Pro plan CTAs use only rules 1 and 2
+(``checkout_blocked``). Rule 3 must not block billing — a recent
+success with two later errors still shows the banner but allows
+checkout.
+
+A single error or 0-course partial does not flag the school. Colleges
+with no scraper row are left ``ok`` so brand-new schools are not
+flagged before their first run. Notification sending is not affected.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Iterable, Literal, Optional
+from typing import Iterable, Literal, Optional, Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -28,16 +35,19 @@ from models.scraper_log import ScraperLog
 DataStatus = Literal["ok", "stale"]
 FAILED_EMPTY_OUTCOMES = frozenset({"error", "partial"})
 DEFAULT_STALE_AFTER_HOURS = 24.0
+CONSECUTIVE_FAILED_EMPTY_TO_STALE = 2
+ORPHANED_BY_RESTART_MESSAGE = "orphaned by restart"
 
 
 @dataclass(frozen=True)
 class CollegeDataStatus:
     data_status: DataStatus
     last_updated_at: Optional[datetime]
+    checkout_blocked: bool = False
 
 
 @dataclass(frozen=True)
-class _LatestLog:
+class _CompletedLog:
     outcome: Optional[str]
     courses_created: int
     completed_at: Optional[datetime]
@@ -65,20 +75,40 @@ def get_stale_after_hours() -> float:
         return DEFAULT_STALE_AFTER_HOURS
 
 
+def is_failed_empty_run(outcome: Optional[str], courses_created: int = 0) -> bool:
+    """True for error or 0-course partial runs."""
+    return outcome in FAILED_EMPTY_OUTCOMES and (courses_created or 0) == 0
+
+
+def _two_consecutive_failed_empty(
+    recent_runs: Sequence[tuple[Optional[str], int]],
+) -> bool:
+    """Rule 3: last two completed runs (newest first) are both failed-empty."""
+    if len(recent_runs) < CONSECUTIVE_FAILED_EMPTY_TO_STALE:
+        return False
+    first, second = recent_runs[0], recent_runs[1]
+    return is_failed_empty_run(*first) and is_failed_empty_run(*second)
+
+
 def derive_college_data_status(
     *,
     data_available: bool = True,
     has_scraper: bool = False,
     last_success_at: Optional[datetime] = None,
-    latest_outcome: Optional[str] = None,
-    latest_courses_created: int = 0,
+    recent_runs: Optional[Sequence[tuple[Optional[str], int]]] = None,
     now: Optional[datetime] = None,
     stale_after_hours: Optional[float] = None,
 ) -> CollegeDataStatus:
     """Pure derivation used by the API and tests.
 
-    ``last_updated_at`` is the last successful scrape time (if any), even
-    when the resulting status is stale.
+    ``recent_runs`` is newest-first by ``started_at``, each item
+    ``(outcome, courses_created)``. ``last_updated_at`` is the last
+    successful scrape time (if any), even when the resulting status is
+    stale.
+
+    ``checkout_blocked`` follows only the admin flag and the 24h
+    no-success window. Two consecutive failed-empty runs set
+    ``data_status`` to stale without blocking checkout.
     """
     now_utc = _as_utc(now) or datetime.now(timezone.utc)
     last_success = _as_utc(last_success_at)
@@ -88,28 +118,35 @@ def derive_college_data_status(
         else float(stale_after_hours)
     )
     threshold = now_utc - timedelta(hours=window_hours)
+    runs = list(recent_runs or [])
 
     stale = False
+    checkout_blocked = False
     if not data_available:
         stale = True
+        checkout_blocked = True
     elif has_scraper:
         if last_success is None or last_success < threshold:
             stale = True
-        elif (
-            latest_outcome in FAILED_EMPTY_OUTCOMES
-            and (latest_courses_created or 0) == 0
-        ):
+            checkout_blocked = True
+        elif _two_consecutive_failed_empty(runs):
             stale = True
 
     return CollegeDataStatus(
         data_status="stale" if stale else "ok",
         last_updated_at=last_success,
+        checkout_blocked=checkout_blocked,
     )
 
 
-def _latest_completed_logs_by_college(
+def _recent_completed_logs_by_college(
     db: Session, college_ids: list[int]
-) -> dict[int, _LatestLog]:
+) -> dict[int, list[_CompletedLog]]:
+    """Return up to the last two completed logs per college.
+
+    Logs are ordered by ``started_at`` descending. ``running`` rows and
+    rows marked ``orphaned by restart`` are excluded.
+    """
     if not college_ids:
         return {}
 
@@ -132,6 +169,7 @@ def _latest_completed_logs_by_college(
         .where(
             Scraper.college_id.in_(college_ids),
             ScraperLog.outcome != "running",
+            ScraperLog.error_message.is_distinct_from(ORPHANED_BY_RESTART_MESSAGE),
         )
         .subquery()
     )
@@ -143,18 +181,22 @@ def _latest_completed_logs_by_college(
             ranked.c.courses_created,
             ranked.c.completed_at,
             ranked.c.started_at,
-        ).where(ranked.c.rn == 1)
+        )
+        .where(ranked.c.rn <= CONSECUTIVE_FAILED_EMPTY_TO_STALE)
+        .order_by(ranked.c.college_id, ranked.c.rn)
     ).all()
 
-    latest: dict[int, _LatestLog] = {}
+    recent: dict[int, list[_CompletedLog]] = {}
     for row in rows:
-        latest[row.college_id] = _LatestLog(
-            outcome=row.outcome,
-            courses_created=row.courses_created or 0,
-            completed_at=row.completed_at,
-            started_at=row.started_at,
+        recent.setdefault(row.college_id, []).append(
+            _CompletedLog(
+                outcome=row.outcome,
+                courses_created=row.courses_created or 0,
+                completed_at=row.completed_at,
+                started_at=row.started_at,
+            )
         )
-    return latest
+    return recent
 
 
 def get_colleges_data_status(
@@ -181,21 +223,18 @@ def get_colleges_data_status(
             select(Scraper).where(Scraper.college_id.in_(college_ids))
         ).scalars()
     }
-    latest_logs = _latest_completed_logs_by_college(db, college_ids)
+    recent_logs = _recent_completed_logs_by_college(db, college_ids)
 
     result: dict[int, CollegeDataStatus] = {}
     for college in college_list:
         scraper = scrapers.get(college.id)
-        latest = latest_logs.get(college.id)
+        logs = recent_logs.get(college.id, [])
         last_success = scraper.last_success_at if scraper is not None else None
         result[college.id] = derive_college_data_status(
             data_available=bool(getattr(college, "data_available", True)),
             has_scraper=scraper is not None,
             last_success_at=last_success,
-            latest_outcome=latest.outcome if latest is not None else None,
-            latest_courses_created=(
-                latest.courses_created if latest is not None else 0
-            ),
+            recent_runs=[(log.outcome, log.courses_created) for log in logs],
             now=now_utc,
             stale_after_hours=window_hours,
         )
@@ -224,6 +263,7 @@ def apply_data_status(college, status: CollegeDataStatus):
         update={
             "data_status": status.data_status,
             "last_updated_at": status.last_updated_at,
+            "checkout_blocked": status.checkout_blocked,
         }
     )
 
@@ -235,7 +275,12 @@ def apply_data_status_map(
         apply_data_status(
             college,
             status_map.get(
-                college.id, CollegeDataStatus(data_status="ok", last_updated_at=None)
+                college.id,
+                CollegeDataStatus(
+                    data_status="ok",
+                    last_updated_at=None,
+                    checkout_blocked=False,
+                ),
             ),
         )
         for college in colleges
@@ -264,3 +309,4 @@ def overlay_data_status_on_college_dicts(db: Session, payloads: list[dict]) -> N
         item["lastUpdatedAt"] = (
             status.last_updated_at.isoformat() if status.last_updated_at else None
         )
+        item["checkoutBlocked"] = status.checkout_blocked

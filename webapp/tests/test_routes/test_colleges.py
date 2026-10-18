@@ -183,10 +183,11 @@ class TestCollegeDataStatusApi:
         assert response.status_code == 200
         college = next(c for c in response.json()["data"] if c["id"] == test_college.id)
         assert college["dataStatus"] == "stale"
+        assert college["checkoutBlocked"] is True
         assert college["lastUpdatedAt"] is not None
 
     @pytest.mark.unit
-    async def test_detail_stale_when_latest_log_error_empty(
+    async def test_detail_banner_stale_but_checkout_allowed_after_two_errors(
         self,
         client: AsyncClient,
         test_db: Session,
@@ -202,14 +203,23 @@ class TestCollegeDataStatusApi:
         test_db.commit()
         test_db.refresh(scraper)
 
-        test_db.add(
-            ScraperLog(
-                scraper_id=scraper.id,
-                outcome="error",
-                courses_created=0,
-                started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
-                completed_at=datetime.now(timezone.utc),
-            )
+        test_db.add_all(
+            [
+                ScraperLog(
+                    scraper_id=scraper.id,
+                    outcome="error",
+                    courses_created=0,
+                    started_at=datetime.now(timezone.utc) - timedelta(minutes=20),
+                    completed_at=datetime.now(timezone.utc) - timedelta(minutes=19),
+                ),
+                ScraperLog(
+                    scraper_id=scraper.id,
+                    outcome="error",
+                    courses_created=0,
+                    started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+                    completed_at=datetime.now(timezone.utc),
+                ),
+            ]
         )
         test_db.commit()
 
@@ -217,6 +227,7 @@ class TestCollegeDataStatusApi:
         assert response.status_code == 200
         data = response.json()["data"]
         assert data["dataStatus"] == "stale"
+        assert data["checkoutBlocked"] is False
         assert data["lastUpdatedAt"] is not None
 
     @pytest.mark.unit
@@ -232,3 +243,4 @@ class TestCollegeDataStatusApi:
         response = await client.get("/api/colleges/")
         college = next(c for c in response.json()["data"] if c["id"] == test_college.id)
         assert college["dataStatus"] == "stale"
+        assert college["checkoutBlocked"] is True

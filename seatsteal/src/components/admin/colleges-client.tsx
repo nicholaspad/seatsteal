@@ -54,6 +54,7 @@ interface CollegeInfo {
   smsEnabled: boolean;
   dataAvailable?: boolean;
   dataStatus?: "ok" | "stale";
+  checkoutBlocked?: boolean;
   lastUpdatedAt?: string | null;
 }
 

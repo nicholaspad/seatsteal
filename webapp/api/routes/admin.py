@@ -1252,6 +1252,7 @@ async def update_college_availability(
                 "id": college.id,
                 "dataAvailable": college.data_available,
                 "dataStatus": status_info.data_status,
+                "checkoutBlocked": status_info.checkout_blocked,
                 "lastUpdatedAt": (
                     status_info.last_updated_at.isoformat()
                     if status_info.last_updated_at
@@ -1534,6 +1535,7 @@ async def get_college_stats(
                     "smsEnabled": college.sms_enabled,
                     "dataAvailable": college.data_available,
                     "dataStatus": college_data_status.data_status,
+                    "checkoutBlocked": college_data_status.checkout_blocked,
                     "lastUpdatedAt": (
                         college_data_status.last_updated_at.isoformat()
                         if college_data_status.last_updated_at

@@ -19,8 +19,9 @@ import { useCollegeDataStatus } from "@/hooks/use-college-data-status";
 export function PricingTiers() {
   const history = useHistory();
   const { profile } = useSession();
-  const { college: userCollege, isStale: schoolDataStale } =
-    useCollegeDataStatus(profile?.collegeId);
+  const { college: userCollege, checkoutBlocked } = useCollegeDataStatus(
+    profile?.collegeId,
+  );
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] =
     useState<BillingInterval>("monthly");
@@ -87,7 +88,7 @@ export function PricingTiers() {
       return;
     }
 
-    if (schoolDataStale) {
+    if (checkoutBlocked) {
       toast.error(
         userCollege
           ? `Seat data for ${userCollege.name} is temporarily unavailable. Checkout is disabled until it is restored.`
@@ -186,7 +187,7 @@ export function PricingTiers() {
         </div>
       </div>
 
-      {schoolDataStale && (
+      {checkoutBlocked && (
         <p
           className="text-center text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-4 py-3"
           data-testid="stale-school-checkout-note"
@@ -248,7 +249,7 @@ export function PricingTiers() {
                 variant={tier.popular ? "default" : "outline"}
                 onClick={() => handleSubscribe(tier.id)}
                 disabled={
-                  loading === tier.id || (schoolDataStale && tier.id !== "free")
+                  loading === tier.id || (checkoutBlocked && tier.id !== "free")
                 }
               >
                 {loading === tier.id ? (

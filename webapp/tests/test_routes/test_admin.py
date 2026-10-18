@@ -1938,6 +1938,7 @@ class TestUpdateCollegeAvailability:
         data = response.json()["data"]
         assert data["dataAvailable"] is False
         assert data["dataStatus"] == "stale"
+        assert data["checkoutBlocked"] is True
 
         test_db.refresh(test_college)
         assert test_college.data_available is False
@@ -1961,6 +1962,7 @@ class TestUpdateCollegeAvailability:
         data = response.json()["data"]
         assert data["dataAvailable"] is True
         assert data["dataStatus"] == "ok"
+        assert data["checkoutBlocked"] is False
 
     @pytest.mark.unit
     async def test_availability_not_found(

@@ -29,5 +29,6 @@ class CollegeResponse(CollegeBase):
     is_active: bool = Field(..., alias="isActive")
     data_status: Literal["ok", "stale"] = Field("ok", alias="dataStatus")
     last_updated_at: Optional[datetime] = Field(None, alias="lastUpdatedAt")
+    checkout_blocked: bool = Field(False, alias="checkoutBlocked")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
