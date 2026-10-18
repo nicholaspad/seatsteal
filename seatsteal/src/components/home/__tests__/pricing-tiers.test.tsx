@@ -64,7 +64,9 @@ describe("PricingTiers", () => {
 
       expect(screen.getByText(/Monitor 20 sections/)).toBeInTheDocument();
       expect(
-        screen.getByText("Priority email notifications (SMS where available)"),
+        screen.getByText(
+          "Priority email notifications, 30s before non-Pro users (SMS where available)",
+        ),
       ).toBeInTheDocument();
     });
 

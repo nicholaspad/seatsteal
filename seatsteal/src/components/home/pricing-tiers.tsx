@@ -75,7 +75,7 @@ export function PricingTiers() {
       features: [
         `Monitor ${proFeatures.maxSubscriptions} sections`,
         `Checks every minute`,
-        "Priority email notifications (SMS where available)",
+        "Priority email notifications, 30s before non-Pro users (SMS where available)",
         "Subscription and notification analytics",
       ],
       cta: "Subscribe",
