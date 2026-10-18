@@ -343,8 +343,8 @@ export default function Settings() {
                     <p className="text-xs text-destructive">{phoneError}</p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      US phone number only (10 digits). Used to send open-seat
-                      SMS notifications for Plus and Pro subscribers.
+                      US phone number only (10 digits). Used for open-seat
+                      alerts (SMS where available) for Plus and Pro subscribers.
                     </p>
                   )}
                 </div>
