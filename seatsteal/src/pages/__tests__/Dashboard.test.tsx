@@ -835,11 +835,10 @@ describe("Dashboard Page", () => {
 
       await waitFor(() => {
         expect(mockFetchWithToasts).toHaveBeenCalledWith("/api/colleges/1");
+        expect(
+          screen.queryByRole("link", { name: /upgrade/i }),
+        ).not.toBeInTheDocument();
       });
-
-      expect(
-        screen.queryByRole("link", { name: /upgrade/i }),
-      ).not.toBeInTheDocument();
     });
 
     it("shows the Upgrade CTA when banner-stale but checkout is not blocked", async () => {
@@ -877,11 +876,10 @@ describe("Dashboard Page", () => {
 
       await waitFor(() => {
         expect(mockFetchWithToasts).toHaveBeenCalledWith("/api/colleges/1");
+        expect(
+          screen.queryByRole("link", { name: /upgrade/i }),
+        ).not.toBeInTheDocument();
       });
-
-      expect(
-        screen.queryByRole("link", { name: /upgrade/i }),
-      ).not.toBeInTheDocument();
       expect(
         screen.queryByText(/temporarily unavailable/i),
       ).not.toBeInTheDocument();
