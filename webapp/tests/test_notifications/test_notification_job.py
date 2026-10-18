@@ -629,16 +629,8 @@ class TestSeatAlertQueryRegression:
             email=test_user.email,
         )
         test_db.add(customer)
-        test_db.add(
-            StripeSubscription(
-                user_id=test_user.id,
-                stripe_subscription_id="sub_plus_dup",
-                stripe_customer_id="cus_two_plans",
-                price_id="price_plus",
-                tier="plus",
-                status="active",
-            )
-        )
+        # Plus is newer so recency would pick it; highest-tier rank must still
+        # return pro.
         test_db.add(
             StripeSubscription(
                 user_id=test_user.id,
@@ -647,6 +639,18 @@ class TestSeatAlertQueryRegression:
                 price_id="price_pro",
                 tier="pro",
                 status="active",
+                created_at=now - timedelta(days=1),
+            )
+        )
+        test_db.add(
+            StripeSubscription(
+                user_id=test_user.id,
+                stripe_subscription_id="sub_plus_dup",
+                stripe_customer_id="cus_two_plans",
+                price_id="price_plus",
+                tier="plus",
+                status="active",
+                created_at=now,
             )
         )
         self._subscribe_user(test_db, test_user, test_class, test_college)
@@ -661,7 +665,7 @@ class TestSeatAlertQueryRegression:
 
         notifications = self._find_at_minute_zero(test_db)
         assert len(notifications) == 1
-        assert notifications[0]["user_tier"] in {"plus", "pro"}
+        assert notifications[0]["user_tier"] == "pro"
 
 
 class TestSendNotification:

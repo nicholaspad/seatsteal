@@ -324,7 +324,9 @@ class NotificationJob:
         )
 
         # One Stripe plan per user so two active/trialing rows cannot duplicate
-        # subscription results. Uses stripe_subscriptions_user_id_idx.
+        # subscription results. Prefer the highest tier (pro > plus), then the
+        # newest row as a tiebreak. past_due is still excluded. Uses
+        # stripe_subscriptions_user_id_idx.
         active_plan_subq = (
             select(
                 StripeSubscription.user_id,
@@ -334,8 +336,12 @@ class NotificationJob:
             .distinct(StripeSubscription.user_id)
             .order_by(
                 StripeSubscription.user_id,
+                case(
+                    (StripeSubscription.tier == USER_TIERS["PRO"], 0),
+                    (StripeSubscription.tier == USER_TIERS["PLUS"], 1),
+                    else_=2,
+                ),
                 desc(StripeSubscription.created_at),
-                desc(StripeSubscription.id),
             )
             .subquery()
         )
