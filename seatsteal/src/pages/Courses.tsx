@@ -20,10 +20,12 @@ import { PaginationLinks } from "@/components/layout/PaginationLinks";
 import { BookOpen } from "lucide-react";
 import { RouteAwareSkeleton } from "@/components/skeletons/RouteAwareSkeleton";
 import { useSession } from "@/components/providers/SessionProvider";
-import type { CourseWithClasses } from "@/types/api";
+import type { College, CourseWithClasses } from "@/types/api";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { useSearchParams } from "@/hooks/use-search-params";
 import { logError } from "@/lib/logger";
+import { isCollegeDataStale } from "@/lib/college-data-status";
+import { SchoolDataUnavailableBanner } from "@/components/college/school-data-unavailable-banner";
 
 interface CoursesData {
   courses: CourseWithClasses[];
@@ -143,6 +145,8 @@ export default function Courses() {
     error: null,
   });
   const [loading, setLoading] = useState(true);
+  const [selectedCollegeInfo, setSelectedCollegeInfo] =
+    useState<College | null>(null);
 
   useEffect(() => {
     // Wait for auth to load before fetching data
@@ -160,12 +164,52 @@ export default function Courses() {
 
   const { courses, totalCourses, currentPage, totalPages, error } = data;
 
+  const collegeFilter = searchParams.get("college");
+
+  useEffect(() => {
+    const collegeId = Number(collegeFilter);
+    if (
+      !collegeFilter ||
+      collegeFilter === "all" ||
+      !Number.isInteger(collegeId) ||
+      collegeId <= 0
+    ) {
+      setSelectedCollegeInfo(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadCollege = async () => {
+      try {
+        const response = await fetchWithToasts(`/api/colleges/${collegeId}`);
+        if (!response.ok) return;
+        const result = await response.json();
+        if (
+          !cancelled &&
+          result.success &&
+          result.data &&
+          !Array.isArray(result.data)
+        ) {
+          setSelectedCollegeInfo(result.data);
+        }
+      } catch (err) {
+        if (!(err instanceof ServerErrorWithToast)) {
+          logError("Failed to load college data status", err);
+        }
+      }
+    };
+    loadCollege();
+    return () => {
+      cancelled = true;
+    };
+  }, [collegeFilter]);
+
   const selectedCollege =
-    searchParams.get("college") &&
-    searchParams.get("college") !== "all" &&
-    courses.length > 0
+    selectedCollegeInfo ??
+    (collegeFilter && collegeFilter !== "all" && courses.length > 0
       ? courses[0].college
-      : null;
+      : null);
+  const dataStale = isCollegeDataStale(selectedCollege);
 
   // Show loading skeleton while auth is initializing (first load only)
   if (authLoading) {
@@ -221,6 +265,13 @@ export default function Courses() {
                   searchParams={searchParams}
                   totalCourses={totalCourses}
                   selectedCollege={selectedCollege}
+                />
+              )}
+
+              {dataStale && selectedCollege && (
+                <SchoolDataUnavailableBanner
+                  schoolName={selectedCollege.name}
+                  lastUpdatedAt={selectedCollege.lastUpdatedAt}
                 />
               )}
 

@@ -12,7 +12,9 @@ from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
 from models.user import Profile
 from models.referral import Referral
+from models.college import College
 from api.middleware.auth import require_auth
+from utils.college_data_status import get_college_data_status
 from utils.stripe_utils import (
     create_stripe_customer,
     create_checkout_session,
@@ -50,6 +52,23 @@ async def create_stripe_checkout_session(
                 status_code=500,
                 detail="Stripe is not configured. STRIPE_SECRET_KEY is missing.",
             )
+
+        if user.college_id:
+            college = db.get(College, user.college_id)
+            if college:
+                college_status = get_college_data_status(db, college)
+                if college_status.data_status == "stale":
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "message": (
+                                f"Seat data for {college.name} is temporarily "
+                                "unavailable. Paid plans cannot be purchased "
+                                "until live seat data is restored."
+                            ),
+                            "code": "SCHOOL_DATA_UNAVAILABLE",
+                        },
+                    )
 
         # Get price ID for tier and billing interval, and validate
         price_id = get_price_id_for_tier(request.tier, request.interval)

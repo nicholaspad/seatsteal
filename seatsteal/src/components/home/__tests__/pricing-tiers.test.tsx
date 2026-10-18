@@ -570,4 +570,64 @@ describe("PricingTiers", () => {
       });
     });
   });
+
+  describe("Stale school checkout", () => {
+    afterEach(() => {
+      globalThis.__mockSessionState.profile = null;
+      globalThis.__mockSessionState.user = null;
+    });
+
+    it("disables Plus/Pro checkout when the user's school is stale", async () => {
+      globalThis.__mockSessionState.user = {
+        id: "user123",
+        email: "test@example.com",
+      } as never;
+      globalThis.__mockSessionState.profile = {
+        email: "test@example.com",
+        phone: "",
+        role: "user",
+        collegeId: 1,
+        collegeName: "UIUC",
+      };
+
+      const { fetchWithToasts } = await import("@/lib/api");
+      vi.mocked(fetchWithToasts).mockImplementation(async (url: string) => {
+        if (String(url).includes("/api/colleges/1")) {
+          return {
+            ok: true,
+            json: async () => ({
+              success: true,
+              data: {
+                id: 1,
+                name: "University of Illinois",
+                dataStatus: "stale",
+                lastUpdatedAt: "2026-10-16T12:00:00Z",
+              },
+            }),
+          } as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({ success: true }),
+        } as Response;
+      });
+
+      render(<PricingTiers />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("stale-school-checkout-note"),
+        ).toBeInTheDocument();
+      });
+
+      const subscribeButtons = screen.getAllByRole("button", {
+        name: /subscribe/i,
+      });
+      expect(subscribeButtons[0]).toBeDisabled();
+      expect(subscribeButtons[1]).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /get started/i }),
+      ).not.toBeDisabled();
+    });
+  });
 });

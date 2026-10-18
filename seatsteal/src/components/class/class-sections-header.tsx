@@ -16,6 +16,7 @@ interface ClassSectionsHeaderProps {
   onFilterChange: (filter: FilterType) => void;
   filteredCount: number;
   className?: string;
+  dataStale?: boolean;
 }
 
 export type FilterType = "all" | "open" | "closed";
@@ -26,6 +27,7 @@ export function ClassSectionsHeader({
   onFilterChange,
   filteredCount,
   className,
+  dataStale = false,
 }: ClassSectionsHeaderProps) {
   // Calculate summary stats
   const summary = useMemo(() => {
@@ -46,14 +48,22 @@ export function ClassSectionsHeader({
         <Badge variant="outline" className="text-xs">
           {summary.total} total
         </Badge>
-        {summary.open > 0 && (
+        {!dataStale && summary.open > 0 && (
           <Badge className="bg-green-100 text-green-700 hover:bg-green-200 text-xs">
             {summary.open} open
           </Badge>
         )}
-        {summary.closed > 0 && (
+        {!dataStale && summary.closed > 0 && (
           <Badge className="bg-red-100 text-red-700 hover:bg-red-200 text-xs">
             {summary.closed} closed
+          </Badge>
+        )}
+        {dataStale && (
+          <Badge
+            variant="outline"
+            className="text-xs text-muted-foreground border-dashed"
+          >
+            Seat counts unavailable
           </Badge>
         )}
       </div>

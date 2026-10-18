@@ -33,6 +33,7 @@ import { UnsubscribeConfirmationModal } from "@/components/ui/unsubscribe-confir
 import { formatLocalDate } from "@/lib/date-utils";
 import { isValidStripeUrl } from "@/lib/security";
 import { useShare } from "@/hooks/use-share";
+import { useCollegeDataStatus } from "@/hooks/use-college-data-status";
 import type {
   SubscriptionWithDetails,
   SubscriptionsApiResponse,
@@ -81,6 +82,7 @@ const UserDashboard = memo(function UserDashboard({
 }: UserDashboardProps) {
   const { user, profile } = useSession();
   const { shareCourse } = useShare();
+  const { isStale: schoolDataStale } = useCollegeDataStatus(profile?.collegeId);
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithDetails[]>(
     [],
   );
@@ -388,7 +390,7 @@ const UserDashboard = memo(function UserDashboard({
                     Free
                   </Badge>
                 )}
-                {userTier === "free" ? (
+                {userTier === "free" && !schoolDataStale ? (
                   <Button
                     size="sm"
                     className="h-auto py-1 px-2 text-xs bg-green-600 hover:bg-green-700 text-white"
@@ -399,7 +401,7 @@ const UserDashboard = memo(function UserDashboard({
                       Upgrade
                     </Link>
                   </Button>
-                ) : (
+                ) : userTier !== "free" ? (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -419,7 +421,7 @@ const UserDashboard = memo(function UserDashboard({
                       </span>
                     )}
                   </Button>
-                )}
+                ) : null}
               </div>
 
               <Button variant="outline" className="w-full" asChild>

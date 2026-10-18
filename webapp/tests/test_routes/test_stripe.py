@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 from unittest.mock import MagicMock, patch
 from sqlalchemy import select
 
+from datetime import datetime, timedelta, timezone
+
 from models.user import Profile
+from models.college import College
+from models.scraper import Scraper
 from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
 
@@ -128,6 +132,63 @@ class TestCreateCheckoutSession:
 
         assert response.status_code == 401
 
+    @pytest.mark.unit
+    async def test_create_checkout_session_refuses_stale_school(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        test_college: College,
+    ):
+        """Checkout is blocked when the user's school data is stale."""
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="error",
+            last_success_at=datetime.now(timezone.utc) - timedelta(hours=36),
+        )
+        test_db.add(scraper)
+        test_db.commit()
+
+        with patch("api.routes.stripe.create_checkout_session") as mock_checkout, patch(
+            "api.routes.stripe.get_price_id_for_tier"
+        ) as mock_price:
+            mock_price.return_value = "price_test123"
+
+            response = await authenticated_client.post(
+                "/api/stripe/create-checkout-session",
+                json={"tier": "plus"},
+            )
+
+        assert response.status_code == 409
+        detail = response.json()["detail"]
+        assert detail["code"] == "SCHOOL_DATA_UNAVAILABLE"
+        assert "temporarily unavailable" in detail["message"]
+        mock_checkout.assert_not_called()
+
+    @pytest.mark.unit
+    async def test_create_checkout_session_refuses_admin_unavailable_flag(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        test_college.data_available = False
+        test_db.commit()
+
+        with patch("api.routes.stripe.create_checkout_session") as mock_checkout, patch(
+            "api.routes.stripe.get_price_id_for_tier"
+        ) as mock_price:
+            mock_price.return_value = "price_test123"
+
+            response = await authenticated_client.post(
+                "/api/stripe/create-checkout-session",
+                json={"tier": "pro"},
+            )
+
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "SCHOOL_DATA_UNAVAILABLE"
+        mock_checkout.assert_not_called()
+
 
 class TestCreatePortalSession:
     """Tests for POST /api/stripe/create-portal-session endpoint."""
@@ -164,6 +225,40 @@ class TestCreatePortalSession:
             assert response_json["success"] is True
             data = response_json["data"]
             assert data["sessionUrl"] == "https://billing.stripe.com/test"
+
+    @pytest.mark.unit
+    async def test_create_portal_session_still_works_when_school_stale(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        test_college: College,
+    ):
+        """Existing subscribers can still manage billing while data is stale."""
+        test_college.data_available = False
+        test_db.add(
+            StripeCustomer(
+                user_id=test_user.id,
+                stripe_customer_id="cus_stale_school",
+                email=test_user.email,
+            )
+        )
+        test_db.commit()
+
+        with patch("api.routes.stripe.create_portal_session") as mock_portal:
+            mock_session = MagicMock()
+            mock_session.url = "https://billing.stripe.com/test-stale"
+            mock_portal.return_value = mock_session
+
+            response = await authenticated_client.post(
+                "/api/stripe/create-portal-session"
+            )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["sessionUrl"] == (
+            "https://billing.stripe.com/test-stale"
+        )
+        mock_portal.assert_called_once()
 
     @pytest.mark.unit
     async def test_create_portal_session_no_customer(

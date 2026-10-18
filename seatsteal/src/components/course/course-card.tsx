@@ -15,11 +15,18 @@ import {
 import { EnrollmentBadge } from "@/components/class/enrollment-badge";
 import { CollegeBadge } from "@/components/college/CollegeBadge";
 import { CourseSummaryModal } from "@/components/course/course-summary-modal";
-import { Users, ArrowRight, Sparkles, ExternalLink, Share2 } from "lucide-react";
+import {
+  Users,
+  ArrowRight,
+  Sparkles,
+  ExternalLink,
+  Share2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSubscriptionTier } from "@/components/providers/SessionProvider";
 import { useShare } from "@/hooks/use-share";
 import type { CourseWithCollege, ClassWithEnrollment } from "@/types/api";
+import { isCollegeDataStale } from "@/lib/college-data-status";
 
 interface CourseCardProps {
   course: CourseWithCollege;
@@ -46,6 +53,8 @@ const CourseCard = memo(function CourseCard({
     shareCourse(course.courseCode, course.title, `/courses/${course.id}`);
   };
   // Memoized enrollment status calculations
+  const dataStale = isCollegeDataStale(course.college);
+
   const { openClasses, closedClasses, totalClasses } = useMemo(() => {
     const open = classes.filter(
       (c) => c.currentEnrollment?.enrollmentStatus.toLowerCase() === "open",
@@ -93,18 +102,24 @@ const CourseCard = memo(function CourseCard({
                 </span>
               </div>
 
-              {openClasses > 0 && (
+              {!dataStale && openClasses > 0 && (
                 <div className="flex items-center gap-1">
                   <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                   <span className="text-green-700">{openClasses} open</span>
                 </div>
               )}
 
-              {closedClasses > 0 && (
+              {!dataStale && closedClasses > 0 && (
                 <div className="flex items-center gap-1">
                   <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                   <span className="text-red-700">{closedClasses} closed</span>
                 </div>
+              )}
+
+              {dataStale && (
+                <span className="text-muted-foreground italic">
+                  Seat counts unavailable
+                </span>
               )}
             </div>
 
@@ -126,7 +141,7 @@ const CourseCard = memo(function CourseCard({
                     )}
                   </div>
 
-                  <EnrollmentBadge class={classItem} />
+                  <EnrollmentBadge class={classItem} dataStale={dataStale} />
                 </div>
               ))}
 

@@ -16,10 +16,14 @@ from models.subscription import Subscription
 from models.notification_log import NotificationLog
 from schemas.class_schema import ClassWithCourse
 from schemas.course import EnrollmentStatus, CourseWithCollege
-from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
 from utils.premium import require_premium_access, require_pro_access
 from utils.errors import log_and_raise_500
+from utils.college_data_status import (
+    apply_data_status,
+    get_college_data_status,
+    overlay_data_status_on_college_dicts,
+)
 
 router = APIRouter(prefix="/api/classes", tags=["classes"])
 
@@ -116,7 +120,16 @@ async def get_class(class_id: int, db: Session = Depends(get_db)):
 
             if cached_result:
                 logger.debug(f"Cache hit for class detail: {cache_key}")
-                return json.loads(cached_result)
+                response = json.loads(cached_result)
+                data = response.get("data") if isinstance(response, dict) else None
+                college = None
+                if isinstance(data, dict):
+                    course = data.get("course")
+                    if isinstance(course, dict):
+                        college = course.get("college")
+                if isinstance(college, dict):
+                    overlay_data_status_on_college_dicts(db, [college])
+                return response
         except Exception as e:
             logger.error(f"Cache read error: {e}")
 
@@ -171,7 +184,9 @@ async def get_class(class_id: int, db: Session = Depends(get_db)):
                 created_at=course.created_at,
                 updated_at=course.updated_at,
                 is_active=course.is_active,
-                college=CollegeResponse.model_validate(college),
+                college=apply_data_status(
+                    college, get_college_data_status(db, college)
+                ),
             ),
         )
 

@@ -22,7 +22,8 @@ from models.class_model import Class
 from models.stripe_subscription import StripeSubscription
 from api.middleware.auth import require_admin
 from utils.errors import log_and_raise_500
-from utils.cache import invalidate_user_caches
+from utils.cache import invalidate_user_caches, invalidate_cache
+from utils.college_data_status import get_college_data_status
 from schemas.admin import TermUpdateRequest, TermUpdateResponse, TermUpdateCleanupStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -877,7 +878,7 @@ async def get_scrapers(
         # 1. Never had a successful run and created >2 hours ago, OR
         # 2. No successful run in the last 2 hours (for active colleges)
         stale_threshold = datetime.now(timezone.utc) - timedelta(hours=2)
-        
+
         stale_scrapers_query = (
             select(
                 Scraper.id.label("scraperId"),
@@ -925,7 +926,9 @@ async def get_scrapers(
                 "lastErrorMessage": row.lastErrorMessage,
                 "createdAt": row.createdAt.isoformat() if row.createdAt else None,
                 "errorCount": row.errorCount or 0,
-                "alertType": "never_succeeded" if row.lastSuccessAt is None else "stale",
+                "alertType": (
+                    "never_succeeded" if row.lastSuccessAt is None else "stale"
+                ),
             }
             for row in stale_scrapers_result
         ]
@@ -1207,6 +1210,62 @@ async def update_user(
         log_and_raise_500("Failed to update user", e)
 
 
+class CollegeAvailabilityRequest(BaseModel):
+    """Toggle the admin override for public seat-data availability."""
+
+    data_available: bool = Field(..., alias="dataAvailable")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.patch("/colleges/{college_id}/availability")
+async def update_college_availability(
+    college_id: int,
+    request: CollegeAvailabilityRequest,
+    admin: Profile = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Set the admin data_available flag for a college.
+
+    This is an additive override used together with auto-derived scraper
+    health. Existing subscriptions and notifications are unchanged.
+    """
+    try:
+        college = db.get(College, college_id)
+        if not college:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="College not found",
+            )
+
+        college.data_available = request.data_available
+        db.commit()
+        db.refresh(college)
+
+        invalidate_cache("colleges")
+        invalidate_cache("college_detail", college_id=college_id)
+
+        status_info = get_college_data_status(db, college)
+        return {
+            "success": True,
+            "data": {
+                "id": college.id,
+                "dataAvailable": college.data_available,
+                "dataStatus": status_info.data_status,
+                "lastUpdatedAt": (
+                    status_info.last_updated_at.isoformat()
+                    if status_info.last_updated_at
+                    else None
+                ),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        log_and_raise_500("Failed to update college availability", e)
+
+
 @router.put("/colleges/{college_id}/term", response_model=TermUpdateResponse)
 async def update_college_term(
     college_id: int,
@@ -1446,6 +1505,7 @@ async def get_college_stats(
             .limit(10)
         )
         scraper_logs_result = db.execute(scraper_logs_query)
+        college_data_status = get_college_data_status(db, college)
         recent_scraper_logs = [
             {
                 "id": row.id,
@@ -1472,6 +1532,13 @@ async def get_college_stats(
                     "termName": college.term_name,
                     "emailEnabled": college.email_enabled,
                     "smsEnabled": college.sms_enabled,
+                    "dataAvailable": college.data_available,
+                    "dataStatus": college_data_status.data_status,
+                    "lastUpdatedAt": (
+                        college_data_status.last_updated_at.isoformat()
+                        if college_data_status.last_updated_at
+                        else None
+                    ),
                 },
                 "stats": {
                     "totalCourses": total_courses,

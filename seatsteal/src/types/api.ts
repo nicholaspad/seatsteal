@@ -1,4 +1,6 @@
 // Base database types (replicated from backend schema)
+export type CollegeDataStatus = "ok" | "stale";
+
 export interface College {
   id: number;
   name: string;
@@ -10,6 +12,8 @@ export interface College {
   smsEnabled: boolean;
   createdAt: string;
   isActive: boolean;
+  dataStatus?: CollegeDataStatus;
+  lastUpdatedAt?: string | null;
 }
 
 export interface Course {

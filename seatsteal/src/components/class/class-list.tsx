@@ -19,6 +19,7 @@ interface ClassListProps {
   className?: string;
   // Pro-exclusive: watcher counts per class (how many users are watching each section)
   watcherCounts?: Record<number, number>;
+  dataStale?: boolean;
 }
 
 export function ClassList({
@@ -31,6 +32,7 @@ export function ClassList({
   onSubscriptionChange,
   className,
   watcherCounts = {},
+  dataStale = false,
 }: ClassListProps) {
   if (loading) {
     return (
@@ -101,6 +103,7 @@ export function ClassList({
               subscriptionsLoading={subscriptionsLoading}
               onSubscriptionChange={onSubscriptionChange}
               watcherCount={watcherCounts[classItem.classId]}
+              dataStale={dataStale}
             />
           ))}
         </div>

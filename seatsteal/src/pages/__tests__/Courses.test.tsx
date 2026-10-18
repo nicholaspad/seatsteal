@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import Courses from "../Courses";
 import { renderAnonymous, renderAuthenticated } from "@/test/utils";
 import {
+  mockCourseData,
   mockCoursesResponse,
   mockCollegesResponse,
   mockCoursesResponseWithPagination,
@@ -315,6 +316,77 @@ describe("Courses Page", () => {
       await waitFor(() => {
         expect(screen.getByText("No Courses Found")).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Stale school data", () => {
+    it("shows the unavailable banner and hides live seat counts", async () => {
+      mockUseSearchParams.mockReturnValue(new URLSearchParams("college=1"));
+      const staleCourse = {
+        ...mockCourseData,
+        college: {
+          ...mockCourseData.college,
+          dataStatus: "stale",
+          lastUpdatedAt: "2026-10-16T12:00:00Z",
+        },
+      };
+
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  data: [staleCourse],
+                  pagination: { page: 1, limit: 12, total: 1, totalPages: 1 },
+                },
+              }),
+          } as Response);
+        }
+        if (url.includes("/api/colleges/1")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  id: 1,
+                  name: "Test University",
+                  shortName: "TU",
+                  dataStatus: "stale",
+                  lastUpdatedAt: "2026-10-16T12:00:00Z",
+                },
+              }),
+          } as Response);
+        }
+        if (url.includes("/api/colleges")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCollegesResponse),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: [] }),
+        } as Response);
+      });
+
+      renderAuthenticated(<Courses />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("school-data-unavailable-banner"),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText(
+          /Seat data for Test University is temporarily unavailable/,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("UNAVAILABLE").length).toBeGreaterThan(0);
+      expect(screen.queryByText("OPEN")).not.toBeInTheDocument();
     });
   });
 
