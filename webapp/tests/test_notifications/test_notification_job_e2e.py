@@ -32,6 +32,7 @@ from models.user import Profile
 from models.college import College
 from models.course import Course
 from models.class_model import Class
+from tests.conftest import add_successful_scrape
 
 
 @pytest.fixture
@@ -148,8 +149,19 @@ def mock_sms_service_e2e():
 class TestNotificationJobE2E:
     """End-to-end integration tests for the complete notification workflow."""
 
+    @pytest.fixture(autouse=True)
+    def _fresh_successful_scrape(self, test_db: Session, test_college: College):
+        # Fixture setup runs before freeze_time, so pin the window to the
+        # frozen 2024-01-15 morning used by every test in this class.
+        return add_successful_scrape(
+            test_db,
+            test_college,
+            started_at=datetime(2024, 1, 15, 8, 0, tzinfo=timezone.utc),
+            completed_at=datetime(2024, 1, 15, 12, 0, tzinfo=timezone.utc),
+        )
+
     @pytest.mark.integration
-    @freeze_time("2024-01-15 10:00:00")
+    @freeze_time("2024-01-15 10:00:00+00:00")
     def test_all_tiers_notified_on_minute_00(
         self,
         test_db: Session,
@@ -258,7 +270,7 @@ class TestNotificationJobE2E:
             assert all(log.status == "sent" for log in logs)
 
     @pytest.mark.integration
-    @freeze_time("2024-01-15 10:30:00")
+    @freeze_time("2024-01-15 10:30:00+00:00")
     def test_free_and_plus_notified_on_minute_30(
         self,
         test_db: Session,
@@ -320,7 +332,7 @@ class TestNotificationJobE2E:
             ), "Free, Plus, and Pro should all be notified at :30"
 
     @pytest.mark.integration
-    @freeze_time("2024-01-15 10:05:00")
+    @freeze_time("2024-01-15 10:05:00+00:00")
     def test_plus_and_pro_notified_on_minute_05(
         self,
         test_db: Session,
@@ -395,7 +407,7 @@ class TestNotificationJobE2E:
             assert pro_sub.is_active is False, "Pro subscription should be deactivated"
 
     @pytest.mark.integration
-    @freeze_time("2024-01-15 10:07:00")
+    @freeze_time("2024-01-15 10:07:00+00:00")
     def test_only_pro_notified_on_minute_07(
         self,
         test_db: Session,
@@ -470,7 +482,7 @@ class TestNotificationJobE2E:
             assert pro_sub.is_active is False, "Pro subscription should be deactivated"
 
     @pytest.mark.integration
-    @freeze_time("2024-01-15 10:00:00")
+    @freeze_time("2024-01-15 10:00:00+00:00")
     def test_no_notifications_for_closed_enrollment(
         self,
         test_db: Session,
@@ -542,7 +554,7 @@ class TestNotificationJobE2E:
             assert pro_sub.is_active is True
 
     @pytest.mark.integration
-    @freeze_time("2024-01-15 10:00:00")
+    @freeze_time("2024-01-15 10:00:00+00:00")
     def test_pro_priority_delay(
         self,
         test_db: Session,
@@ -604,7 +616,7 @@ class TestNotificationJobE2E:
             assert result["notifications_sent"] == 2
 
     @pytest.mark.integration
-    @freeze_time("2024-01-15 10:00:00")
+    @freeze_time("2024-01-15 10:00:00+00:00")
     def test_inactive_subscriptions_not_notified(
         self,
         test_db: Session,

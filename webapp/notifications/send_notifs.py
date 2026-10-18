@@ -29,7 +29,7 @@ from loguru import logger
 webapp_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from sqlalchemy import select, and_, desc
+from sqlalchemy import select, and_, desc, case, literal
 from sqlalchemy.orm import Session
 
 from db.session import SessionLocal
@@ -41,6 +41,8 @@ from models.enrollment import Enrollment
 from models.user import Profile
 from models.stripe_subscription import StripeSubscription
 from models.notification_log import NotificationLog
+from models.scraper import Scraper
+from models.scraper_log import ScraperLog
 from notifications.email_service import EmailService
 from notifications.sms_service import SMSService
 from notifications.channel import should_send_sms
@@ -49,6 +51,7 @@ from notifications.constants import (
     USER_TIERS,
     PRO_PRIORITY_DELAY_SECONDS,
 )
+from utils.college_data_status import get_colleges_data_status
 from config import settings
 
 
@@ -247,24 +250,96 @@ class NotificationJob:
             logger.info("⚠️ No tiers included for this minute, skipping query")
             return []
 
-        # Subquery to get the most recent enrollment for each class
+        active_colleges = (
+            db.execute(select(College).where(College.is_active == True)).scalars().all()
+        )
+        if not active_colleges:
+            return []
+
+        # Reuse #249 data-status rules (admin flag, 24h no-success, two
+        # consecutive failed-empty runs). Inactive colleges count as ok in
+        # that helper; they are already excluded above via is_active.
+        status_map = get_colleges_data_status(db, active_colleges)
+        ok_college_ids = [
+            college.id
+            for college in active_colleges
+            if status_map[college.id].data_status == "ok"
+        ]
+        if not ok_college_ids:
+            logger.info("⚠️ All active colleges are stale; skipping seat alerts")
+            return []
+
+        # Latest successful scraper run per college. Ignores error / partial /
+        # timeout / running / orphaned-by-restart rows. Uses scrapers_college_id_idx
+        # and scraper_logs_outcome_idx / scraper_logs_scraper_started_idx.
+        latest_success_run_subq = (
+            select(
+                Scraper.college_id,
+                ScraperLog.started_at,
+                ScraperLog.completed_at,
+            )
+            .select_from(ScraperLog)
+            .join(Scraper, ScraperLog.scraper_id == Scraper.id)
+            .where(
+                and_(
+                    ScraperLog.outcome == "success",
+                    ScraperLog.completed_at.isnot(None),
+                    Scraper.college_id.in_(ok_college_ids),
+                )
+            )
+            .distinct(Scraper.college_id)
+            .order_by(
+                Scraper.college_id,
+                desc(ScraperLog.completed_at),
+                desc(ScraperLog.id),
+            )
+            .subquery()
+        )
+
+        # Latest enrollment per class whose scraped_at falls inside that
+        # successful run window (enrollments have no run_id). Window filter
+        # uses enrollments_college_scraped_idx (college_id, scraped_at);
+        # DISTINCT ON uses enrollments_class_scraped_idx (class_id, scraped_at).
         latest_enrollment_subq = (
             select(
                 Enrollment.class_id,
                 Enrollment.enrollment_status,
                 Enrollment.scraped_at,
             )
-            .where(
+            .join(
+                latest_success_run_subq,
                 and_(
-                    Enrollment.enrollment_status == "open",
-                )
+                    Enrollment.college_id == latest_success_run_subq.c.college_id,
+                    Enrollment.scraped_at >= latest_success_run_subq.c.started_at,
+                    Enrollment.scraped_at <= latest_success_run_subq.c.completed_at,
+                ),
             )
             .distinct(Enrollment.class_id)
-            .order_by(Enrollment.class_id, desc(Enrollment.scraped_at))
+            .order_by(
+                Enrollment.class_id,
+                desc(Enrollment.scraped_at),
+                desc(Enrollment.id),
+            )
             .subquery()
         )
 
-        # Main query to find subscriptions that need notifications
+        # One Stripe plan per user so two active/trialing rows cannot duplicate
+        # subscription results. Uses stripe_subscriptions_user_id_idx.
+        active_plan_subq = (
+            select(
+                StripeSubscription.user_id,
+                StripeSubscription.tier,
+            )
+            .where(StripeSubscription.status.in_(["active", "trialing"]))
+            .distinct(StripeSubscription.user_id)
+            .order_by(
+                StripeSubscription.user_id,
+                desc(StripeSubscription.created_at),
+                desc(StripeSubscription.id),
+            )
+            .subquery()
+        )
+
         query = (
             select(
                 Subscription.id.label("subscription_id"),
@@ -276,46 +351,41 @@ class NotificationJob:
                 Class.section_code,
                 College.id.label("college_id"),
                 College.name.label("college_name"),
+                College.sms_enabled.label("sms_enabled"),
                 Profile.email.label("user_email"),
                 Profile.phone.label("user_phone"),
+                case(
+                    (active_plan_subq.c.tier.is_(None), literal("free")),
+                    else_=active_plan_subq.c.tier,
+                ).label("user_tier"),
             )
             .select_from(Subscription)
             .join(
                 latest_enrollment_subq,
-                Subscription.class_id == latest_enrollment_subq.c.class_id,
+                and_(
+                    Subscription.class_id == latest_enrollment_subq.c.class_id,
+                    latest_enrollment_subq.c.enrollment_status == "open",
+                ),
             )
             .join(Class, Subscription.class_id == Class.class_id)
             .join(Course, Class.course_id == Course.id)
             .join(College, Subscription.college_id == College.id)
             .join(Profile, Subscription.user_id == Profile.id)
             .outerjoin(
-                StripeSubscription,
-                and_(
-                    Subscription.user_id == StripeSubscription.user_id,
-                    StripeSubscription.status.in_(["active", "trialing"]),
-                ),
+                active_plan_subq,
+                Subscription.user_id == active_plan_subq.c.user_id,
             )
             .where(
                 and_(
                     Subscription.is_active == True,
                     College.is_active == True,
+                    College.id.in_(ok_college_ids),
                     Course.is_active == True,
                     Class.is_active == True,
                 )
             )
             .order_by(Subscription.created_at)
         )
-
-        # Build tier filter - need to use case statement to add tier column
-        from sqlalchemy import case, literal
-
-        tier_column = case(
-            (StripeSubscription.tier.is_(None), literal("free")),
-            else_=StripeSubscription.tier,
-        ).label("user_tier")
-
-        # Add tier column to select
-        query = query.add_columns(tier_column)
 
         # Execute query
         result = db.execute(query).all()
@@ -340,13 +410,19 @@ class NotificationJob:
         user_email = notification["user_email"]
         user_phone = notification.get("user_phone")
         user_tier = notification["user_tier"]
+        college_sms_enabled = bool(notification.get("sms_enabled", False))
+        send_sms = should_send_sms(
+            user_phone,
+            college_sms_enabled,
+            sms_service_enabled=self.sms_service.is_enabled,
+        )
 
         if self.dry_run:
             logger.info(
                 f"🧪 DRY RUN: Would send email to {user_email} ({user_tier}) - "
                 f"{course_title} {section_code} at {college_name} is now OPEN!"
             )
-            if should_send_sms(user_phone, self.sms_service.is_enabled):
+            if send_sms:
                 logger.info(
                     f"🧪 DRY RUN: Would send SMS to {user_phone} ({user_tier}) - "
                     f"{course_title} {section_code} at {college_name} is now OPEN!"
@@ -401,10 +477,10 @@ class NotificationJob:
         )
         db.add(email_log)
 
-        # Same SMS gate as waitlist recovery: phone + SMS enabled.
+        # Same SMS gate as waitlist recovery: phone + school SMS + Twilio ready.
         sms_success = False
         sms_attempted = False
-        if should_send_sms(user_phone, self.sms_service.is_enabled):
+        if send_sms:
             sms_attempted = True
             logger.info(
                 f"📱 SENDING SMS: To {user_phone} ({user_tier}) - "

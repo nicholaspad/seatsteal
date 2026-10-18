@@ -27,6 +27,9 @@ from models.enrollment import Enrollment
 from models.stripe_subscription import StripeSubscription
 from models.stripe_customer import StripeCustomer
 from models.notification_log import NotificationLog
+from models.scraper import Scraper
+from tests.conftest import add_scraper_log
+from utils.college_data_status import ORPHANED_BY_RESTART_MESSAGE
 
 
 @pytest.fixture
@@ -72,6 +75,11 @@ class TestNotificationJobInit:
 
 class TestFindNotificationsToSend:
     """Tests for _find_notifications_to_send method."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh_successful_scrape(self, successful_scrape):
+        """Existing tests assume the latest enrollment is from a successful run."""
+        return successful_scrape
 
     @pytest.mark.unit
     def test_find_notifications_pro_minute(
@@ -317,6 +325,345 @@ class TestFindNotificationsToSend:
             assert len(notifications) == 0
 
 
+class TestSeatAlertQueryRegression:
+    """Open-seat selection must use the latest successful scrape, not stale opens."""
+
+    def _subscribe_user(
+        self,
+        test_db: Session,
+        test_user: Profile,
+        test_class: Class,
+        test_college: College,
+    ) -> Subscription:
+        subscription = Subscription(
+            user_id=test_user.id,
+            class_id=test_class.class_id,
+            college_id=test_college.id,
+            is_active=True,
+        )
+        test_db.add(subscription)
+        test_db.commit()
+        return subscription
+
+    def _find_at_minute_zero(self, test_db: Session):
+        job = NotificationJob(dry_run=False)
+        with patch("notifications.send_notifs.datetime") as mock_datetime:
+            mock_datetime.now.return_value.minute = 0
+            return job._find_notifications_to_send(test_db)
+
+    def _add_enrollment(
+        self,
+        test_db: Session,
+        test_class: Class,
+        test_college: College,
+        *,
+        status: str,
+        scraped_at: datetime,
+    ) -> Enrollment:
+        enrollment = Enrollment(
+            class_id=test_class.class_id,
+            college_id=test_college.id,
+            enrollment_status=status,
+            scraped_at=scraped_at,
+        )
+        test_db.add(enrollment)
+        test_db.commit()
+        return enrollment
+
+    def _add_scraper(
+        self,
+        test_db: Session,
+        test_college: College,
+        last_success_at: datetime,
+    ) -> Scraper:
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+            last_success_at=last_success_at,
+            last_run_at=last_success_at,
+        )
+        test_db.add(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
+        return scraper
+
+    @pytest.mark.unit
+    def test_latest_record_not_open_after_earlier_open_sends_no_alert(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        """A later closed/full scrape must win over an older open row."""
+        now = datetime.now(timezone.utc)
+        scraper = self._add_scraper(test_db, test_college, now)
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="success",
+            started_at=now - timedelta(hours=1),
+            completed_at=now,
+        )
+        self._subscribe_user(test_db, test_user, test_class, test_college)
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="open",
+            scraped_at=now - timedelta(minutes=20),
+        )
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="closed",
+            scraped_at=now - timedelta(minutes=5),
+        )
+
+        assert self._find_at_minute_zero(test_db) == []
+
+    @pytest.mark.unit
+    def test_latest_record_open_and_from_successful_run_sends_alert(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        now = datetime.now(timezone.utc)
+        scraper = self._add_scraper(test_db, test_college, now)
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="success",
+            started_at=now - timedelta(hours=1),
+            completed_at=now,
+        )
+        self._subscribe_user(test_db, test_user, test_class, test_college)
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="closed",
+            scraped_at=now - timedelta(minutes=20),
+        )
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="open",
+            scraped_at=now - timedelta(minutes=5),
+        )
+
+        notifications = self._find_at_minute_zero(test_db)
+        assert len(notifications) == 1
+        assert notifications[0]["class_id"] == test_class.class_id
+
+    @pytest.mark.unit
+    def test_stale_school_is_suppressed(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        """#249 two consecutive failed-empty runs: banner-stale, no seat alert."""
+        now = datetime.now(timezone.utc)
+        success_at = now - timedelta(hours=2)
+        scraper = self._add_scraper(test_db, test_college, success_at)
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="success",
+            started_at=success_at - timedelta(minutes=30),
+            completed_at=success_at,
+        )
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="error",
+            started_at=now - timedelta(hours=1),
+            completed_at=now - timedelta(hours=1) + timedelta(minutes=5),
+            courses_created=0,
+        )
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="error",
+            started_at=now - timedelta(minutes=20),
+            completed_at=now - timedelta(minutes=15),
+            courses_created=0,
+        )
+        self._subscribe_user(test_db, test_user, test_class, test_college)
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="open",
+            scraped_at=success_at - timedelta(minutes=5),
+        )
+
+        assert self._find_at_minute_zero(test_db) == []
+
+    @pytest.mark.unit
+    def test_record_from_failed_or_orphaned_run_is_ignored(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        now = datetime.now(timezone.utc)
+        success_at = now - timedelta(hours=2)
+        scraper = self._add_scraper(test_db, test_college, success_at)
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="success",
+            started_at=success_at - timedelta(minutes=30),
+            completed_at=success_at,
+        )
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="error",
+            started_at=now - timedelta(minutes=20),
+            completed_at=now - timedelta(minutes=10),
+            courses_created=0,
+            error_message=ORPHANED_BY_RESTART_MESSAGE,
+        )
+        self._subscribe_user(test_db, test_user, test_class, test_college)
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="closed",
+            scraped_at=success_at - timedelta(minutes=5),
+        )
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="open",
+            scraped_at=now - timedelta(minutes=15),
+        )
+
+        assert self._find_at_minute_zero(test_db) == []
+
+    @pytest.mark.unit
+    def test_record_from_before_latest_successful_run_is_ignored(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        now = datetime.now(timezone.utc)
+        old_success = now - timedelta(hours=3)
+        new_success = now - timedelta(minutes=10)
+        scraper = self._add_scraper(test_db, test_college, new_success)
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="success",
+            started_at=old_success - timedelta(minutes=30),
+            completed_at=old_success,
+        )
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="success",
+            started_at=new_success - timedelta(minutes=20),
+            completed_at=new_success,
+        )
+        self._subscribe_user(test_db, test_user, test_class, test_college)
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="open",
+            scraped_at=old_success - timedelta(minutes=5),
+        )
+
+        assert self._find_at_minute_zero(test_db) == []
+
+    @pytest.mark.unit
+    def test_two_active_plans_return_one_subscription_row(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        now = datetime.now(timezone.utc)
+        scraper = self._add_scraper(test_db, test_college, now)
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="success",
+            started_at=now - timedelta(hours=1),
+            completed_at=now,
+        )
+        customer = StripeCustomer(
+            user_id=test_user.id,
+            stripe_customer_id="cus_two_plans",
+            email=test_user.email,
+        )
+        test_db.add(customer)
+        test_db.add(
+            StripeSubscription(
+                user_id=test_user.id,
+                stripe_subscription_id="sub_plus_dup",
+                stripe_customer_id="cus_two_plans",
+                price_id="price_plus",
+                tier="plus",
+                status="active",
+            )
+        )
+        test_db.add(
+            StripeSubscription(
+                user_id=test_user.id,
+                stripe_subscription_id="sub_pro_dup",
+                stripe_customer_id="cus_two_plans",
+                price_id="price_pro",
+                tier="pro",
+                status="active",
+            )
+        )
+        self._subscribe_user(test_db, test_user, test_class, test_college)
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="open",
+            scraped_at=now - timedelta(minutes=5),
+        )
+        test_db.commit()
+
+        notifications = self._find_at_minute_zero(test_db)
+        assert len(notifications) == 1
+        assert notifications[0]["user_tier"] in {"plus", "pro"}
+
+
 class TestSendNotification:
     """Tests for _send_notification method."""
 
@@ -404,6 +751,7 @@ class TestSendNotification:
             "user_email": test_user.email,
             "user_phone": "+1234567890",
             "user_tier": "pro",
+            "sms_enabled": True,
         }
 
         job = NotificationJob(dry_run=False)
@@ -418,6 +766,54 @@ class TestSendNotification:
         assert len(logs) == 2
         assert any(log.notification_type == "email" for log in logs)
         assert any(log.notification_type == "sms" for log in logs)
+
+    @pytest.mark.unit
+    def test_send_notification_skips_sms_when_college_sms_disabled(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        """Twilio ready is not enough; the school must also have SMS on."""
+        mock_sms_service.is_enabled = True
+        test_college.sms_enabled = False
+
+        subscription = Subscription(
+            user_id=test_user.id,
+            class_id=test_class.class_id,
+            college_id=test_college.id,
+            is_active=True,
+        )
+        test_db.add(subscription)
+        test_db.commit()
+        test_db.refresh(subscription)
+
+        notification = {
+            "subscription_id": subscription.id,
+            "user_id": test_user.id,
+            "course_code": "CS 101",
+            "course_title": "Intro to CS",
+            "section_code": "A1",
+            "class_number": "12345",
+            "college_name": "Test University",
+            "college_id": test_college.id,
+            "user_email": test_user.email,
+            "user_phone": "+1234567890",
+            "user_tier": "pro",
+            "sms_enabled": False,
+        }
+
+        job = NotificationJob(dry_run=False)
+        job._send_notification(notification, test_db)
+
+        mock_email_service.send_course_notification.assert_called_once()
+        mock_sms_service.send_course_notification.assert_not_called()
+        logs = test_db.query(NotificationLog).all()
+        assert len(logs) == 1
+        assert logs[0].notification_type == "email"
 
     @pytest.mark.unit
     def test_send_notification_dry_run_mode(
