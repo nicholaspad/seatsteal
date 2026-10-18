@@ -1,9 +1,14 @@
 from typing import List, Dict, Any, Optional
 import asyncio
+import json
 import httpx
 from scraper.base import BaseScraper
 from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
+
+
+class BuFetchError(Exception):
+    """BU ClassSearch fetch/parse failure. Includes HTTP status and body size."""
 
 
 class BuScraper(BaseScraper):
@@ -12,6 +17,10 @@ class BuScraper(BaseScraper):
 
     Scrapes course data from BU's public class search API.
     Migrated from working TypeScript implementation.
+
+    Term 2268 = Fall 2026 (STRM). Do not silently switch terms: phpbin
+    course-search now 302s to this same PeopleSoft iScript, and live probes
+    of 2268 / 2272 / 2262 all return the same HTTP 502 HTML gateway page.
     """
 
     BASE_API_URL = "https://public.mybustudent.bu.edu/psc/BUPRD/EMPLOYEE/SA/s/WEBLIB_HCX_CM.H_CLASS_SEARCH.FieldFormula.IScript_ClassSearch"
@@ -22,6 +31,28 @@ class BuScraper(BaseScraper):
         super().__init__("bu")
         self.client: Optional[httpx.AsyncClient] = None
         self.current_term = get_term_code_from_db(db_session, "bu")
+        self.last_fetch: Dict[str, Any] = {
+            "status": None,
+            "size": None,
+            "content_type": None,
+            "reason": None,
+            "url": None,
+        }
+
+    def format_empty_reason(self) -> str:
+        """Describe why a fetch produced no classes (HTTP status + body size)."""
+        meta = self.last_fetch
+        status = meta.get("status")
+        size = meta.get("size")
+        content_type = meta.get("content_type") or "unknown"
+        reason = meta.get("reason") or "unknown"
+        return (
+            f"term={self.current_term} status={status} "
+            f"response_size={size} content_type={content_type} reason={reason}"
+        )
+
+    def _record_fetch(self, **kwargs: Any) -> None:
+        self.last_fetch.update(kwargs)
 
     async def _ensure_client(self):
         """Ensure HTTP client is initialized"""
@@ -60,9 +91,15 @@ class BuScraper(BaseScraper):
 
         try:
             if department.upper() == "ALL":
-                return await self._fetch_all_pages(limit)
+                courses_data = await self._fetch_all_pages(limit)
             else:
-                return await self._fetch_subject_courses(department, limit)
+                courses_data = await self._fetch_subject_courses(department, limit)
+
+            if not courses_data:
+                why = self.format_empty_reason()
+                logger.warning(f"BU scrape returned 0 courses ({why})")
+
+            return courses_data
 
         except Exception as e:
             logger.error(f"Failed to scrape BU {department}: {e}")
@@ -79,7 +116,8 @@ class BuScraper(BaseScraper):
         Fetch all courses from BU's paginated API.
 
         Fetches pages in batches of 20 concurrently until at least one page
-        returns empty. BU API is slow, so we use 120 second timeout per request.
+        returns empty. HTTP / parse failures are not treated as empty pages:
+        they fail the scrape when no classes have been collected yet.
 
         Args:
             limit: Optional limit on number of courses
@@ -119,25 +157,31 @@ class BuScraper(BaseScraper):
                     page_number = start_page + i
 
                     if isinstance(result, Exception):
-                        logger.warning(f"Page {page_number} failed: {result}")
-                        # Don't count failures as empty pages
-                        continue
+                        if not all_classes:
+                            logger.error(
+                                f"Page {page_number} failed before any classes: {result}"
+                            )
+                            raise result
+                        logger.warning(
+                            f"Page {page_number} failed after {len(all_classes)} classes; "
+                            f"stopping pagination: {result}"
+                        )
+                        empty_page_found = True
+                        break
                     elif result and result.get("classes"):
                         page_classes = result["classes"]
-                        if len(page_classes) == 0:
-                            logger.info(
-                                f"Page {page_number}: Empty page found - stopping"
-                            )
-                            empty_page_found = True
-                        else:
-                            all_classes.extend(page_classes)
-                            pages_fetched += 1
-                            logger.info(
-                                f"Page {page_number}: {len(page_classes)} classes extracted"
-                            )
+                        all_classes.extend(page_classes)
+                        pages_fetched += 1
+                        logger.info(
+                            f"Page {page_number}: {len(page_classes)} classes extracted"
+                        )
                     else:
-                        logger.info(f"Page {page_number}: Empty page found - stopping")
+                        logger.info(
+                            f"Page {page_number}: Empty page found - stopping "
+                            f"({self.format_empty_reason()})"
+                        )
                         empty_page_found = True
+                        break
 
                 # Move to next batch
                 current_page = end_page + 1
@@ -158,6 +202,12 @@ class BuScraper(BaseScraper):
             # Transform classes to course format
             courses_data = self._group_classes_by_course(all_classes)
             logger.info(f"Grouped into {len(courses_data)} unique courses")
+
+            if not courses_data:
+                logger.warning(
+                    f"BU grouped 0 courses from {len(all_classes)} raw classes "
+                    f"({self.format_empty_reason()})"
+                )
 
             # Apply limit if specified
             if limit:
@@ -207,7 +257,53 @@ class BuScraper(BaseScraper):
             logger.error(f"Error fetching subject {subject}: {e}")
             raise
 
-    async def _fetch_single_page(self, page_number: int) -> Optional[Dict[str, Any]]:
+    def _extract_classes_payload(self, data: Any) -> Optional[Dict[str, Any]]:
+        """
+        Normalize BU ClassSearch JSON to ``{pageCount, classes}``.
+
+        Live/historical shapes:
+        - ``{"pageCount": N, "classes": [...]}`` (wrapped)
+        - a raw list of class dicts (older iScript / some HCX versions)
+        - ``{"data": {"classes": [...]}}`` or ``{"data": [...]}``
+        """
+        if isinstance(data, list):
+            if data and not all(isinstance(item, dict) for item in data):
+                return None
+            return {"pageCount": 1 if data else 0, "classes": data}
+
+        if not isinstance(data, dict):
+            return None
+
+        classes = data.get("classes")
+        if isinstance(classes, list):
+            return {
+                "pageCount": data.get("pageCount", 1 if classes else 0),
+                "classes": classes,
+            }
+
+        nested = data.get("data")
+        if isinstance(nested, dict) and isinstance(nested.get("classes"), list):
+            nested_classes = nested["classes"]
+            return {
+                "pageCount": nested.get("pageCount", data.get("pageCount", 1)),
+                "classes": nested_classes,
+            }
+        if isinstance(nested, list):
+            if nested and not all(isinstance(item, dict) for item in nested):
+                return None
+            return {"pageCount": 1 if nested else 0, "classes": nested}
+
+        return None
+
+    def _parse_json_body(self, response: httpx.Response, content: bytes) -> Any:
+        """Parse JSON from a response, ignoring misleading content-types."""
+        try:
+            return self.decode_json_response(response)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError):
+            text = content.decode("utf-8", errors="replace")
+            return json.loads(text)
+
+    async def _fetch_single_page(self, page_number: int) -> Dict[str, Any]:
         """
         Fetch a single page from BU's API.
 
@@ -216,39 +312,93 @@ class BuScraper(BaseScraper):
 
         Returns:
             API response dictionary with 'pageCount' and 'classes' keys
+
+        Raises:
+            BuFetchError: On HTTP errors or unparseable bodies. Callers must not
+            treat these as empty catalog pages.
         """
+        url = self._build_page_url(page_number)
+        logger.debug(f"Fetching page {page_number}: {url}")
+
         try:
-            url = self._build_page_url(page_number)
-            logger.debug(f"Fetching page {page_number}: {url}")
-
             response = await self.client.get(url)
-            response.raise_for_status()
-            self.request_count += 1
-
-            # Parse JSON response
-            content_type = response.headers.get("content-type", "")
-
-            if "application/json" not in content_type:
-                logger.warning(
-                    f"Page {page_number}: Expected JSON response, got {content_type}"
-                )
-                return None
-
-            data = self.decode_json_response(response)
-
-            if (
-                not data
-                or "classes" not in data
-                or not isinstance(data["classes"], list)
-            ):
-                logger.warning(f"Page {page_number}: Invalid response format")
-                return None
-
-            return data
-
         except Exception as e:
-            logger.error(f"Error fetching page {page_number}: {e}")
-            return None
+            self._record_fetch(
+                status=None,
+                size=0,
+                content_type=None,
+                reason=f"transport_error:{type(e).__name__}",
+                url=url,
+            )
+            raise BuFetchError(
+                f"BU page {page_number} transport error ({self.format_empty_reason()}): {e}"
+            ) from e
+
+        content = response.content or b""
+        status = response.status_code
+        size = len(content)
+        content_type = response.headers.get("content-type", "")
+        self.request_count += 1
+        self._record_fetch(
+            status=status,
+            size=size,
+            content_type=content_type,
+            reason="ok",
+            url=url,
+        )
+
+        snippet = content.decode("utf-8", errors="replace")[:180]
+
+        if status >= 400:
+            self._record_fetch(reason=f"http_{status}")
+            logger.warning(
+                f"BU page {page_number}: HTTP {status} response_size={size} "
+                f"content_type={content_type!r} snippet={snippet!r}"
+            )
+            raise BuFetchError(
+                f"BU page {page_number} HTTP {status} response_size={size} "
+                f"content_type={content_type} term={self.current_term}"
+            )
+
+        try:
+            data = self._parse_json_body(response, content)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError) as e:
+            self._record_fetch(reason="non_json")
+            logger.warning(
+                f"BU page {page_number}: non-JSON response status={status} "
+                f"response_size={size} content_type={content_type!r} "
+                f"snippet={snippet!r}"
+            )
+            raise BuFetchError(
+                f"BU page {page_number} non-JSON response status={status} "
+                f"response_size={size} content_type={content_type} "
+                f"term={self.current_term}"
+            ) from e
+
+        payload = self._extract_classes_payload(data)
+        if payload is None:
+            if isinstance(data, dict):
+                keys = sorted(data.keys())
+            else:
+                keys = type(data).__name__
+            self._record_fetch(reason=f"invalid_format keys={keys}")
+            logger.warning(
+                f"BU page {page_number}: invalid JSON format status={status} "
+                f"response_size={size} keys={keys}"
+            )
+            raise BuFetchError(
+                f"BU page {page_number} invalid JSON format status={status} "
+                f"response_size={size} keys={keys} term={self.current_term}"
+            )
+
+        if not payload["classes"]:
+            self._record_fetch(reason="empty_classes")
+            logger.warning(
+                f"BU page {page_number}: 0 classes in JSON status={status} "
+                f"response_size={size} term={self.current_term}"
+            )
+
+        return payload
 
     def _build_page_url(self, page_number: int) -> str:
         """
