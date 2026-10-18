@@ -19,6 +19,8 @@ from scraper.scrapers.purdue import (
 from models.college import College
 import httpx
 
+FIXTURES_DIR = Path(__file__).parent / "fixtures" / "purdue"
+
 # Sample Banner HTML response for term picker (realistic structure)
 SAMPLE_TERM_PICKER_HTML = """
 <html>
@@ -34,6 +36,57 @@ SAMPLE_TERM_PICKER_HTML = """
     <OPTION VALUE="202610">Fall 2025 (View only)</OPTION>
 </select>
 </form>
+</body>
+</html>
+"""
+
+# Upstream picker variant: name=p_term dropped, id=term_input_id kept
+SAMPLE_TERM_PICKER_ID_ONLY_HTML = """
+<html>
+<body>
+<form>
+<select size="1" id="term_input_id">
+    <OPTION VALUE="">None</OPTION>
+    <OPTION VALUE="202713">Winter 2026 (View only)</OPTION>
+    <OPTION VALUE="202710">Fall 2026</OPTION>
+</select>
+</form>
+</body>
+</html>
+"""
+
+# Live Banner markup (Wayback 2026-05 / Google snippet): broken BYPASS_ESC attr
+SAMPLE_TERM_PICKER_MALFORMED_HTML = """
+<html>
+<body>
+<form action="/prod/bwckgens.p_proc_term_date" method="post">
+<table class="dataentrytable" summary="This layout table is used for term selection.">
+<caption class="captiontext">Search by Term: </caption>
+<tr>
+<TD CLASS="dedefault"><LABEL for=term_input_id><SPAN class="fieldlabeltextinvisible">Term</SPAN></LABEL>
+<select name="p_term" size="1"  BYPASS_ESC=>"Y" ID="term_input_id">
+<OPTION VALUE="">None</OPTION>
+<OPTION VALUE="202710">Fall 2026</OPTION>
+<OPTION VALUE="202630">Summer 2026</OPTION>
+<OPTION VALUE="202620">Spring 2026</OPTION>
+<OPTION VALUE="202613">Winter 2025 (View only)</OPTION>
+</select>
+</TD>
+</tr>
+</table>
+</form>
+</body>
+</html>
+"""
+
+# DB term present as an option, but no recognizable select attrs
+SAMPLE_TERM_PICKER_DB_OPTION_ONLY_HTML = """
+<html>
+<body>
+<div class="term-list">
+    <option value="202710">Fall 2026</option>
+    <option value="202630">Summer 2026 (View only)</option>
+</div>
 </body>
 </html>
 """
@@ -690,6 +743,74 @@ def test_parse_term_picker(scraper):
     # Check another view-only
     spring_2026 = [t for t in terms if t["code"] == "202620"][0]
     assert spring_2026["registerable"] is False
+
+
+def test_parse_term_picker_id_selector(scraper):
+    """Term select found via id=term_input_id when name=p_term is gone."""
+    terms = scraper.parse_term_picker(SAMPLE_TERM_PICKER_ID_ONLY_HTML)
+    codes = [t["code"] for t in terms]
+    assert "202710" in codes
+    assert "202713" in codes
+
+
+def test_parse_term_picker_malformed_bypass_esc(scraper):
+    """Broken BYPASS_ESC=> attribute must not hide Fall 2026 / DB term."""
+    terms = scraper.parse_term_picker(SAMPLE_TERM_PICKER_MALFORMED_HTML)
+    fall_2026 = [t for t in terms if t["code"] == "202710"][0]
+    assert fall_2026["name"] == "Fall 2026"
+    assert fall_2026["registerable"] is True
+    winter = [t for t in terms if t["code"] == "202613"][0]
+    assert winter["registerable"] is False
+
+
+def test_parse_term_picker_uses_db_term_option(scraper):
+    """DB term option is used even without a named/id term select."""
+    assert scraper.current_term == "202710"
+    terms = scraper.parse_term_picker(SAMPLE_TERM_PICKER_DB_OPTION_ONLY_HTML)
+    assert any(t["code"] == "202710" for t in terms)
+    fall_2026 = [t for t in terms if t["code"] == "202710"][0]
+    assert fall_2026["registerable"] is True
+
+
+def test_parse_term_picker_missing_select_includes_snippet(scraper):
+    """Missing select fails loud with a visible-text snippet."""
+    html = (
+        "<html><body><h1>Dynamic Schedule</h1><p>Maintenance window</p></body></html>"
+    )
+    with pytest.raises(Exception) as exc_info:
+        scraper.parse_term_picker(html)
+    message = str(exc_info.value)
+    assert "Term select element not found in picker page" in message
+    assert "Page snippet:" in message
+    assert "Maintenance window" in message
+    assert "DB term='202710'" in message
+
+
+def test_parse_term_picker_live_html_fixture(scraper):
+    """Current live picker HTML (fetched from this VM) is parsed or fails with snippet."""
+    fixture_path = FIXTURES_DIR / "picker_live.html"
+    assert fixture_path.exists(), f"Live picker fixture missing at {fixture_path}"
+    html = fixture_path.read_text(encoding="utf-8", errors="replace")
+
+    try:
+        terms = scraper.parse_term_picker(html)
+    except Exception as exc:
+        message = str(exc)
+        assert "Term select element not found in picker page" in message
+        assert "Page snippet:" in message
+        assert scraper.current_term in message
+        # Live Oct 2026 fetch is Purdue's decommission 404, not an empty body
+        assert (
+            "no longer active" in message.lower()
+            or "Page Not Found" in message
+            or "myPurdue" in message
+        )
+        return
+
+    assert terms, "Live picker HTML parsed but returned no terms"
+    assert any(
+        t["code"] == scraper.current_term for t in terms
+    ), f"DB term {scraper.current_term} missing from live picker terms {[t['code'] for t in terms]}"
 
 
 @pytest.mark.asyncio
