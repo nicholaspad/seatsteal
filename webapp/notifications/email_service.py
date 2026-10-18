@@ -44,7 +44,7 @@ SES_MAX_ATTEMPTS = 2
 SES_CLIENT_CONFIG = Config(
     connect_timeout=SES_CONNECT_TIMEOUT_SECONDS,
     read_timeout=SES_READ_TIMEOUT_SECONDS,
-    retries={"max_attempts": SES_MAX_ATTEMPTS},
+    retries={"total_max_attempts": SES_MAX_ATTEMPTS},
 )
 
 

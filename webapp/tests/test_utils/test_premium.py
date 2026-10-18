@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime
 from uuid import uuid4
+from unittest.mock import patch
 
 from utils.premium import (
     get_user_subscription_tier,
@@ -15,6 +16,9 @@ from utils.premium import (
     require_pro_access,
     check_subscription_limit,
     PAID_STRIPE_STATUSES,
+    stripe_tier_rank,
+    pick_highest_paid_stripe_subscription,
+    _stripe_object_tier,
 )
 from models.user import Profile
 from models.stripe_subscription import StripeSubscription
@@ -330,6 +334,38 @@ class TestGetUserSubscriptionTier:
             tier="pro",
             status="unpaid",
             suffix="unpaid_pro",
+        )
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "free"
+
+    @pytest.mark.unit
+    def test_incomplete_subscription_returns_free(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        self._add_plan(
+            test_db,
+            test_user,
+            tier="pro",
+            status="incomplete",
+            suffix="incomplete_pro",
+        )
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "free"
+
+    @pytest.mark.unit
+    def test_incomplete_expired_subscription_returns_free(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        self._add_plan(
+            test_db,
+            test_user,
+            tier="pro",
+            status="incomplete_expired",
+            suffix="incomplete_expired_pro",
         )
         tier = get_user_subscription_tier(test_user.id, test_db)
         assert tier == "free"
@@ -771,3 +807,95 @@ class TestCheckSubscriptionLimit:
 
         can_subscribe = check_subscription_limit(test_user.id, test_db)
         assert can_subscribe is True
+
+
+class TestPickHighestPaidStripeSubscription:
+    """Python-side ranking used by referral trial extension."""
+
+    @pytest.mark.unit
+    def test_stripe_tier_rank_orders_pro_before_plus(self):
+        assert stripe_tier_rank("pro") < stripe_tier_rank("plus")
+        assert stripe_tier_rank("plus") < stripe_tier_rank(None)
+
+    @pytest.mark.unit
+    def test_pro_wins_over_newer_plus(self):
+        from types import SimpleNamespace
+
+        plus = SimpleNamespace(id="sub_plus", tier="plus", created=200)
+        pro = SimpleNamespace(id="sub_pro", tier="pro", created=50)
+        picked = pick_highest_paid_stripe_subscription([plus, pro])
+        assert picked.id == "sub_pro"
+
+    @pytest.mark.unit
+    def test_construct_from_pro_wins_over_newer_plus(self):
+        import stripe
+
+        plus = stripe.Subscription.construct_from(
+            {
+                "id": "sub_plus_newer",
+                "object": "subscription",
+                "status": "active",
+                "created": 200,
+                "items": {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "si_plus",
+                            "object": "subscription_item",
+                            "price": {"id": "price_plus", "object": "price"},
+                        }
+                    ],
+                },
+            },
+            "sk_test",
+        )
+        pro = stripe.Subscription.construct_from(
+            {
+                "id": "sub_pro_older",
+                "object": "subscription",
+                "status": "active",
+                "created": 50,
+                "items": {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "si_pro",
+                            "object": "subscription_item",
+                            "price": {"id": "price_pro", "object": "price"},
+                        }
+                    ],
+                },
+            },
+            "sk_test",
+        )
+
+        assert callable(plus.items)
+        with patch(
+            "utils.stripe_utils.get_tier_from_price_id",
+            side_effect=lambda pid: {
+                "price_pro": "pro",
+                "price_plus": "plus",
+            }.get(pid),
+        ):
+            picked = pick_highest_paid_stripe_subscription([plus, pro])
+            assert picked.id == "sub_pro_older"
+            assert _stripe_object_tier(pro) == "pro"
+            assert _stripe_object_tier(plus) == "plus"
+
+    @pytest.mark.unit
+    def test_logs_when_price_id_cannot_be_read(self, caplog):
+        import logging
+        import stripe
+
+        sub = stripe.Subscription.construct_from(
+            {
+                "id": "sub_missing_items",
+                "object": "subscription",
+                "status": "active",
+                "created": 1,
+            },
+            "sk_test",
+        )
+        with caplog.at_level(logging.ERROR):
+            assert _stripe_object_tier(sub) is None
+        assert "Failed to read price id" in caplog.text

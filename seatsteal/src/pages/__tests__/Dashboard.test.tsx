@@ -30,6 +30,8 @@ import { toast } from "sonner";
 describe("Dashboard Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
   });
 
   describe("Loading State", () => {

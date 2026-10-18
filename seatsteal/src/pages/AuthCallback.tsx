@@ -6,9 +6,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { logError } from "@/lib/logger";
-import { fetchWithToasts } from "@/lib/api";
-import { toast } from "sonner";
 import { useSession } from "@/components/providers/SessionProvider";
+import { applyStoredReferralCode } from "@/lib/referral-apply";
 
 export default function AuthCallback() {
   const history = useHistory();
@@ -63,31 +62,9 @@ export default function AuthCallback() {
         const urlParams = new URLSearchParams(window.location.search);
         const isAdminRedirect = urlParams.get("admin") === "true";
 
-        // Apply referral code if one was stored
-        const storedReferralCode = localStorage.getItem("referral_code");
-        if (storedReferralCode && !referralAppliedRef.current) {
+        if (!referralAppliedRef.current) {
           referralAppliedRef.current = true;
-          try {
-            const response = await fetchWithToasts("/api/referrals/apply", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ referral_code: storedReferralCode }),
-            });
-
-            if (response.ok) {
-              toast.success("🎉 Your referral has been applied!");
-              // Refetch the user's tier so they see "pro" immediately on dashboard
-              await refreshSubscriptionTier();
-            }
-
-            localStorage.removeItem("referral_code");
-          } catch (err) {
-            // Don't block auth on referral error, just log it
-            logError("Failed to apply referral code", err);
-            localStorage.removeItem("referral_code");
-          } finally {
-            referralAppliedRef.current = false;
-          }
+          await applyStoredReferralCode({ refreshSubscriptionTier });
         }
 
         // Redirect based on user type or admin flag

@@ -786,6 +786,54 @@ class TestSeatAlertQueryRegression:
         assert len(notifications) == 1
         assert notifications[0]["user_tier"] == "free"
 
+    @pytest.mark.unit
+    def test_incomplete_plan_counts_as_free(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        self._open_class_with_stripe_status(
+            test_db,
+            test_college,
+            test_user,
+            test_class,
+            tier="pro",
+            status="incomplete",
+            suffix="incomplete",
+        )
+        notifications = self._find_at_minute_zero(test_db)
+        assert len(notifications) == 1
+        assert notifications[0]["user_tier"] == "free"
+
+    @pytest.mark.unit
+    def test_incomplete_expired_plan_counts_as_free(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        self._open_class_with_stripe_status(
+            test_db,
+            test_college,
+            test_user,
+            test_class,
+            tier="pro",
+            status="incomplete_expired",
+            suffix="incomplete_expired",
+        )
+        notifications = self._find_at_minute_zero(test_db)
+        assert len(notifications) == 1
+        assert notifications[0]["user_tier"] == "free"
+
 
 class TestSendNotification:
     """Tests for _send_notification method."""

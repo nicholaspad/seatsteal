@@ -70,7 +70,7 @@ class TestEmailServiceInit:
             config = mock_boto3.client.call_args.kwargs["config"]
             assert config.connect_timeout == 5
             assert config.read_timeout == 10
-            assert config.retries == {"max_attempts": 2}
+            assert config.retries == {"total_max_attempts": 2}
 
     @pytest.mark.unit
     def test_init_with_ses_disabled(self, mock_jinja_env):

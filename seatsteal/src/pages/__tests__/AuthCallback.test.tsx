@@ -8,6 +8,7 @@ const mockHistoryReplace = vi.fn();
 const mockFetchWithToasts = vi.fn();
 const mockLogError = vi.fn();
 const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 const mockRefreshSubscriptionTier = vi.fn();
 
 vi.mock("react-router-dom", async () => {
@@ -36,7 +37,7 @@ vi.mock("@/lib/logger", () => ({
 vi.mock("sonner", () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
-    error: vi.fn(),
+    error: (...args: unknown[]) => mockToastError(...args),
   },
 }));
 
@@ -88,6 +89,7 @@ describe("AuthCallback Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    sessionStorage.clear();
 
     // Default mock implementations
     mockGetSession.mockResolvedValue({
@@ -103,6 +105,7 @@ describe("AuthCallback Page", () => {
 
   afterEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   describe("Referral Code Handling", () => {
@@ -176,7 +179,7 @@ describe("AuthCallback Page", () => {
       expect(mockHistoryReplace).toHaveBeenCalledWith("/dashboard");
     });
 
-    it("continues auth flow and cleans up localStorage when referral API fails", async () => {
+    it("continues auth flow and keeps localStorage when referral API throws", async () => {
       // Set referral code in localStorage
       localStorage.setItem("referral_code", "TESTCODE");
 
@@ -202,8 +205,8 @@ describe("AuthCallback Page", () => {
       // Should NOT show success toast
       expect(mockToastSuccess).not.toHaveBeenCalled();
 
-      // Should still remove referral code from localStorage
-      expect(localStorage.getItem("referral_code")).toBeNull();
+      // Transient errors keep the code so we can retry
+      expect(localStorage.getItem("referral_code")).toBe("TESTCODE");
 
       // Should still redirect successfully (non-blocking)
       expect(mockHistoryReplace).toHaveBeenCalledWith("/dashboard");
@@ -228,10 +231,17 @@ describe("AuthCallback Page", () => {
       });
     });
 
-    it("cleans up localStorage on failed referral application", async () => {
+    it("cleans up localStorage on terminal 400 referral errors", async () => {
       localStorage.setItem("referral_code", "TESTCODE");
 
-      mockFetchWithToasts.mockRejectedValue(new Error("API Error"));
+      mockFetchWithToasts.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            detail: "You have already claimed a referral code",
+          }),
+      } as Response);
 
       render(
         <MemoryRouter>
@@ -241,6 +251,114 @@ describe("AuthCallback Page", () => {
 
       await waitFor(() => {
         expect(localStorage.getItem("referral_code")).toBeNull();
+      });
+      expect(mockToastError).toHaveBeenCalledWith(
+        "You have already claimed a referral code",
+      );
+    });
+
+    it("keeps the referral code on past_due 409, opens the billing portal from Update card, and retries quietly in the same session", async () => {
+      localStorage.setItem("referral_code", "TESTCODE");
+
+      const portalUrl = "https://billing.stripe.com/session/test";
+      mockFetchWithToasts.mockImplementation((url: unknown) => {
+        if (url === "/api/referrals/apply") {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () =>
+              Promise.resolve({
+                detail: "Update your card to claim your free Pro week.",
+              }),
+          } as Response);
+        }
+        if (url === "/api/stripe/create-portal-session") {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: { sessionUrl: portalUrl },
+              }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+        } as Response);
+      });
+
+      const locationStub = { href: "http://localhost/", search: "" };
+      const originalLocation = window.location;
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: locationStub,
+      });
+
+      const { unmount } = render(
+        <MemoryRouter>
+          <AuthCallback />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalled();
+      });
+
+      expect(mockToastError).toHaveBeenCalledTimes(1);
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Update your card to claim your free Pro week.",
+        expect.objectContaining({
+          action: expect.objectContaining({
+            label: "Update card",
+          }),
+        }),
+      );
+      const toastAction = mockToastError.mock.calls[0]?.[1] as {
+        action: { label: string; onClick: () => void };
+      };
+      expect(localStorage.getItem("referral_code")).toBe("TESTCODE");
+      expect(sessionStorage.getItem("referral_past_due_toast_shown")).toBe("1");
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+      expect(mockLogError).not.toHaveBeenCalledWith(
+        "Failed to apply referral code",
+        expect.anything(),
+      );
+      expect(mockHistoryReplace).toHaveBeenCalledWith("/dashboard");
+
+      await toastAction.action.onClick();
+      await waitFor(() => {
+        expect(mockFetchWithToasts).toHaveBeenCalledWith(
+          "/api/stripe/create-portal-session",
+          expect.objectContaining({ method: "POST" }),
+        );
+      });
+      expect(locationStub.href).toBe(portalUrl);
+
+      mockToastError.mockClear();
+      mockHistoryReplace.mockClear();
+      unmount();
+
+      render(
+        <MemoryRouter>
+          <AuthCallback />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(mockHistoryReplace).toHaveBeenCalledWith("/dashboard");
+      });
+
+      const applyCalls = mockFetchWithToasts.mock.calls.filter(
+        (call) => call[0] === "/api/referrals/apply",
+      );
+      expect(applyCalls.length).toBeGreaterThanOrEqual(2);
+      expect(mockToastError).not.toHaveBeenCalled();
+      expect(localStorage.getItem("referral_code")).toBe("TESTCODE");
+
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
       });
     });
   });

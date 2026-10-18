@@ -29,7 +29,17 @@ from loguru import logger
 webapp_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from sqlalchemy import select, and_, desc, case, literal
+from sqlalchemy import (
+    select,
+    and_,
+    desc,
+    case,
+    literal,
+    values,
+    column,
+    Integer,
+    DateTime,
+)
 from sqlalchemy.orm import Session
 
 from db.session import SessionLocal
@@ -269,10 +279,13 @@ class NotificationJob:
             logger.info("⚠️ All active colleges are stale; skipping seat alerts")
             return []
 
-        # Latest successful scraper run per college. Ignores error / partial /
-        # timeout / running / orphaned-by-restart rows. Uses scrapers_college_id_idx
-        # and scraper_logs_outcome_idx / scraper_logs_scraper_started_idx.
-        latest_success_run_subq = (
+        # Latest successful scraper run once per college in Python (not
+        # per subscription). Ignores error / partial / timeout / running /
+        # orphaned-by-restart rows. Uses scrapers_college_id_idx and
+        # scraper_logs indexes. Then drive from active subscriptions with a
+        # LATERAL lookup for that class's latest enrollment in the run
+        # window (enrollments_class_scraped_idx).
+        latest_run_rows = db.execute(
             select(
                 Scraper.college_id,
                 ScraperLog.started_at,
@@ -281,11 +294,9 @@ class NotificationJob:
             .select_from(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
             .where(
-                and_(
-                    ScraperLog.outcome == "success",
-                    ScraperLog.completed_at.isnot(None),
-                    Scraper.college_id.in_(ok_college_ids),
-                )
+                ScraperLog.outcome == "success",
+                ScraperLog.completed_at.isnot(None),
+                Scraper.college_id.in_(ok_college_ids),
             )
             .distinct(Scraper.college_id)
             .order_by(
@@ -293,34 +304,39 @@ class NotificationJob:
                 desc(ScraperLog.completed_at),
                 desc(ScraperLog.id),
             )
-            .subquery()
+        ).all()
+        if not latest_run_rows:
+            logger.info(
+                "⚠️ No successful scraper runs for fresh colleges; skipping seat alerts"
+            )
+            return []
+
+        latest_success_run = values(
+            column("college_id", Integer),
+            column("started_at", DateTime()),
+            column("completed_at", DateTime()),
+            name="latest_success_run",
+        ).data(
+            [
+                (row.college_id, row.started_at, row.completed_at)
+                for row in latest_run_rows
+            ]
         )
 
-        # Latest enrollment per class whose scraped_at falls inside that
-        # successful run window (enrollments have no run_id). Window filter
-        # uses enrollments_college_scraped_idx (college_id, scraped_at);
-        # DISTINCT ON uses enrollments_class_scraped_idx (class_id, scraped_at).
-        latest_enrollment_subq = (
+        latest_enrollment = (
             select(
-                Enrollment.class_id,
-                Enrollment.enrollment_status,
-                Enrollment.scraped_at,
+                Enrollment.enrollment_status.label("enrollment_status"),
+                Enrollment.scraped_at.label("scraped_at"),
             )
-            .join(
-                latest_success_run_subq,
-                and_(
-                    Enrollment.college_id == latest_success_run_subq.c.college_id,
-                    Enrollment.scraped_at >= latest_success_run_subq.c.started_at,
-                    Enrollment.scraped_at <= latest_success_run_subq.c.completed_at,
-                ),
+            .where(
+                Enrollment.class_id == Subscription.class_id,
+                Enrollment.college_id == Subscription.college_id,
+                Enrollment.scraped_at >= latest_success_run.c.started_at,
+                Enrollment.scraped_at <= latest_success_run.c.completed_at,
             )
-            .distinct(Enrollment.class_id)
-            .order_by(
-                Enrollment.class_id,
-                desc(Enrollment.scraped_at),
-                desc(Enrollment.id),
-            )
-            .subquery()
+            .order_by(desc(Enrollment.scraped_at), desc(Enrollment.id))
+            .limit(1)
+            .lateral("latest_enrollment")
         )
 
         # One Stripe plan per user so two paid rows cannot duplicate
@@ -350,11 +366,12 @@ class NotificationJob:
             )
             .select_from(Subscription)
             .join(
-                latest_enrollment_subq,
-                and_(
-                    Subscription.class_id == latest_enrollment_subq.c.class_id,
-                    latest_enrollment_subq.c.enrollment_status == "open",
-                ),
+                latest_success_run,
+                Subscription.college_id == latest_success_run.c.college_id,
+            )
+            .join(
+                latest_enrollment,
+                latest_enrollment.c.enrollment_status == "open",
             )
             .join(Class, Subscription.class_id == Class.class_id)
             .join(Course, Class.course_id == Course.id)
