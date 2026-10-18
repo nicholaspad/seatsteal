@@ -1,0 +1,28 @@
+[
+  {
+    "index": 0,
+    "crse_id": "000001",
+    "crse_offer_nbr": 1,
+    "strm": "2268",
+    "session_code": "1",
+    "class_section": "A1",
+    "class_nbr": "10847",
+    "subject": "CAS CS",
+    "catalog_nbr": "111",
+    "descr": "Introduction to Computer Science 1",
+    "enrollment_available": 12
+  },
+  {
+    "index": 1,
+    "crse_id": "000002",
+    "crse_offer_nbr": 1,
+    "strm": "2268",
+    "session_code": "1",
+    "class_section": "A1",
+    "class_nbr": "11201",
+    "subject": "CAS MA",
+    "catalog_nbr": "123",
+    "descr": "Calculus I",
+    "enrollment_available": 0
+  }
+]

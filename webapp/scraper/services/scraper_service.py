@@ -11,7 +11,7 @@ from models.class_model import Class
 from models.enrollment import Enrollment
 from scraper.scrapers.cornell import CornellScraper
 from scraper.scrapers.brown import BrownScraper
-from scraper.scrapers.bu import BuScraper
+from scraper.scrapers.bu import BuFetchError, BuScraper
 from scraper.scrapers.neu import NeuScraper
 from scraper.scrapers.usc import UscScraper
 from scraper.scrapers.upenn import UPennScraper
@@ -322,6 +322,15 @@ class ScraperService:
                 logger.error(
                     f"Non-retryable budget exceeded error for {college_short_name} {department}: {e}"
                 )
+            elif isinstance(e, BuFetchError):
+                # HTTP/parse failures (live 502, non-JSON HTML) must stay
+                # outcome=error — not partial — so the admin dashboard shows
+                # BU red with the real status/size reason.
+                outcome = "error"
+                logger.error(
+                    f"BU ClassSearch fetch/parse error for {college_short_name} "
+                    f"{department}: {e}"
+                )
 
             # Build detailed error message, including timeout info from OperationalError
             error_message = str(e)
@@ -530,7 +539,8 @@ class ScraperService:
             values_clause = ", ".join(placeholders)
 
             # Build the multi-row INSERT ... ON CONFLICT query with RETURNING
-            query = text(f"""
+            query = text(
+                f"""
                 INSERT INTO courses (college_id, course_code, title, is_active, created_at, updated_at)
                 VALUES {values_clause}
                 ON CONFLICT (college_id, course_code)
@@ -539,7 +549,8 @@ class ScraperService:
                     is_active = EXCLUDED.is_active,
                     updated_at = EXCLUDED.updated_at
                 RETURNING id, course_code
-                """)
+                """
+            )
 
             # Execute single query for entire batch and collect results (with retry)
             result = self._execute_with_retry(query, params)
@@ -597,7 +608,8 @@ class ScraperService:
             values_clause = ", ".join(placeholders)
 
             # Build the multi-row INSERT ... ON CONFLICT query with RETURNING
-            query = text(f"""
+            query = text(
+                f"""
                 INSERT INTO classes (course_id, class_number, section_code, is_active, created_at, updated_at)
                 VALUES {values_clause}
                 ON CONFLICT (course_id, class_number)
@@ -606,7 +618,8 @@ class ScraperService:
                     is_active = EXCLUDED.is_active,
                     updated_at = EXCLUDED.updated_at
                 RETURNING class_id, course_id, class_number
-                """)
+                """
+            )
 
             # Execute single query for entire batch and collect results (with retry)
             result = self._execute_with_retry(query, params)
@@ -751,12 +764,14 @@ class ScraperService:
 
             # Use DISTINCT ON to get the most recent enrollment per class
             # This is a PostgreSQL-specific feature that's very efficient
-            query = text("""
+            query = text(
+                """
                 SELECT DISTINCT ON (class_id) class_id, id, enrollment_status
                 FROM enrollments
                 WHERE class_id = ANY(:class_ids)
                 ORDER BY class_id, scraped_at DESC
-            """)
+            """
+            )
 
             result = self._execute_with_retry(query, {"class_ids": chunk})
 
@@ -805,11 +820,13 @@ class ScraperService:
         for i in range(0, len(enrollment_ids), batch_size):
             batch_ids = enrollment_ids[i : i + batch_size]
 
-            query = text("""
+            query = text(
+                """
                 UPDATE enrollments
                 SET scraped_at = :scraped_at
                 WHERE id = ANY(:enrollment_ids)
-            """)
+            """
+            )
 
             result = self._execute_with_retry(
                 query, {"scraped_at": scraped_at, "enrollment_ids": batch_ids}

@@ -753,3 +753,42 @@ async def test_scrape_college_operational_error_with_orig(
         assert "connection error" in error_message
         assert "orig:" in error_message
         assert error_message != "Unknown error during scraping"
+
+
+@pytest.mark.asyncio
+async def test_bu_fetch_error_is_outcome_error_not_partial(test_db: Session):
+    """BU ClassSearch 502/parse failures must be outcome=error, not partial.
+
+    A silent [] from the scraper becomes partial (yellow). BuFetchError must
+    stay error so the admin dashboard shows BU red with HTTP status/size.
+    """
+    from scraper.scrapers.bu import BuFetchError, BuScraper
+
+    college = College(
+        name="Boston University",
+        short_name="bu",
+        domain="bu.edu",
+        term_code="2268",
+        term_name="Fall 2026",
+        is_active=True,
+    )
+    test_db.add(college)
+    test_db.commit()
+
+    fetch_error = BuFetchError(
+        "BU page 1 HTTP 502 response_size=145 content_type=text/html term=2268"
+    )
+    service = ScraperService(test_db)
+
+    with patch.object(
+        BuScraper, "scrape_courses", new=AsyncMock(side_effect=fetch_error)
+    ):
+        result = await service.scrape_college("bu", "ALL")
+
+    assert result["success"] is False
+    assert result["outcome"] == "error"
+    assert result["outcome"] != "partial"
+    assert result["courses_saved"] == 0
+    assert "HTTP 502" in result["error"]
+    assert "response_size=145" in result["error"]
+    assert "0 courses" not in result["error"]

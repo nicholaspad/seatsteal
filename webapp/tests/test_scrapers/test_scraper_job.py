@@ -1166,3 +1166,50 @@ class TestExecuteRunTimeout:
         assert result.success is False
         assert scrape_calls["count"] == 1
         mock_lock.release.assert_called_once()
+
+
+class TestBuFetchErrorLogging:
+    """BuFetchError (live 502) must land in scraper_logs as outcome=error."""
+
+    @pytest.mark.asyncio
+    async def test_bu_fetch_error_logged_as_error_not_partial(
+        self, test_college, mock_db, mock_lock, mock_log_service
+    ):
+        """502-style BuFetchError stats → complete_log(outcome=error) and red lock."""
+        bu_error = (
+            "BU page 1 HTTP 502 response_size=145 content_type=text/html term=2268"
+        )
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = AsyncMock(
+            return_value={
+                "success": False,
+                "outcome": "error",
+                "error": bu_error,
+                "courses_saved": 0,
+                "classes_saved": 0,
+                "enrollments_saved": 0,
+            }
+        )
+        config = JobConfig(retry_attempts=1, retry_delay_ms=1)
+
+        with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
+                    job = ScraperJob(test_college, mock_db, config)
+                    result = await job.execute()
+
+        assert result.success is False
+        assert result.error == bu_error
+        mock_log_service.complete_log.assert_called_once()
+        call_args = mock_log_service.complete_log.call_args
+        assert call_args[1]["outcome"] == "error"
+        assert call_args[1]["outcome"] != "partial"
+        assert "HTTP 502" in call_args[1]["error_message"]
+        assert "response_size=145" in call_args[1]["error_message"]
+        mock_lock.release.assert_called_once()
+        assert mock_lock.release.call_args[0][0] == "error"
