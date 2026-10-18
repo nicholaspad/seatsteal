@@ -383,8 +383,6 @@ def notify_recovered_college_waitlists(
                 )
             else:
                 logger.error("Waitlist row {} has no deliverable address", row.id)
-                failed += 1
-                continue
         except Exception as exc:
             logger.error("Waitlist notify failed for row {}: {}", row.id, exc)
             success = False

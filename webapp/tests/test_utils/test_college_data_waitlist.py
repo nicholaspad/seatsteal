@@ -375,6 +375,46 @@ class TestNotifyRecoveredWaitlists:
         assert test_db.query(CollegeDataWaitlist).count() == 1
 
     @pytest.mark.unit
+    def test_no_deliverable_address_counts_as_attempt(
+        self, test_db: Session, test_college: College, test_user: Profile
+    ):
+        test_user.email = ""
+        test_user.phone = None
+        test_db.add(_waitlist_row(test_college.id, user_id=test_user.id, email=None))
+        test_db.commit()
+
+        email_service = MagicMock()
+        sms_service = MagicMock()
+
+        first = notify_recovered_college_waitlists(
+            test_db, email_service=email_service, sms_service=sms_service
+        )
+        row = test_db.query(CollegeDataWaitlist).one()
+        assert first["failed"] == 1
+        assert first["sent"] == 0
+        assert row.attempts == 1
+        assert row.last_attempt_at is not None
+        assert row.notified_at is None
+        email_service.send_data_restored_notification.assert_not_called()
+        sms_service.send_data_restored_notification.assert_not_called()
+
+        for expected in range(2, MAX_WAITLIST_ATTEMPTS + 1):
+            result = notify_recovered_college_waitlists(
+                test_db, email_service=email_service, sms_service=sms_service
+            )
+            test_db.refresh(row)
+            assert result["failed"] == 1
+            assert row.attempts == expected
+
+        aged_out = notify_recovered_college_waitlists(
+            test_db, email_service=email_service, sms_service=sms_service
+        )
+        test_db.refresh(row)
+        assert aged_out["examined"] == 0
+        assert row.attempts == MAX_WAITLIST_ATTEMPTS
+        assert row.notified_at is None
+
+    @pytest.mark.unit
     def test_stops_after_max_attempts(self, test_db: Session, test_college: College):
         row = _waitlist_row(test_college.id, email="guest@example.com")
         test_db.add(row)
