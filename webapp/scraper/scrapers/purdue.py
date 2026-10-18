@@ -70,6 +70,19 @@ class PurdueScraper(BaseScraper):
     DETAIL_RETRY_RESERVE_RATIO = 0.05
     DETAIL_RETRY_RESERVE_MIN = 500
     HTTP_TIMEOUT_SECONDS = 60.0  # Large subject listings (EPCS/VIP) take ~20-30s
+    # Banner has shipped the term <select> as name=p_term, id=term_input_id,
+    # and (as of the Oct 2026 picker change) with broken extra attrs that can
+    # drop name=p_term during HTML parse. Try all of these before failing.
+    TERM_SELECT_ATTR_CANDIDATES = (
+        {"name": "p_term"},
+        {"id": "term_input_id"},
+        {"name": "term_in"},
+        {"id": "p_term"},
+        {"name": "term"},
+        {"id": "term"},
+    )
+    TERM_CODE_RE = re.compile(r"^\d{6}$")
+    PICKER_SNIPPET_LIMIT = 400
 
     def __init__(self, db_session=None):
         super().__init__("purdue")
@@ -341,6 +354,11 @@ class PurdueScraper(BaseScraper):
         """
         Parse term picker HTML to extract available terms.
 
+        Banner's picker markup has drifted (name=p_term, id=term_input_id,
+        malformed extra attributes). Prefer an <option> matching the DB term
+        code when present, then try multiple select selectors, then fail with
+        a page snippet so upstream HTML changes are visible.
+
         Args:
             html_content: HTML content from term picker page
 
@@ -348,31 +366,95 @@ class PurdueScraper(BaseScraper):
             List of dicts with 'code', 'name', and 'registerable' keys
         """
         soup = BeautifulSoup(html_content, "lxml")
+
+        # 1. DB term code: find that option even if the wrapping <select>
+        #    lost its name/id during an upstream markup change.
+        if self.current_term:
+            db_terms = self._terms_for_db_code(soup, self.current_term)
+            if db_terms:
+                return db_terms
+
+        # 2. Multiple selectors / any select with Banner YYYYTT options
+        term_select = self._find_term_select(soup)
+        if term_select:
+            terms = self._terms_from_options(term_select)
+            if terms:
+                return terms
+
+        snippet = self._html_snippet(html_content)
+        raise Exception(
+            "Term select element not found in picker page. "
+            "Tried option[value=<DB term>], name=p_term, id=term_input_id, "
+            "name=term_in, and any select with 6-digit Banner term options. "
+            f"DB term={self.current_term!r}. "
+            f"Page snippet: {snippet}"
+        )
+
+    def _terms_for_db_code(
+        self, soup: BeautifulSoup, term_code: str
+    ) -> List[Dict[str, Any]]:
+        """Return picker terms when an option matches the configured DB term."""
+        db_option = None
+        for option in soup.find_all("option"):
+            if (option.get("value") or "").strip() == term_code:
+                db_option = option
+                break
+        if db_option is None:
+            return []
+
+        parent = db_option.find_parent("select")
+        if parent:
+            terms = self._terms_from_options(parent)
+            if terms:
+                return terms
+
+        term = self._option_to_term(db_option)
+        return [term] if term else []
+
+    def _find_term_select(self, soup: BeautifulSoup):
+        """Locate the term <select> using several Banner attribute variants."""
+        for attrs in self.TERM_SELECT_ATTR_CANDIDATES:
+            el = soup.find("select", attrs)
+            if el:
+                return el
+
+        for sel in soup.find_all("select"):
+            for option in sel.find_all("option"):
+                value = (option.get("value") or "").strip()
+                if self.TERM_CODE_RE.match(value):
+                    return sel
+        return None
+
+    def _terms_from_options(self, parent) -> List[Dict[str, Any]]:
         terms = []
-
-        term_select = soup.find("select", {"name": "p_term"})
-        if not term_select:
-            raise Exception("Term select element not found in picker page")
-
-        for option in term_select.find_all("option"):
-            code = option.get("value", "").strip()
-            text = option.get_text(strip=True)
-
-            if code and code.lower() != "none":
-                # Check if term is registerable (no "View only" suffix)
-                registerable = "(View only)" not in text
-                # Strip "(View only)" from name
-                name = text.replace("(View only)", "").strip()
-
-                terms.append(
-                    {
-                        "code": code,
-                        "name": name,
-                        "registerable": registerable,
-                    }
-                )
-
+        for option in parent.find_all("option"):
+            term = self._option_to_term(option)
+            if term:
+                terms.append(term)
         return terms
+
+    def _option_to_term(self, option) -> Optional[Dict[str, Any]]:
+        code = (option.get("value") or "").strip()
+        text = option.get_text(strip=True)
+        if not code or code.lower() == "none":
+            return None
+        registerable = "(View only)" not in text
+        name = text.replace("(View only)", "").strip()
+        return {
+            "code": code,
+            "name": name,
+            "registerable": registerable,
+        }
+
+    def _html_snippet(self, html_content: str) -> str:
+        """Collapsed visible text for fail-loud picker errors."""
+        soup = BeautifulSoup(html_content or "", "lxml")
+        text = " ".join(soup.get_text(" ", strip=True).split())
+        if not text:
+            text = " ".join((html_content or "").split())
+        if len(text) > self.PICKER_SNIPPET_LIMIT:
+            return text[: self.PICKER_SNIPPET_LIMIT - 3] + "..."
+        return text
 
     async def _fetch_subjects(self) -> List[str]:
         """
