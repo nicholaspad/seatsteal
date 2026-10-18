@@ -304,6 +304,8 @@ def notify_recovered_college_waitlists(
     if not recovered_ids:
         return {"examined": 0, "sent": 0, "failed": 0, "skipped": 0}
 
+    # Filter attempts in SQL so exhausted rows cannot fill the
+    # oldest-first LIMIT and starve newer signups.
     pending_rows = (
         db.execute(
             select(CollegeDataWaitlist)

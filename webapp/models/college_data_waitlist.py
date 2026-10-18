@@ -51,6 +51,6 @@ class CollegeDataWaitlist(Base):
         Index(
             "college_data_waitlist_pending_idx",
             "college_id",
-            postgresql_where=text("notified_at IS NULL"),
+            postgresql_where=text("notified_at IS NULL AND attempts < 5"),
         ),
     )

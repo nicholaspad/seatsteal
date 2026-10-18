@@ -67,7 +67,7 @@ def upgrade() -> None:
         "college_data_waitlist",
         ["college_id"],
         unique=False,
-        postgresql_where=sa.text("notified_at IS NULL"),
+        postgresql_where=sa.text("notified_at IS NULL AND attempts < 5"),
     )
 
     op.execute("ALTER TABLE college_data_waitlist ENABLE ROW LEVEL SECURITY")

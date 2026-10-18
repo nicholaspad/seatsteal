@@ -1,7 +1,7 @@
 """Tests for college data waitlist recovery notifications."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -33,8 +33,9 @@ def _waitlist_row(
     notified_at=None,
     attempts=0,
     last_attempt_at=None,
+    created_at=None,
 ) -> CollegeDataWaitlist:
-    return CollegeDataWaitlist(
+    row = CollegeDataWaitlist(
         college_id=college_id,
         user_id=user_id,
         email=email,
@@ -42,6 +43,9 @@ def _waitlist_row(
         attempts=attempts,
         last_attempt_at=last_attempt_at,
     )
+    if created_at is not None:
+        row.created_at = created_at
+    return row
 
 
 class TestRecoveryNotificationCopy:
@@ -281,6 +285,53 @@ class TestNotifyRecoveredWaitlists:
         test_db.refresh(row)
         assert second["sent"] == 1
         assert row.notified_at is not None
+
+    @pytest.mark.unit
+    def test_exhausted_rows_do_not_starve_fresh_batch(
+        self, test_db: Session, test_college: College
+    ):
+        """Oldest-first LIMIT must skip exhausted rows in SQL."""
+        batch_limit = 2
+        older = datetime.now(timezone.utc) - timedelta(days=1)
+        test_db.add_all(
+            [
+                _waitlist_row(
+                    test_college.id,
+                    email=f"exhausted{i}@example.com",
+                    attempts=MAX_WAITLIST_ATTEMPTS,
+                    created_at=older,
+                )
+                for i in range(batch_limit + 1)
+            ]
+        )
+        fresh = _waitlist_row(test_college.id, email="fresh@example.com")
+        test_db.add(fresh)
+        test_db.commit()
+
+        email_service = MagicMock()
+        email_service.send_data_restored_notification.return_value = True
+
+        result = notify_recovered_college_waitlists(
+            test_db,
+            batch_limit=batch_limit,
+            email_service=email_service,
+            sms_service=MagicMock(),
+        )
+
+        assert result["sent"] == 1
+        assert result["examined"] == 1
+        test_db.refresh(fresh)
+        assert fresh.notified_at is not None
+        email_service.send_data_restored_notification.assert_called_once_with(
+            "fresh@example.com", test_college.name, test_college.id
+        )
+        exhausted = (
+            test_db.query(CollegeDataWaitlist)
+            .filter(CollegeDataWaitlist.attempts >= MAX_WAITLIST_ATTEMPTS)
+            .all()
+        )
+        assert len(exhausted) == batch_limit + 1
+        assert all(row.notified_at is None for row in exhausted)
 
     @pytest.mark.unit
     def test_batch_limit(self, test_db: Session, test_college: College):
