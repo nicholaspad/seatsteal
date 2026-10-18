@@ -5,9 +5,12 @@ from httpx import AsyncClient
 from sqlalchemy.orm import Session
 from unittest.mock import patch, AsyncMock
 
+from datetime import datetime, timezone
+
 from models.course import Course
 from models.college import College
 from models.class_model import Class
+from models.enrollment import Enrollment
 
 
 class TestGetCourses:
@@ -268,6 +271,93 @@ class TestGetCourses:
 
         # Should not find any courses (all classes filtered out)
         assert len(courses) == 0
+
+    @pytest.mark.unit
+    async def test_get_courses_excludes_inactive_college(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        """Browse/search must hide courses from dropped schools."""
+        inactive_college = College(
+            name="Brown University",
+            short_name="brown-dropped",
+            is_active=False,
+        )
+        test_db.add(inactive_college)
+        test_db.flush()
+
+        active_course = Course(
+            college_id=test_college.id,
+            course_code="CS201",
+            title="Active College Algorithms",
+            is_active=True,
+        )
+        inactive_course = Course(
+            college_id=inactive_college.id,
+            course_code="BRWN101",
+            title="Brown Hidden Seminar",
+            is_active=True,
+        )
+        test_db.add_all([active_course, inactive_course])
+        test_db.flush()
+
+        active_class = Class(
+            course_id=active_course.id,
+            class_number="20101",
+            section_code="A",
+            is_active=True,
+        )
+        inactive_class = Class(
+            course_id=inactive_course.id,
+            class_number="10101",
+            section_code="A",
+            is_active=True,
+        )
+        test_db.add_all([active_class, inactive_class])
+        test_db.flush()
+
+        now = datetime.now(timezone.utc)
+        test_db.add_all(
+            [
+                Enrollment(
+                    class_id=active_class.class_id,
+                    college_id=test_college.id,
+                    enrollment_status="open",
+                    scraped_at=now,
+                ),
+                Enrollment(
+                    class_id=inactive_class.class_id,
+                    college_id=inactive_college.id,
+                    enrollment_status="open",
+                    scraped_at=now,
+                ),
+            ]
+        )
+        test_db.commit()
+
+        browse = await client.get("/api/courses/")
+        assert browse.status_code == 200
+        browse_codes = [c["courseCode"] for c in browse.json()["data"]["data"]]
+        assert "CS201" in browse_codes
+        assert "BRWN101" not in browse_codes
+
+        search = await client.get("/api/courses/?q=BRWN101")
+        assert search.status_code == 200
+        search_codes = [c["courseCode"] for c in search.json()["data"]["data"]]
+        assert "BRWN101" not in search_codes
+
+        filtered = await client.get(f"/api/courses/?collegeId={inactive_college.id}")
+        assert filtered.status_code == 200
+        assert filtered.json()["data"]["data"] == []
+        assert filtered.json()["data"]["pagination"]["total"] == 0
+
+        active_filtered = await client.get(f"/api/courses/?collegeId={test_college.id}")
+        assert active_filtered.status_code == 200
+        active_codes = [c["courseCode"] for c in active_filtered.json()["data"]["data"]]
+        assert "CS201" in active_codes
+        assert "BRWN101" not in active_codes
 
 
 class TestGetCourse:

@@ -852,26 +852,24 @@ class TestGetScrapers:
         response_json = response.json()
         assert response_json["success"] is True
         data = response_json["data"]
-        
+
         # Verify health alerts exist
         assert "healthAlerts" in data
         health_alerts = data["healthAlerts"]
-        
+
         # Verify stale scrapers detection
         assert "staleScrapers" in health_alerts
         assert health_alerts["staleCount"] >= 1
         stale_scraper_found = any(
-            s["scraperId"] == stale_scraper.id 
-            for s in health_alerts["staleScrapers"]
+            s["scraperId"] == stale_scraper.id for s in health_alerts["staleScrapers"]
         )
         assert stale_scraper_found
-        
+
         # Verify partial runs detection
         assert "partialRuns" in health_alerts
         assert health_alerts["partialCount"] >= 1
         partial_run_found = any(
-            r["logId"] == partial_log.id 
-            for r in health_alerts["partialRuns"]
+            r["logId"] == partial_log.id for r in health_alerts["partialRuns"]
         )
         assert partial_run_found
 
@@ -1919,6 +1917,75 @@ class TestGetCollegeStats:
         response = await client.get(f"/api/admin/colleges/{test_college.id}/stats")
 
         assert response.status_code == 401
+
+
+class TestUpdateCollegeAvailability:
+    """Tests for PATCH /api/admin/colleges/{college_id}/availability."""
+
+    @pytest.mark.unit
+    async def test_admin_can_force_unavailable(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        response = await admin_client.patch(
+            f"/api/admin/colleges/{test_college.id}/availability",
+            json={"dataAvailable": False},
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["dataAvailable"] is False
+        assert data["dataStatus"] == "stale"
+        assert data["checkoutBlocked"] is True
+
+        test_db.refresh(test_college)
+        assert test_college.data_available is False
+
+    @pytest.mark.unit
+    async def test_admin_can_restore_available(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        test_college.data_available = False
+        test_db.commit()
+
+        response = await admin_client.patch(
+            f"/api/admin/colleges/{test_college.id}/availability",
+            json={"dataAvailable": True},
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["dataAvailable"] is True
+        assert data["dataStatus"] == "ok"
+        assert data["checkoutBlocked"] is False
+
+    @pytest.mark.unit
+    async def test_availability_not_found(
+        self,
+        admin_client: AsyncClient,
+    ):
+        response = await admin_client.patch(
+            "/api/admin/colleges/99999/availability",
+            json={"dataAvailable": False},
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.unit
+    async def test_availability_requires_admin(
+        self,
+        authenticated_client: AsyncClient,
+        test_college: College,
+    ):
+        response = await authenticated_client.patch(
+            f"/api/admin/colleges/{test_college.id}/availability",
+            json={"dataAvailable": False},
+        )
+        assert response.status_code == 403
 
 
 class TestGetTermCodes:

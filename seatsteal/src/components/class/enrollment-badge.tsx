@@ -6,13 +6,29 @@ import type { ClassWithEnrollment } from "@/types/api";
 interface EnrollmentBadgeProps {
   class: ClassWithEnrollment;
   className?: string;
+  dataStale?: boolean;
 }
 
 export function EnrollmentBadge({
   class: classData,
   className,
+  dataStale = false,
 }: EnrollmentBadgeProps) {
   const enrollment = classData.currentEnrollment;
+
+  if (dataStale) {
+    return (
+      <div className={cn("flex items-center gap-2", className)}>
+        <Badge
+          variant="outline"
+          className="text-muted-foreground bg-muted/60 border-dashed font-medium min-w-[32px] sm:min-w-[90px] justify-center"
+        >
+          <HelpCircle className="h-3 w-3 sm:mr-1" />
+          <span className="hidden sm:inline">UNAVAILABLE</span>
+        </Badge>
+      </div>
+    );
+  }
 
   if (!enrollment) {
     return (

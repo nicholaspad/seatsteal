@@ -13,9 +13,15 @@ import { supabase } from "@/lib/supabase";
 import { fetchWithToasts } from "@/lib/api";
 import { toast } from "sonner";
 import { isValidStripeUrl } from "@/lib/security";
+import { useSession } from "@/components/providers/SessionProvider";
+import { useCollegeDataStatus } from "@/hooks/use-college-data-status";
 
 export function PricingTiers() {
   const history = useHistory();
+  const { profile } = useSession();
+  const { college: userCollege, checkoutBlocked } = useCollegeDataStatus(
+    profile?.collegeId,
+  );
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] =
     useState<BillingInterval>("monthly");
@@ -82,6 +88,15 @@ export function PricingTiers() {
       return;
     }
 
+    if (checkoutBlocked) {
+      toast.error(
+        userCollege
+          ? `Seat data for ${userCollege.name} is temporarily unavailable. Checkout is disabled until it is restored.`
+          : "Seat data for your school is temporarily unavailable. Checkout is disabled until it is restored.",
+      );
+      return;
+    }
+
     setLoading(tierId);
 
     try {
@@ -111,7 +126,16 @@ export function PricingTiers() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create checkout session");
+        const detail = data.detail;
+        const detailMessage =
+          typeof detail === "string"
+            ? detail
+            : detail && typeof detail === "object" && "message" in detail
+              ? String(detail.message)
+              : null;
+        throw new Error(
+          detailMessage || data.error || "Failed to create checkout session",
+        );
       }
 
       // Validate Stripe URL before redirecting to prevent phishing
@@ -163,6 +187,17 @@ export function PricingTiers() {
         </div>
       </div>
 
+      {checkoutBlocked && (
+        <p
+          className="text-center text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-4 py-3"
+          data-testid="stale-school-checkout-note"
+        >
+          Plus and Pro checkout is paused for{" "}
+          {userCollege?.name ?? "your school"} while seat data is temporarily
+          unavailable. Existing subscriptions are unchanged.
+        </p>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {tiers.map((tier) => (
           <Card
@@ -213,7 +248,9 @@ export function PricingTiers() {
                 className="w-full mt-4"
                 variant={tier.popular ? "default" : "outline"}
                 onClick={() => handleSubscribe(tier.id)}
-                disabled={loading === tier.id}
+                disabled={
+                  loading === tier.id || (checkoutBlocked && tier.id !== "free")
+                }
               >
                 {loading === tier.id ? (
                   <>

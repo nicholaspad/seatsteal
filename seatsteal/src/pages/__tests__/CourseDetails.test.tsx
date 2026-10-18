@@ -215,4 +215,52 @@ describe("CourseDetails Page", () => {
       });
     });
   });
+
+  describe("Stale school data", () => {
+    it("shows the unavailable banner and greys out seat counts", async () => {
+      const staleCourse = {
+        ...mockCourseData,
+        college: {
+          ...mockCourseData.college,
+          dataStatus: "stale" as const,
+          lastUpdatedAt: "2026-10-16T12:00:00Z",
+        },
+      };
+
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/courses/1")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true, data: staleCourse }),
+          } as Response);
+        }
+        if (url.includes("/api/subscriptions")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true, data: [] }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true }),
+        } as Response);
+      });
+
+      renderAuthenticated(<CourseDetails />, {
+        routerEntries: ["/courses/1"],
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("school-data-unavailable-banner"),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText(
+          /Seat data for Test University is temporarily unavailable/,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("UNAVAILABLE").length).toBeGreaterThan(0);
+    });
+  });
 });

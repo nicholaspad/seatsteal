@@ -4,7 +4,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
 
+from datetime import datetime, timedelta, timezone
+
 from models.college import College
+from models.scraper import Scraper
+from models.scraper_log import ScraperLog
 
 
 class TestGetColleges:
@@ -116,6 +120,8 @@ class TestGetCollege:
         assert data["name"] == test_college.name
         assert data["shortName"] == test_college.short_name
         assert data["isActive"] is True
+        assert data["dataStatus"] == "ok"
+        assert data["lastUpdatedAt"] is None
 
     @pytest.mark.unit
     async def test_get_college_not_found(
@@ -151,3 +157,120 @@ class TestGetCollege:
         assert response_json["success"] is True
         data = response_json["data"]
         assert data["isActive"] is False
+        assert data["dataStatus"] == "ok"
+
+
+class TestCollegeDataStatusApi:
+    """Tests for dataStatus / lastUpdatedAt on college endpoints."""
+
+    @pytest.mark.unit
+    async def test_list_includes_stale_status_from_old_scrape(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        last_success = datetime.now(timezone.utc) - timedelta(hours=30)
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="idle",
+            last_success_at=last_success,
+        )
+        test_db.add(scraper)
+        test_db.commit()
+
+        response = await client.get("/api/colleges/")
+        assert response.status_code == 200
+        college = next(c for c in response.json()["data"] if c["id"] == test_college.id)
+        assert college["dataStatus"] == "stale"
+        assert college["checkoutBlocked"] is True
+        assert college["lastUpdatedAt"] is not None
+
+    @pytest.mark.unit
+    async def test_detail_banner_stale_but_checkout_allowed_after_two_errors(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        last_success = datetime.now(timezone.utc) - timedelta(hours=2)
+        scraper = Scraper(
+            college_id=test_college.id,
+            status="error",
+            last_success_at=last_success,
+        )
+        test_db.add(scraper)
+        test_db.commit()
+        test_db.refresh(scraper)
+
+        test_db.add_all(
+            [
+                ScraperLog(
+                    scraper_id=scraper.id,
+                    outcome="error",
+                    courses_created=0,
+                    started_at=datetime.now(timezone.utc) - timedelta(minutes=20),
+                    completed_at=datetime.now(timezone.utc) - timedelta(minutes=19),
+                ),
+                ScraperLog(
+                    scraper_id=scraper.id,
+                    outcome="error",
+                    courses_created=0,
+                    started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+                    completed_at=datetime.now(timezone.utc),
+                ),
+            ]
+        )
+        test_db.commit()
+
+        response = await client.get(f"/api/colleges/{test_college.id}")
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["dataStatus"] == "stale"
+        assert data["checkoutBlocked"] is False
+        assert data["lastUpdatedAt"] is not None
+
+    @pytest.mark.unit
+    async def test_admin_flag_forces_stale_on_list(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        test_college.data_available = False
+        test_db.commit()
+
+        response = await client.get("/api/colleges/")
+        college = next(c for c in response.json()["data"] if c["id"] == test_college.id)
+        assert college["dataStatus"] == "stale"
+        assert college["checkoutBlocked"] is True
+
+    @pytest.mark.unit
+    async def test_inactive_college_detail_stays_ok_with_stale_logs(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+    ):
+        inactive_college = College(
+            name="Brown University",
+            short_name="brown",
+            is_active=False,
+        )
+        test_db.add(inactive_college)
+        test_db.commit()
+        test_db.refresh(inactive_college)
+        test_db.add(
+            Scraper(
+                college_id=inactive_college.id,
+                status="error",
+                last_success_at=datetime.now(timezone.utc) - timedelta(days=300),
+            )
+        )
+        test_db.commit()
+
+        response = await client.get(f"/api/colleges/{inactive_college.id}")
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["isActive"] is False
+        assert data["dataStatus"] == "ok"
+        assert data["checkoutBlocked"] is False

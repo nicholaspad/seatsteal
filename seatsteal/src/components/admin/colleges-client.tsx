@@ -36,6 +36,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import { formatLocalDateTime } from "@/lib/date-utils";
+import { Switch } from "@/components/ui/switch";
 
 interface College {
   collegeId: number;
@@ -51,6 +52,10 @@ interface CollegeInfo {
   termName: string | null;
   emailEnabled: boolean;
   smsEnabled: boolean;
+  dataAvailable?: boolean;
+  dataStatus?: "ok" | "stale";
+  checkoutBlocked?: boolean;
+  lastUpdatedAt?: string | null;
 }
 
 interface CollegeStats {
@@ -128,6 +133,7 @@ export function CollegesClient() {
   const [error, setError] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
 
   // Fetch colleges list on mount
   useEffect(() => {
@@ -172,6 +178,41 @@ export function CollegesClient() {
       setError("An error occurred while fetching colleges");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleDataAvailable = async (dataAvailable: boolean) => {
+    if (!collegeStats) return;
+    setAvailabilitySaving(true);
+    try {
+      const response = await fetchWithToasts(
+        `/api/admin/colleges/${collegeStats.college.id}/availability`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataAvailable }),
+        },
+      );
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setCollegeStats({
+          ...collegeStats,
+          college: {
+            ...collegeStats.college,
+            dataAvailable: result.data.dataAvailable,
+            dataStatus: result.data.dataStatus,
+            lastUpdatedAt: result.data.lastUpdatedAt,
+          },
+        });
+      } else {
+        setError(result.error || "Failed to update data availability");
+      }
+    } catch (err) {
+      if (!(err instanceof ServerErrorWithToast)) {
+        setError("An error occurred while updating data availability");
+      }
+    } finally {
+      setAvailabilitySaving(false);
     }
   };
 
@@ -507,6 +548,23 @@ export function CollegesClient() {
                       </div>
                     </div>
                   </div>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Seat data available</p>
+                    <p className="text-xs text-muted-foreground">
+                      Admin override plus scraper health. Public status:{" "}
+                      {collegeStats.college.dataStatus === "stale"
+                        ? "stale"
+                        : "ok"}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={collegeStats.college.dataAvailable !== false}
+                    disabled={availabilitySaving}
+                    onCheckedChange={toggleDataAvailable}
+                    aria-label="Toggle seat data availability"
+                  />
                 </div>
               </CardContent>
             </Card>

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 
 class CollegeBase(BaseModel):
@@ -27,5 +27,8 @@ class CollegeResponse(CollegeBase):
     id: int
     created_at: datetime = Field(..., alias="createdAt")
     is_active: bool = Field(..., alias="isActive")
+    data_status: Literal["ok", "stale"] = Field("ok", alias="dataStatus")
+    last_updated_at: Optional[datetime] = Field(None, alias="lastUpdatedAt")
+    checkout_blocked: bool = Field(False, alias="checkoutBlocked")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)

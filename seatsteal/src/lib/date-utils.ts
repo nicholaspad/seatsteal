@@ -118,6 +118,39 @@ export function formatDetailedDateTime(date: Date | string | null): string {
 }
 
 /**
+ * Format a timestamp as a short relative phrase, e.g. "3 hours ago".
+ */
+export function formatRelativeTime(date: Date | string | null): string {
+  if (!date) return "unknown";
+
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(dateObj.getTime())) return "unknown";
+
+  const diffMs = Date.now() - dateObj.getTime();
+  if (diffMs < 0) return "just now";
+
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${minutes} minutes ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return "1 hour ago";
+  if (hours < 24) return `${hours} hours ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "1 day ago";
+  if (days < 30) return `${days} days ago`;
+
+  const months = Math.floor(days / 30);
+  if (months === 1) return "1 month ago";
+  if (months < 12) return `${months} months ago`;
+
+  const years = Math.floor(days / 365);
+  return years === 1 ? "1 year ago" : `${years} years ago`;
+}
+
+/**
  * Format a date for compact display (month/day, time)
  */
 export function formatCompactDateTime(date: Date | string | null): string {

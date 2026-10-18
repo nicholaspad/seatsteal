@@ -33,6 +33,7 @@ interface ClassCardProps {
   showPremiumFeatures?: boolean;
   // Pro-exclusive: number of users watching this section
   watcherCount?: number;
+  dataStale?: boolean;
 }
 
 export function ClassCard({
@@ -44,6 +45,7 @@ export function ClassCard({
   className,
   showPremiumFeatures = true,
   watcherCount,
+  dataStale = false,
 }: ClassCardProps) {
   const [buttonLoading, setButtonLoading] = useState(false);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
@@ -226,7 +228,7 @@ export function ClassCard({
               </Tooltip>
             )}
 
-            <EnrollmentBadge class={classData} />
+            <EnrollmentBadge class={classData} dataStale={dataStale} />
           </div>
         </div>
       </CardHeader>

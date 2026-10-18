@@ -8,6 +8,7 @@ import {
   formatChartDate,
   formatDetailedDateTime,
   formatCompactDateTime,
+  formatRelativeTime,
 } from "../date-utils";
 
 describe("date-utils", () => {
@@ -205,6 +206,28 @@ describe("date-utils", () => {
       const result = formatDetailedDateTime("2024-12-24T14:30:45Z");
       // Weekday should be in the string (format includes weekday: 'short')
       expect(result.length).toBeGreaterThan(20); // Detailed format is longer
+    });
+  });
+
+  describe("formatRelativeTime", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-18T12:00:00Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("returns unknown for null or invalid input", () => {
+      expect(formatRelativeTime(null)).toBe("unknown");
+      expect(formatRelativeTime("not-a-date")).toBe("unknown");
+    });
+
+    it("formats recent times", () => {
+      expect(formatRelativeTime("2026-10-18T11:59:30Z")).toBe("just now");
+      expect(formatRelativeTime("2026-10-18T11:00:00Z")).toBe("1 hour ago");
+      expect(formatRelativeTime("2026-10-17T12:00:00Z")).toBe("1 day ago");
     });
   });
 

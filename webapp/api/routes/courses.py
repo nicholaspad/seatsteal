@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager, joinedload
 from sqlalchemy import select, func, or_, and_, text
 from typing import Optional
 import math
@@ -25,8 +25,39 @@ from schemas.college import CollegeResponse
 from api.middleware.auth import require_auth
 from utils.premium import require_pro_access
 from utils.errors import log_and_raise_500
+from utils.college_data_status import (
+    apply_data_status,
+    get_colleges_data_status,
+    overlay_data_status_on_college_dicts,
+)
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
+
+
+def _college_response_with_status(db, college, status_map=None):
+    if college is None:
+        return None
+    if status_map is None:
+        status_map = get_colleges_data_status(db, [college])
+    status = status_map.get(college.id)
+    if status is None:
+        return CollegeResponse.model_validate(college)
+    return apply_data_status(college, status)
+
+
+def _overlay_nested_college_status(db, response):
+    """Refresh nested college dataStatus on cached course payloads."""
+    if not isinstance(response, dict):
+        return
+    data = response.get("data")
+    college_payloads = []
+    if isinstance(data, dict) and isinstance(data.get("data"), list):
+        for course in data["data"]:
+            if isinstance(course, dict) and isinstance(course.get("college"), dict):
+                college_payloads.append(course["college"])
+    elif isinstance(data, dict) and isinstance(data.get("college"), dict):
+        college_payloads.append(data["college"])
+    overlay_data_status_on_college_dicts(db, college_payloads)
 
 
 @router.get("/")
@@ -68,13 +99,15 @@ async def get_courses(
 
             if cached_result:
                 logger.debug(f"Cache hit for courses: {cache_key}")
-                return json.loads(cached_result)
+                response = json.loads(cached_result)
+                _overlay_nested_college_status(db, response)
+                return response
         except Exception as e:
             logger.error(f"Cache read error: {e}")
 
     try:
-        # Build base query
-        conditions = [Course.is_active == True]
+        # Build base query. Browse/search never includes dropped schools.
+        conditions = [Course.is_active == True, College.is_active == True]
 
         if college_id and college_id != 0:
             conditions.append(Course.college_id == college_id)
@@ -100,7 +133,12 @@ async def get_courses(
             search_query = combined_similarity
 
         # Get total count
-        count_query = select(func.count()).select_from(Course).where(and_(*conditions))
+        count_query = (
+            select(func.count())
+            .select_from(Course)
+            .join(College, Course.college_id == College.id)
+            .where(and_(*conditions))
+        )
         total_result = db.execute(count_query)
         total = total_result.scalar()
 
@@ -110,7 +148,8 @@ async def get_courses(
         # Get courses with college
         courses_query = (
             select(Course)
-            .options(joinedload(Course.college))
+            .join(College, Course.college_id == College.id)
+            .options(contains_eager(Course.college))
             .where(and_(*conditions))
             .order_by(
                 search_query.desc() if search_query is not None else Course.course_code
@@ -183,6 +222,10 @@ async def get_courses(
                     for row in latest_enrollments_list
                 }
 
+            status_map = get_colleges_data_status(
+                db, [course.college for course in courses if course.college]
+            )
+
             # Build response for each course
             for course in courses:
                 classes = classes_by_course.get(course.id, [])
@@ -224,7 +267,9 @@ async def get_courses(
                     created_at=course.created_at,
                     updated_at=course.updated_at,
                     is_active=course.is_active,
-                    college=CollegeResponse.model_validate(course.college),
+                    college=_college_response_with_status(
+                        db, course.college, status_map
+                    ),
                     classes=classes_with_enrollment,
                 )
                 result_data.append(course_data)
@@ -282,7 +327,9 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
 
             if cached_result:
                 logger.debug(f"Cache hit for course detail: {cache_key}")
-                return json.loads(cached_result)
+                response = json.loads(cached_result)
+                _overlay_nested_college_status(db, response)
+                return response
         except Exception as e:
             logger.error(f"Cache read error: {e}")
 
@@ -388,7 +435,7 @@ async def get_course(course_id: int, db: Session = Depends(get_db)):
             created_at=course.created_at,
             updated_at=course.updated_at,
             is_active=course.is_active,
-            college=CollegeResponse.model_validate(course.college),
+            college=_college_response_with_status(db, course.college),
             classes=classes_with_enrollment,
             last_scraper_update=latest_scraper_update,
         )

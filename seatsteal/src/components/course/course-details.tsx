@@ -33,6 +33,8 @@ import {
 import { useSubscriptionTier } from "@/components/providers/SessionProvider";
 import { formatLocalDateTimeWithAt } from "@/lib/date-utils";
 import type { CourseWithClasses } from "@/types/api";
+import { isCollegeDataStale } from "@/lib/college-data-status";
+import { SchoolDataUnavailableBanner } from "@/components/college/school-data-unavailable-banner";
 
 interface CourseDetailsProps {
   courseId: number;
@@ -134,6 +136,8 @@ export function CourseDetails({
     ? new Date(localCourse.lastScraperUpdate)
     : null;
 
+  const dataStale = isCollegeDataStale(localCourse?.college);
+
   if (localError) {
     return (
       <Card className={cn("border-destructive", className)}>
@@ -222,6 +226,15 @@ export function CourseDetails({
         </Button>
       )}
 
+      {dataStale && localCourse.college && (
+        <SchoolDataUnavailableBanner
+          schoolName={localCourse.college.name}
+          lastUpdatedAt={
+            localCourse.college.lastUpdatedAt ?? localCourse.lastScraperUpdate
+          }
+        />
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Course Info Sidebar */}
         <div className="lg:col-span-1">
@@ -304,6 +317,7 @@ export function CourseDetails({
                       filter={filter}
                       onFilterChange={setFilter}
                       filteredCount={filteredClasses.length}
+                      dataStale={dataStale}
                     />
                   </div>
                 )}
@@ -322,6 +336,7 @@ export function CourseDetails({
             subscriptionsLoading={subscriptionsLoading}
             onSubscriptionChange={onSubscriptionChange}
             watcherCounts={watcherCounts}
+            dataStale={dataStale}
           />
 
           {/* Footer Info */}

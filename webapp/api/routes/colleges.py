@@ -1,17 +1,35 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from typing import List
 import json
 
 from db.session import get_db
 from models.college import College
-from schemas.college import CollegeResponse
 from utils.cache import CacheClient, _make_cache_key, _serialize_for_cache
+from utils.college_data_status import (
+    apply_data_status_map,
+    get_colleges_data_status,
+    overlay_data_status_on_college_dicts,
+)
 from utils.errors import log_and_raise_500
 from loguru import logger
 
 router = APIRouter(prefix="/api/colleges", tags=["colleges"])
+
+
+def _attach_data_status(db: Session, colleges):
+    status_map = get_colleges_data_status(db, colleges)
+    return apply_data_status_map(colleges, status_map)
+
+
+def _overlay_data_status_on_payload(db: Session, payload):
+    """Refresh computed dataStatus/lastUpdatedAt on a cached college payload."""
+    if isinstance(payload, list):
+        overlay_data_status_on_college_dicts(db, payload)
+        return payload
+    if isinstance(payload, dict):
+        overlay_data_status_on_college_dicts(db, [payload])
+    return payload
 
 
 @router.get("/")
@@ -19,7 +37,7 @@ async def get_colleges(db: Session = Depends(get_db)):
     """
     Get all active colleges.
 
-    Caching: Results cached for 1 hour (college data rarely changes)
+    Caching: College records cached for 1 hour; dataStatus is always computed live.
     """
     # Try to get from cache first
     cache_client = CacheClient.get_client()
@@ -32,7 +50,12 @@ async def get_colleges(db: Session = Depends(get_db)):
 
             if cached_result:
                 logger.debug(f"Cache hit for colleges: {cache_key}")
-                return json.loads(cached_result)
+                response = json.loads(cached_result)
+                if isinstance(response, dict) and "data" in response:
+                    response["data"] = _overlay_data_status_on_payload(
+                        db, response["data"]
+                    )
+                return response
         except Exception as e:
             logger.error(f"Cache read error: {e}")
 
@@ -44,7 +67,7 @@ async def get_colleges(db: Session = Depends(get_db)):
 
         response = {
             "success": True,
-            "data": [CollegeResponse.model_validate(college) for college in colleges],
+            "data": _attach_data_status(db, colleges),
         }
 
         # Store in cache (long TTL since college data rarely changes)
@@ -68,7 +91,7 @@ async def get_college(college_id: int, db: Session = Depends(get_db)):
     """
     Get college by ID.
 
-    Caching: Results cached for 1 hour
+    Caching: College record cached for 1 hour; dataStatus is always computed live.
     """
     # Try to get from cache first
     cache_client = CacheClient.get_client()
@@ -81,7 +104,12 @@ async def get_college(college_id: int, db: Session = Depends(get_db)):
 
             if cached_result:
                 logger.debug(f"Cache hit for college detail: {cache_key}")
-                return json.loads(cached_result)
+                response = json.loads(cached_result)
+                if isinstance(response, dict) and "data" in response:
+                    response["data"] = _overlay_data_status_on_payload(
+                        db, response["data"]
+                    )
+                return response
         except Exception as e:
             logger.error(f"Cache read error: {e}")
 
@@ -91,7 +119,7 @@ async def get_college(college_id: int, db: Session = Depends(get_db)):
 
     response = {
         "success": True,
-        "data": CollegeResponse.model_validate(college),
+        "data": _attach_data_status(db, [college])[0],
     }
 
     # Store in cache

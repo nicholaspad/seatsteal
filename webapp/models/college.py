@@ -20,6 +20,10 @@ class College(Base):
     email_enabled = Column(Boolean, default=True, nullable=False)
     sms_enabled = Column(Boolean, default=False, nullable=False)
 
+    # Public seat-data availability. When False, the college is treated as
+    # stale regardless of scraper health. Combined with auto-derived health.
+    data_available = Column(Boolean, default=True, nullable=False)
+
     # Metadata
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

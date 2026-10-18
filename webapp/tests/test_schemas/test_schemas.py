@@ -374,6 +374,29 @@ class TestCollegeSchemas:
         assert response.short_name == "bu"
         assert response.is_active is True
 
+    @pytest.mark.unit
+    def test_college_response_includes_data_status(self):
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        response = CollegeResponse(
+            id=1,
+            name="Purdue University",
+            short_name="purdue",
+            is_active=True,
+            created_at=now,
+            data_status="stale",
+            last_updated_at=now,
+            checkout_blocked=True,
+        )
+
+        assert response.data_status == "stale"
+        assert response.checkout_blocked is True
+        dumped = response.model_dump(by_alias=True)
+        assert dumped["dataStatus"] == "stale"
+        assert dumped["checkoutBlocked"] is True
+        assert dumped["lastUpdatedAt"] == now
+
 
 class TestSchemaTypeCoercion:
     """Tests for type coercion in schemas."""

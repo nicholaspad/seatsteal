@@ -774,4 +774,94 @@ describe("Dashboard Page", () => {
       });
     });
   });
+
+  describe("Stale school plan UI", () => {
+    const mockDashboardApis = (college: {
+      dataStatus: "ok" | "stale";
+      checkoutBlocked?: boolean;
+      name?: string;
+    }) => {
+      mockFetchWithToasts.mockImplementation((url: string) => {
+        if (url.includes("/api/colleges/1")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  id: 1,
+                  name: college.name ?? "University of Illinois",
+                  dataStatus: college.dataStatus,
+                  checkoutBlocked: college.checkoutBlocked ?? false,
+                  lastUpdatedAt: "2026-10-16T12:00:00Z",
+                },
+              }),
+          } as Response);
+        }
+        if (url.includes("/api/subscriptions")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true, data: [] }),
+          } as Response);
+        }
+        if (url.includes("/api/referrals")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                data: {
+                  referralCode: "ABC123",
+                  referralUrl: "https://seatsteal.app/?ref=ABC123",
+                  totalReferrals: 0,
+                  successfulReferrals: 0,
+                },
+              }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: [] }),
+        } as Response);
+      });
+    };
+
+    it("hides the Upgrade CTA when checkout is blocked", async () => {
+      mockDashboardApis({ dataStatus: "stale", checkoutBlocked: true });
+
+      renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+
+      await waitFor(() => {
+        expect(mockFetchWithToasts).toHaveBeenCalledWith("/api/colleges/1");
+      });
+
+      expect(
+        screen.queryByRole("link", { name: /upgrade/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Upgrade CTA when banner-stale but checkout is not blocked", async () => {
+      mockDashboardApis({ dataStatus: "stale", checkoutBlocked: false });
+
+      renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("link", { name: /upgrade/i }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("shows the Upgrade CTA when the user's school data is ok", async () => {
+      mockDashboardApis({ dataStatus: "ok" });
+
+      renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("link", { name: /upgrade/i }),
+        ).toBeInTheDocument();
+      });
+    });
+  });
 });

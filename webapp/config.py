@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     TWILIO_FROM_NUMBER: str = ""
     """Twilio phone number to send SMS from (E.164 format, e.g., +15551234567)"""
 
+    COLLEGE_DATA_STALE_HOURS: float = 24.0
+    """Hours without a successful scrape before a college is treated as stale."""
+
     TRUSTED_PROXIES: list[str] = []
     """
     List of proxy IPs that are allowed to forward client information.
