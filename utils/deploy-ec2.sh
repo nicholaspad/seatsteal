@@ -371,6 +371,7 @@ if [[ "$SERVICE" == "all" ]]; then
     echo "🚀 Starting notifs container..."
     sg docker -c "docker run -d \\
         --name \"seatsteal-notifs\" \\
+        --restart unless-stopped \\
         \$DOCKER_ENV_ARGS \\
         \"seatsteal-notifs\""
 
@@ -396,6 +397,7 @@ if [[ "$SERVICE" == "all" ]]; then
     echo "🚀 Starting scraper container..."
     sg docker -c "docker run -d \\
         --name \"seatsteal-scraper\" \\
+        --restart unless-stopped \\
         \$DOCKER_ENV_ARGS \\
         \"seatsteal-scraper\""
 
@@ -423,6 +425,7 @@ else
     echo "🚀 Starting $SERVICE container..."
     sg docker -c "docker run -d \\
         --name \"seatsteal-$SERVICE\" \\
+        --restart unless-stopped \\
         \$DOCKER_ENV_ARGS \\
         \"seatsteal-$SERVICE\""
 
