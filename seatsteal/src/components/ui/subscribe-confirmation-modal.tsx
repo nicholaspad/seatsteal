@@ -48,9 +48,11 @@ export function SubscribeConfirmationModal({
             <MessageSquare className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
             <p className="text-muted-foreground">
               If you have provided a phone number in your account settings and
-              are subscribed to a plan, you will also receive{" "}
-              <strong className="text-foreground">one SMS notification</strong>.
-              Message and data rates may apply.
+              are subscribed to a plan, you may also receive{" "}
+              <strong className="text-foreground">
+                one SMS notification where available
+              </strong>
+              . Message and data rates may apply.
             </p>
           </div>
           <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">

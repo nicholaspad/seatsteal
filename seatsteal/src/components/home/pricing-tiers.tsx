@@ -59,7 +59,7 @@ export function PricingTiers() {
       features: [
         `Monitor ${plusFeatures.maxSubscriptions} sections`,
         `Checks every ${plusFeatures.checkFrequency} minutes`,
-        "Email + SMS notifications",
+        "Email notifications (SMS where available)",
       ],
       cta: "Subscribe",
       popular: true,
@@ -75,7 +75,7 @@ export function PricingTiers() {
       features: [
         `Monitor ${proFeatures.maxSubscriptions} sections`,
         `Checks every minute`,
-        "Priority email + SMS notifications (30 seconds before non-Pro users)",
+        "Priority email notifications (SMS where available)",
         "Subscription and notification analytics",
       ],
       cta: "Subscribe",

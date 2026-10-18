@@ -47,7 +47,7 @@ describe("PricingTiers", () => {
       render(<PricingTiers />);
 
       expect(screen.getByText(/Monitor 1 section/)).toBeInTheDocument();
-      expect(screen.getByText(/Email notifications/)).toBeInTheDocument();
+      expect(screen.getByText("Email notifications")).toBeInTheDocument();
     });
 
     it("displays correct features for Plus tier", () => {
@@ -55,7 +55,16 @@ describe("PricingTiers", () => {
 
       expect(screen.getByText(/Monitor 5 sections/)).toBeInTheDocument();
       expect(
-        screen.getByText(/Email \+ SMS notifications/),
+        screen.getByText("Email notifications (SMS where available)"),
+      ).toBeInTheDocument();
+    });
+
+    it("displays correct features for Pro tier", () => {
+      render(<PricingTiers />);
+
+      expect(screen.getByText(/Monitor 20 sections/)).toBeInTheDocument();
+      expect(
+        screen.getByText("Priority email notifications (SMS where available)"),
       ).toBeInTheDocument();
     });
 
