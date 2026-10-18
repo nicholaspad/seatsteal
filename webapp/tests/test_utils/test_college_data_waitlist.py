@@ -18,7 +18,9 @@ from models.user import Profile
 from utils.college_data_waitlist import (
     MAX_WAITLIST_ATTEMPTS,
     choose_waitlist_channel,
+    college_course_search_url,
     notify_recovered_college_waitlists,
+    recovery_notification_text,
     register_waitlist,
 )
 
@@ -40,6 +42,26 @@ def _waitlist_row(
         attempts=attempts,
         last_attempt_at=last_attempt_at,
     )
+
+
+class TestRecoveryNotificationCopy:
+    def test_message_includes_school_name_and_course_search_link(
+        self, test_college: College
+    ):
+        from config import settings
+
+        alerts_url = college_course_search_url(test_college.id)
+        message = recovery_notification_text(test_college.name, test_college.id)
+
+        assert test_college.name in message
+        assert alerts_url in message
+        assert message == (
+            f"{test_college.name} seat data is back. Set your alerts: {alerts_url}"
+        )
+        assert alerts_url == (
+            f"{settings.effective_frontend_url.rstrip('/')}"
+            f"/courses?college={test_college.id}"
+        )
 
 
 class TestChooseWaitlistChannel:
@@ -98,10 +120,10 @@ class TestNotifyRecoveredWaitlists:
         assert guest_row.notified_at is not None
         assert user_row.notified_at is not None
         email_service.send_data_restored_notification.assert_called_once_with(
-            "guest@example.com", test_college.name
+            "guest@example.com", test_college.name, test_college.id
         )
         sms_service.send_data_restored_notification.assert_called_once_with(
-            test_user.phone, test_college.name
+            test_user.phone, test_college.name, test_college.id
         )
 
     @pytest.mark.unit
@@ -183,7 +205,7 @@ class TestNotifyRecoveredWaitlists:
 
         assert result["sent"] == 1
         email_service.send_data_restored_notification.assert_called_once_with(
-            test_user.email, test_college.name
+            test_user.email, test_college.name, test_college.id
         )
         sms_service.send_data_restored_notification.assert_not_called()
 
@@ -207,7 +229,7 @@ class TestNotifyRecoveredWaitlists:
 
         assert result["sent"] == 1
         sms_service.send_data_restored_notification.assert_called_once_with(
-            test_user.phone, test_college.name
+            test_user.phone, test_college.name, test_college.id
         )
         email_service.send_data_restored_notification.assert_not_called()
 

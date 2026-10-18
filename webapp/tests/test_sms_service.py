@@ -250,6 +250,38 @@ class TestSMSServiceSending:
         assert "Introduction to Computer Science" in call_kwargs["body"]
         assert "SeatSteal" in call_kwargs["body"]
 
+    def test_data_restored_includes_school_name_and_course_search_link(self):
+        os.environ["TWILIO_ACCOUNT_SID"] = ""
+        os.environ["TWILIO_AUTH_TOKEN"] = ""
+        os.environ["TWILIO_FROM_NUMBER"] = ""
+
+        from notifications.sms_service import SMSService
+
+        service = SMSService()
+        mock_client = MagicMock()
+        mock_message = MagicMock()
+        mock_message.sid = "SM_restored"
+        mock_client.messages.create.return_value = mock_message
+        service.client = mock_client
+        service.from_number = "+15559999999"
+
+        with patch("utils.college_data_waitlist.settings") as mock_settings:
+            mock_settings.effective_frontend_url = "https://seatsteal.app"
+            result = service.send_data_restored_notification(
+                to_phone="+15551234567",
+                college_name="Test University",
+                college_id=7,
+            )
+
+        assert result is True
+        body = mock_client.messages.create.call_args[1]["body"]
+        alerts_url = "https://seatsteal.app/courses?college=7"
+        assert "Test University" in body
+        assert alerts_url in body
+        assert body == (
+            f"Test University seat data is back. Set your alerts: {alerts_url}"
+        )
+
     def test_send_failure(self):
         """Test SMS sending failure."""
         os.environ["TWILIO_ACCOUNT_SID"] = ""

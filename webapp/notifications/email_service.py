@@ -419,7 +419,7 @@ View courses: {settings.effective_frontend_url}/courses
             return False
 
     async def send_data_restored_notification(
-        self, to_email: str, college_name: str
+        self, to_email: str, college_name: str, college_id: int
     ) -> bool:
         """Send a one-time notice that a school's seat data is available again."""
         if not self.is_enabled:
@@ -428,24 +428,26 @@ View courses: {settings.effective_frontend_url}/courses
             )
             return False
 
+        from utils.college_data_waitlist import (
+            college_course_search_url,
+            recovery_notification_text,
+        )
+
+        alerts_url = college_course_search_url(college_id)
+        text_body = recovery_notification_text(college_name, college_id)
+
         try:
-            subject = f"Seat data is back for {college_name}"
+            subject = f"{college_name} seat data is back"
             html_body = f"""
 <html>
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <h2>Seat data is back</h2>
-    <p>Seat data for <strong>{college_name}</strong> is available again on SeatSteal.</p>
-    <p><a href="{settings.effective_frontend_url}/courses">Browse courses</a></p>
+    <p>{college_name} seat data is back. Set your alerts: <a href="{alerts_url}">{alerts_url}</a></p>
     <p style="font-size: 12px; color: #999; margin-top: 30px;">
         SeatSteal
     </p>
 </body>
 </html>
 """
-            text_body = (
-                f"Seat data for {college_name} is available again on SeatSteal.\n\n"
-                f"{settings.effective_frontend_url}/courses\n"
-            )
             response = self.ses_client.send_email(
                 Source=self.from_email,
                 Destination={"ToAddresses": [to_email]},

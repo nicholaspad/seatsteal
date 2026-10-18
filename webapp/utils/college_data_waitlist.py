@@ -19,6 +19,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from config import settings
 from models.college import College
 from models.college_data_waitlist import CollegeDataWaitlist
 from models.user import Profile
@@ -34,6 +35,19 @@ WAITLIST_SEND_TIMEOUT_SECONDS = 30.0
 MAX_WAITLIST_ATTEMPTS = 5
 
 _rate_hits: dict[str, list[float]] = {}
+
+
+def college_course_search_url(college_id: int) -> str:
+    """Frontend college-filtered course search, using effective_frontend_url."""
+    return f"{settings.effective_frontend_url.rstrip('/')}/courses?college={college_id}"
+
+
+def recovery_notification_text(college_name: str, college_id: int) -> str:
+    """Exact email/SMS recovery copy: school name + course-search link."""
+    return (
+        f"{college_name} seat data is back. "
+        f"Set your alerts: {college_course_search_url(college_id)}"
+    )
 
 
 def reset_waitlist_rate_limiter() -> None:
@@ -215,20 +229,24 @@ def _call_maybe_async(fn, *args, **kwargs) -> bool:
         return False
 
 
-def _send_waitlist_email(email_service: Any, to_email: str, college_name: str) -> bool:
+def _send_waitlist_email(
+    email_service: Any, to_email: str, college_name: str, college_id: int
+) -> bool:
     send = getattr(email_service, "send_data_restored_notification", None)
     if send is None:
         logger.error("Email service missing send_data_restored_notification")
         return False
-    return _call_maybe_async(send, to_email, college_name)
+    return _call_maybe_async(send, to_email, college_name, college_id)
 
 
-def _send_waitlist_sms(sms_service: Any, to_phone: str, college_name: str) -> bool:
+def _send_waitlist_sms(
+    sms_service: Any, to_phone: str, college_name: str, college_id: int
+) -> bool:
     send = getattr(sms_service, "send_data_restored_notification", None)
     if send is None:
         logger.error("SMS service missing send_data_restored_notification")
         return False
-    return _call_maybe_async(send, to_phone, college_name)
+    return _call_maybe_async(send, to_phone, college_name, college_id)
 
 
 def notify_recovered_college_waitlists(
@@ -354,10 +372,12 @@ def notify_recovered_college_waitlists(
         success = False
         try:
             if channel == "sms" and user is not None and (user.phone or "").strip():
-                success = _send_waitlist_sms(sms_service, user.phone, college.name)
+                success = _send_waitlist_sms(
+                    sms_service, user.phone, college.name, college.id
+                )
             elif destination_email:
                 success = _send_waitlist_email(
-                    email_service, destination_email, college.name
+                    email_service, destination_email, college.name, college.id
                 )
             else:
                 logger.error("Waitlist row {} has no deliverable address", row.id)
