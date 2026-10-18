@@ -24,6 +24,7 @@ from api.middleware.auth import require_admin
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches, invalidate_cache
 from utils.college_data_status import get_college_data_status
+from utils.college_data_waitlist import get_waitlist_counts_by_college
 from schemas.admin import TermUpdateRequest, TermUpdateResponse, TermUpdateCleanupStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -452,16 +453,12 @@ async def get_query_performance(
 
         # Database connection stats (using raw SQL)
         try:
-            db_stats_result = db.execute(
-                text(
-                    """
+            db_stats_result = db.execute(text("""
                 SELECT
                     (SELECT count(*) FROM pg_stat_activity) as total_connections,
                     (SELECT count(*) FROM pg_stat_activity WHERE state = 'active') as active_connections,
                     (SELECT count(*) FROM pg_stat_activity WHERE state = 'idle') as idle_connections
-                """
-                )
-            )
+                """))
             db_stats_row = db_stats_result.first()
             database_stats = {
                 "total_connections": db_stats_row.total_connections,
@@ -1208,6 +1205,21 @@ async def update_user(
     except Exception as e:
         db.rollback()
         log_and_raise_500("Failed to update user", e)
+
+
+@router.get("/colleges/data-waitlist")
+async def get_college_data_waitlist_counts(
+    admin: Profile = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Per-school stale-data waitlist signup counts (admin only)."""
+    try:
+        return {
+            "success": True,
+            "data": get_waitlist_counts_by_college(db),
+        }
+    except Exception as e:
+        log_and_raise_500("Failed to fetch data waitlist counts", e)
 
 
 class CollegeAvailabilityRequest(BaseModel):

@@ -1988,6 +1988,70 @@ class TestUpdateCollegeAvailability:
         assert response.status_code == 403
 
 
+class TestCollegeDataWaitlistCounts:
+    """Tests for GET /api/admin/colleges/data-waitlist."""
+
+    @pytest.mark.unit
+    async def test_admin_counts(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        test_college: College,
+    ):
+        from models.college_data_waitlist import CollegeDataWaitlist
+
+        other = College(name="Other U", short_name="OU", is_active=True)
+        test_db.add(other)
+        test_db.commit()
+        test_db.refresh(other)
+
+        test_db.add_all(
+            [
+                CollegeDataWaitlist(
+                    college_id=test_college.id,
+                    user_id=test_user.id,
+                    email=test_user.email,
+                ),
+                CollegeDataWaitlist(
+                    college_id=test_college.id,
+                    email="guest@example.com",
+                ),
+                CollegeDataWaitlist(
+                    college_id=other.id,
+                    email="done@example.com",
+                    notified_at=datetime.now(timezone.utc),
+                ),
+            ]
+        )
+        test_db.commit()
+
+        response = await admin_client.get("/api/admin/colleges/data-waitlist")
+        assert response.status_code == 200
+        data = response.json()["data"]
+        by_id = {row["collegeId"]: row for row in data}
+
+        primary = by_id[test_college.id]
+        assert primary["total"] == 2
+        assert primary["signedIn"] == 1
+        assert primary["emailOnly"] == 1
+        assert primary["notYetNotified"] == 2
+
+        secondary = by_id[other.id]
+        assert secondary["total"] == 1
+        assert secondary["signedIn"] == 0
+        assert secondary["emailOnly"] == 1
+        assert secondary["notYetNotified"] == 0
+
+    @pytest.mark.unit
+    async def test_counts_require_admin(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        response = await authenticated_client.get("/api/admin/colleges/data-waitlist")
+        assert response.status_code == 403
+
+
 class TestGetTermCodes:
     """Tests for GET /api/admin/term-codes/{short_name} endpoint."""
 

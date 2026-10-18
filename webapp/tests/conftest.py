@@ -53,8 +53,8 @@ from models.enrollment import Enrollment
 from models.subscription import Subscription
 from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
+from models.college_data_waitlist import CollegeDataWaitlist  # noqa: F401
 from config import settings
-
 
 # Test database URL - Use PostgreSQL test database
 # Format: postgresql+psycopg2://user:password@host:port/database

@@ -3,6 +3,7 @@ import {
   getCollegeDataStatus,
   isCheckoutBlocked,
   isCollegeDataStale,
+  isCollegeInactive,
 } from "../college-data-status";
 
 describe("college-data-status", () => {
@@ -26,5 +27,11 @@ describe("college-data-status", () => {
     expect(
       isCheckoutBlocked({ checkoutBlocked: false, dataStatus: "stale" }),
     ).toBe(false);
+  });
+
+  it("detects inactive colleges", () => {
+    expect(isCollegeInactive(undefined)).toBe(false);
+    expect(isCollegeInactive({ isActive: true })).toBe(false);
+    expect(isCollegeInactive({ isActive: false })).toBe(true);
   });
 });

@@ -444,3 +444,38 @@ class TestVerifyEmailAddress:
             result = service.verify_email_address("invalid@")
 
             assert result is False
+
+
+class TestSendDataRestoredNotification:
+    @pytest.mark.unit
+    async def test_includes_school_name_and_course_search_link(
+        self, mock_ses_client, mock_jinja_env
+    ):
+        with patch("notifications.email_service.settings") as mock_settings, patch(
+            "utils.college_data_waitlist.settings", mock_settings
+        ):
+            mock_settings.aws_ses_enabled = True
+            mock_settings.AWS_SES_FROM_EMAIL = "noreply@example.com"
+            mock_settings.effective_frontend_url = "https://seatsteal.app"
+            mock_ses_client.send_email.return_value = {"MessageId": "restored-1"}
+
+            service = EmailService()
+            result = await service.send_data_restored_notification(
+                to_email="student@example.com",
+                college_name="Test University",
+                college_id=7,
+            )
+
+            assert result is True
+            call_args = mock_ses_client.send_email.call_args[1]
+            subject = call_args["Message"]["Subject"]["Data"]
+            text_body = call_args["Message"]["Body"]["Text"]["Data"]
+            html_body = call_args["Message"]["Body"]["Html"]["Data"]
+            alerts_url = "https://seatsteal.app/courses?college=7"
+
+            assert "Test University" in subject
+            assert text_body == (
+                f"Test University seat data is back. Set your alerts: {alerts_url}"
+            )
+            assert "Test University" in html_body
+            assert alerts_url in html_body

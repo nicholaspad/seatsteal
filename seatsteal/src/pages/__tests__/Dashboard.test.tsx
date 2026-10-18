@@ -779,6 +779,7 @@ describe("Dashboard Page", () => {
     const mockDashboardApis = (college: {
       dataStatus: "ok" | "stale";
       checkoutBlocked?: boolean;
+      isActive?: boolean;
       name?: string;
     }) => {
       mockFetchWithToasts.mockImplementation((url: string) => {
@@ -791,6 +792,7 @@ describe("Dashboard Page", () => {
                 data: {
                   id: 1,
                   name: college.name ?? "University of Illinois",
+                  isActive: college.isActive ?? true,
                   dataStatus: college.dataStatus,
                   checkoutBlocked: college.checkoutBlocked ?? false,
                   lastUpdatedAt: "2026-10-16T12:00:00Z",
@@ -862,6 +864,27 @@ describe("Dashboard Page", () => {
           screen.getByRole("link", { name: /upgrade/i }),
         ).toBeInTheDocument();
       });
+    });
+
+    it("hides the Upgrade CTA when the user's school is inactive", async () => {
+      mockDashboardApis({
+        dataStatus: "ok",
+        isActive: false,
+        name: "Brown University",
+      });
+
+      renderAuthenticated(<Dashboard />, { subscriptionTier: "free" });
+
+      await waitFor(() => {
+        expect(mockFetchWithToasts).toHaveBeenCalledWith("/api/colleges/1");
+      });
+
+      expect(
+        screen.queryByRole("link", { name: /upgrade/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/temporarily unavailable/i),
+      ).not.toBeInTheDocument();
     });
   });
 });
