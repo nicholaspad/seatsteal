@@ -2,12 +2,14 @@
 
 import pytest
 import stripe
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 
 from utils.stripe_utils import (
     get_price_id_for_tier,
     get_tier_from_price_id,
     verify_webhook_signature,
+    extend_subscription_trial,
 )
 
 
@@ -154,3 +156,56 @@ class TestVerifyWebhookSignature:
                 verify_webhook_signature(payload, sig_header)
 
             assert "Invalid signature" in str(exc_info.value)
+
+
+class TestExtendSubscriptionTrial:
+    """Tests for extend_subscription_trial."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    async def test_expired_trial_end_starts_from_now(self):
+        expired = datetime.now(timezone.utc) - timedelta(days=30)
+        mock_sub = MagicMock()
+        mock_sub.trial_end = int(expired.timestamp())
+
+        with patch(
+            "utils.stripe_utils.stripe.Subscription.retrieve"
+        ) as mock_retrieve, patch(
+            "utils.stripe_utils.stripe.Subscription.modify"
+        ) as mock_modify:
+            mock_retrieve.return_value = mock_sub
+            mock_modify.return_value = mock_sub
+
+            before = datetime.now(timezone.utc)
+            await extend_subscription_trial("sub_expired_123", additional_days=7)
+            after = datetime.now(timezone.utc)
+
+            new_ts = mock_modify.call_args.kwargs["trial_end"]
+            new_end = datetime.fromtimestamp(new_ts, tz=timezone.utc)
+            # Stripe would reject expired+7d (still in the past). The extra
+            # week must start from now. Unix timestamps drop microseconds.
+            assert new_end >= before + timedelta(days=7) - timedelta(seconds=1)
+            assert new_end <= after + timedelta(days=7)
+            assert new_end > expired + timedelta(days=8)
+
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    async def test_future_trial_end_adds_days_to_existing_end(self):
+        future = datetime.now(timezone.utc) + timedelta(days=4)
+        mock_sub = MagicMock()
+        mock_sub.trial_end = int(future.timestamp())
+
+        with patch(
+            "utils.stripe_utils.stripe.Subscription.retrieve"
+        ) as mock_retrieve, patch(
+            "utils.stripe_utils.stripe.Subscription.modify"
+        ) as mock_modify:
+            mock_retrieve.return_value = mock_sub
+            mock_modify.return_value = mock_sub
+
+            await extend_subscription_trial("sub_active_123", additional_days=7)
+
+            new_ts = mock_modify.call_args.kwargs["trial_end"]
+            new_end = datetime.fromtimestamp(new_ts, tz=timezone.utc)
+            expected = future + timedelta(days=7)
+            assert abs((new_end - expected).total_seconds()) < 2

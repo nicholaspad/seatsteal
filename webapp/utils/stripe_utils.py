@@ -2,6 +2,7 @@
 
 import stripe
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 from config import settings
 
@@ -169,17 +170,18 @@ async def extend_subscription_trial(
     Returns:
         Updated Stripe Subscription object
     """
-    import datetime
-
     subscription = stripe.Subscription.retrieve(subscription_id)
 
-    # Calculate new trial_end (current trial + additional days)
+    # Stripe rejects trial_end in the past. If the old trial already
+    # expired, start the extra days from now instead of that timestamp.
+    now = datetime.now(timezone.utc)
     if subscription.trial_end:
-        current_trial = datetime.datetime.fromtimestamp(subscription.trial_end)
+        current_trial = datetime.fromtimestamp(subscription.trial_end, tz=timezone.utc)
+        base = max(now, current_trial)
     else:
-        current_trial = datetime.datetime.now()
+        base = now
 
-    new_trial_end = current_trial + datetime.timedelta(days=additional_days)
+    new_trial_end = base + timedelta(days=additional_days)
 
     return stripe.Subscription.modify(
         subscription_id,
