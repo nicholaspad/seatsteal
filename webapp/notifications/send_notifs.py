@@ -39,7 +39,6 @@ from models.course import Course
 from models.college import College
 from models.enrollment import Enrollment
 from models.user import Profile
-from models.stripe_subscription import StripeSubscription
 from models.notification_log import NotificationLog
 from models.scraper import Scraper
 from models.scraper_log import ScraperLog
@@ -50,9 +49,9 @@ from notifications.constants import (
     NOTIFICATION_CADENCE,
     USER_TIERS,
     PRO_PRIORITY_DELAY_SECONDS,
-    PAID_STRIPE_STATUSES,
 )
 from utils.college_data_status import get_colleges_data_status
+from utils.premium import paid_stripe_plan_subquery
 from config import settings
 
 
@@ -325,28 +324,10 @@ class NotificationJob:
         )
 
         # One Stripe plan per user so two paid rows cannot duplicate
-        # subscription results. Prefer the highest tier (pro > plus), then the
-        # newest row as a tiebreak. past_due counts as paid while Stripe retries;
-        # canceled / unpaid / incomplete_expired drop to free. Uses
-        # stripe_subscriptions_user_id_idx.
-        active_plan_subq = (
-            select(
-                StripeSubscription.user_id,
-                StripeSubscription.tier,
-            )
-            .where(StripeSubscription.status.in_(PAID_STRIPE_STATUSES))
-            .distinct(StripeSubscription.user_id)
-            .order_by(
-                StripeSubscription.user_id,
-                case(
-                    (StripeSubscription.tier == USER_TIERS["PRO"], 0),
-                    (StripeSubscription.tier == USER_TIERS["PLUS"], 1),
-                    else_=2,
-                ),
-                desc(StripeSubscription.created_at),
-            )
-            .subquery()
-        )
+        # subscription results. Same statuses and ranking as
+        # get_user_subscription_tier (pro > plus, then newest, then id).
+        # Uses stripe_subscriptions_user_id_idx.
+        active_plan_subq = paid_stripe_plan_subquery()
 
         query = (
             select(

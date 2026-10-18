@@ -3,6 +3,7 @@
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from datetime import datetime
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from utils.premium import (
     require_premium_access,
     require_pro_access,
     check_subscription_limit,
+    PAID_STRIPE_STATUSES,
 )
 from models.user import Profile
 from models.stripe_subscription import StripeSubscription
@@ -263,6 +265,99 @@ class TestGetUserSubscriptionTier:
 
         tier = get_user_subscription_tier(test_user.id, test_db)
         assert tier == "free"
+
+    def _add_plan(
+        self,
+        test_db: Session,
+        test_user: Profile,
+        *,
+        tier: str,
+        status: str,
+        suffix: str,
+        created_at: datetime | None = None,
+    ) -> None:
+        customer = test_db.execute(
+            select(StripeCustomer).where(StripeCustomer.user_id == test_user.id)
+        ).scalar_one_or_none()
+        if customer is None:
+            customer = StripeCustomer(
+                user_id=test_user.id,
+                stripe_customer_id=f"cus_{suffix}",
+                email=test_user.email,
+            )
+            test_db.add(customer)
+            test_db.flush()
+        plan = StripeSubscription(
+            user_id=test_user.id,
+            stripe_subscription_id=f"sub_{suffix}",
+            stripe_customer_id=customer.stripe_customer_id,
+            status=status,
+            tier=tier,
+            price_id=f"price_{tier}",
+        )
+        if created_at is not None:
+            plan.created_at = created_at
+        test_db.add(plan)
+        test_db.commit()
+
+    @pytest.mark.unit
+    def test_past_due_pro_returns_pro_and_20_section_limit(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        assert "past_due" in PAID_STRIPE_STATUSES
+        self._add_plan(
+            test_db,
+            test_user,
+            tier="pro",
+            status="past_due",
+            suffix="past_due_pro",
+        )
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "pro"
+        assert get_subscription_features(tier)["max_subscriptions"] == 20
+
+    @pytest.mark.unit
+    def test_unpaid_subscription_returns_free(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        self._add_plan(
+            test_db,
+            test_user,
+            tier="pro",
+            status="unpaid",
+            suffix="unpaid_pro",
+        )
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "free"
+
+    @pytest.mark.unit
+    def test_pro_wins_over_newer_plus(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        self._add_plan(
+            test_db,
+            test_user,
+            tier="pro",
+            status="active",
+            suffix="rank_pro",
+            created_at=datetime(2023, 1, 1),
+        )
+        self._add_plan(
+            test_db,
+            test_user,
+            tier="plus",
+            status="active",
+            suffix="rank_plus",
+            created_at=datetime(2024, 1, 1),
+        )
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "pro"
 
 
 class TestGetUserActiveSubscriptionCount:
