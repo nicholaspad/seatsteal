@@ -8,6 +8,18 @@ from models.scraper_log import ScraperLog
 from models.scraper import Scraper
 
 
+def as_utc_datetime(dt: datetime) -> datetime:
+    """Normalize a datetime for comparison with timestamptz columns.
+
+    scraper_logs.started_at is DateTime(timezone=True) / PostgreSQL
+    timestamptz. Naive values are treated as UTC (production session TZ
+    is UTC; start_log historically wrote datetime.now() in UTC containers).
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 class ScraperLogService:
     """Service for managing scraper execution logs"""
 
@@ -51,7 +63,7 @@ class ScraperLogService:
             outcome="running",
             courses_created=0,
             classes_created=0,
-            started_at=datetime.now(),
+            started_at=datetime.now(timezone.utc),
         )
 
         self.db.add(log)
@@ -91,10 +103,11 @@ class ScraperLogService:
         log.courses_created = courses_created
         log.classes_created = classes_created
         log.enrollments_saved = enrollments_saved
-        log.completed_at = datetime.now()
+        log.completed_at = datetime.now(timezone.utc)
 
         if log.started_at:
-            duration = (log.completed_at - log.started_at).total_seconds()
+            started_at = as_utc_datetime(log.started_at)
+            duration = (log.completed_at - started_at).total_seconds()
             log.duration_ms = int(duration * 1000)
 
         if error_message:
@@ -148,7 +161,12 @@ class ScraperLogService:
 
         Touches only scraper_logs. Rows whose started_at is at or after
         process_started_at (this process) are left alone.
+
+        started_at is PostgreSQL timestamptz. The cutoff is normalized to
+        UTC-aware so the comparison is timezone-correct whether the caller
+        passes naive UTC (historic start_log writes) or an aware datetime.
         """
+        cutoff = as_utc_datetime(process_started_at)
         completed_at = datetime.now(timezone.utc)
         duration_ms = func.greatest(
             0,
@@ -162,7 +180,7 @@ class ScraperLogService:
             .where(
                 and_(
                     ScraperLog.outcome == "running",
-                    ScraperLog.started_at < process_started_at,
+                    ScraperLog.started_at < cutoff,
                 )
             )
             .values(
@@ -171,12 +189,13 @@ class ScraperLogService:
                 completed_at=completed_at,
                 duration_ms=duration_ms,
             )
+            .execution_options(synchronize_session=False)
         )
         orphan_count = result.rowcount or 0
         if orphan_count:
             logger.info(
                 f"Marked {orphan_count} orphaned scraper_logs row(s) as error "
-                f"(started_at before {process_started_at.isoformat()})"
+                f"(started_at before {cutoff.isoformat()})"
             )
         return orphan_count
 

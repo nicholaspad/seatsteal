@@ -18,10 +18,14 @@ DEFAULT_RUN_TIMEOUT_MINUTES = 60
 DEFAULT_LOCK_TIMEOUT_MS = 900000  # 15 minutes
 
 # Schools whose full-catalog scrapes routinely exceed the default.
+# Cornell ~3h and UPenn ~2.5h recently; 240m leaves headroom. Purdue/USC
+# also run past 60m when healthy.
 RUN_TIMEOUT_MINUTES_BY_SHORT_NAME = {
     "ncsu": 300,
-    "upenn": 210,
-    "cornell": 210,
+    "cornell": 240,
+    "upenn": 240,
+    "usc": 180,
+    "purdue": 150,
 }
 
 
@@ -173,6 +177,14 @@ class ScraperJob:
         logger.info(f"🔒 Acquired lock for {self.college.name}")
 
         try:
+            # Scraper DB calls are synchronous SQLAlchemy inside this async
+            # coroutine. A stuck query blocks the event loop, so wait_for
+            # cannot cancel it until the driver returns. The scraper-only
+            # 120s statement_timeout and TCP keepalives (scraper/db.py) are
+            # what make a hung query raise; wait_for then records the error
+            # and releases the lock. Wrapping every execute in to_thread
+            # is not trivial (scrape_college mixes async HTTP with sync
+            # batched upserts) so we keep those DB timeouts instead.
             result = await asyncio.wait_for(
                 self._execute_with_retry(),
                 timeout=self.config.run_timeout_seconds,

@@ -14,7 +14,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
 
-from scraper.services.scraper_log import ScraperLogService
+from sqlalchemy import inspect, text
+
+from scraper.services.scraper_log import ScraperLogService, as_utc_datetime
 from models.scraper_log import ScraperLog
 from models.scraper import Scraper
 from models.college import College
@@ -646,3 +648,93 @@ class TestMarkOrphanedRunningLogs:
         assert in_process.error_message is None
         assert already_done.outcome == "success"
         assert scraper.status == "running"
+
+    def test_started_at_column_is_timestamptz(self, test_db: Session):
+        """scraper_logs.started_at is timestamp with time zone, not naive timestamp."""
+        pg_type = test_db.execute(
+            text(
+                "SELECT data_type FROM information_schema.columns "
+                "WHERE table_name = 'scraper_logs' AND column_name = 'started_at'"
+            )
+        ).scalar_one()
+        assert pg_type == "timestamp with time zone"
+
+        sa_col = inspect(ScraperLog).columns["started_at"]
+        assert sa_col.type.timezone is True
+
+    def test_as_utc_datetime_normalizes_naive_and_offset(self):
+        naive = datetime(2026, 10, 16, 15, 0, 0)
+        assert as_utc_datetime(naive) == datetime(
+            2026, 10, 16, 15, 0, 0, tzinfo=timezone.utc
+        )
+
+        offset = datetime(2026, 10, 16, 11, 0, 0, tzinfo=timezone(timedelta(hours=-4)))
+        assert as_utc_datetime(offset) == datetime(
+            2026, 10, 16, 15, 0, 0, tzinfo=timezone.utc
+        )
+
+    @pytest.mark.asyncio
+    async def test_sweep_compares_timestamptz_started_at_in_utc(
+        self, test_db: Session, test_college: College
+    ):
+        """Naive and offset-aware started_at values compare correctly as timestamptz UTC."""
+        test_db.execute(text("SET TIME ZONE 'UTC'"))
+        scraper = Scraper(college_id=test_college.id, status="idle")
+        test_db.add(scraper)
+        test_db.flush()
+
+        # 15:00 UTC cutoff. Naive datetimes are stored/compared as UTC.
+        cutoff = datetime(2026, 10, 16, 15, 0, 0, tzinfo=timezone.utc)
+        naive_orphan = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
+            started_at=datetime(2026, 10, 16, 12, 0, 0),
+        )
+        naive_current = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
+            started_at=datetime(2026, 10, 16, 16, 0, 0),
+        )
+        # 11:00-04:00 == 15:00 UTC, so this is not before cutoff.
+        offset_at_cutoff = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
+            started_at=datetime(
+                2026, 10, 16, 11, 0, 0, tzinfo=timezone(timedelta(hours=-4))
+            ),
+        )
+        aware_orphan = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
+            started_at=datetime(2026, 10, 16, 14, 30, 0, tzinfo=timezone.utc),
+        )
+        test_db.add_all([naive_orphan, naive_current, offset_at_cutoff, aware_orphan])
+        test_db.commit()
+
+        service = ScraperLogService(test_db)
+        # Naive cutoff must be treated as UTC to match timestamptz storage.
+        count = await service.mark_orphaned_running_logs(
+            datetime(2026, 10, 16, 15, 0, 0)
+        )
+        test_db.commit()
+
+        assert count == 2
+        test_db.refresh(naive_orphan)
+        test_db.refresh(naive_current)
+        test_db.refresh(offset_at_cutoff)
+        test_db.refresh(aware_orphan)
+
+        assert naive_orphan.outcome == "error"
+        assert naive_orphan.error_message == "orphaned by restart"
+        assert aware_orphan.outcome == "error"
+        assert naive_current.outcome == "running"
+        assert offset_at_cutoff.outcome == "running"
+        assert cutoff == as_utc_datetime(datetime(2026, 10, 16, 15, 0, 0))

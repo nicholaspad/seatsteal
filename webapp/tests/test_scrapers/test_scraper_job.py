@@ -157,12 +157,15 @@ class TestCollegeRunTimeoutMap:
 
     def test_override_timeouts(self):
         assert run_timeout_minutes_for_college("ncsu") == 300
-        assert run_timeout_minutes_for_college("upenn") == 210
-        assert run_timeout_minutes_for_college("cornell") == 210
+        assert run_timeout_minutes_for_college("upenn") == 240
+        assert run_timeout_minutes_for_college("cornell") == 240
+        assert run_timeout_minutes_for_college("usc") == 180
+        assert run_timeout_minutes_for_college("purdue") == 150
 
     def test_override_is_case_insensitive(self):
         assert run_timeout_minutes_for_college("NCSU") == 300
-        assert run_timeout_minutes_for_college("UPenn") == 210
+        assert run_timeout_minutes_for_college("UPenn") == 240
+        assert run_timeout_minutes_for_college("USC") == 180
 
     def test_job_config_for_college_sets_timeout_and_lock(self):
         ncsu = College(id=9, name="NC State", short_name="ncsu", is_active=True)
@@ -171,6 +174,16 @@ class TestCollegeRunTimeoutMap:
         assert config.run_timeout_minutes == 300
         assert config.run_timeout_seconds == 300 * 60
         assert config.lock_timeout_ms == 300 * 60 * 1000
+
+        usc = College(id=10, name="USC", short_name="usc", is_active=True)
+        usc_config = job_config_for_college(usc)
+        assert usc_config.run_timeout_minutes == 180
+        assert usc_config.lock_timeout_ms == 180 * 60 * 1000
+
+        purdue = College(id=11, name="Purdue", short_name="purdue", is_active=True)
+        purdue_config = job_config_for_college(purdue)
+        assert purdue_config.run_timeout_minutes == 150
+        assert purdue_config.lock_timeout_ms == 150 * 60 * 1000
 
 
 # ============================================================================

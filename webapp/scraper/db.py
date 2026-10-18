@@ -12,6 +12,9 @@ from config import settings
 
 # Cautious per-statement cap. Upserts are already chunked in ScraperService
 # so a single statement should not need the API engine's 5-minute budget.
+# These timeouts also rescue a stuck sync query: scrape code awaits HTTP
+# but runs SQLAlchemy synchronously, so asyncio.wait_for cannot fire until
+# the driver returns. statement_timeout + keepalives force that return.
 SCRAPER_STATEMENT_TIMEOUT_MS = 120_000
 SCRAPER_CONNECT_TIMEOUT_SECONDS = 10
 SCRAPER_POOL_TIMEOUT_SECONDS = 30

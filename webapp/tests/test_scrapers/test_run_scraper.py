@@ -1034,5 +1034,5 @@ class TestOrphanSweepAndNextCycle:
     def test_job_config_helper_matches_run_scraper(self):
         upenn = College(id=3, name="UPenn", short_name="upenn", is_active=True)
         config = job_config_for_college(upenn, skip_lock=True)
-        assert config.run_timeout_minutes == 210
+        assert config.run_timeout_minutes == 240
         assert config.skip_lock is True
