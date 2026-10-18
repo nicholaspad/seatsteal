@@ -15,6 +15,8 @@ from utils.premium import (
     require_pro_access,
     check_subscription_limit,
     PAID_STRIPE_STATUSES,
+    stripe_tier_rank,
+    pick_highest_paid_stripe_subscription,
 )
 from models.user import Profile
 from models.stripe_subscription import StripeSubscription
@@ -803,3 +805,21 @@ class TestCheckSubscriptionLimit:
 
         can_subscribe = check_subscription_limit(test_user.id, test_db)
         assert can_subscribe is True
+
+
+class TestPickHighestPaidStripeSubscription:
+    """Python-side ranking used by referral trial extension."""
+
+    @pytest.mark.unit
+    def test_stripe_tier_rank_orders_pro_before_plus(self):
+        assert stripe_tier_rank("pro") < stripe_tier_rank("plus")
+        assert stripe_tier_rank("plus") < stripe_tier_rank(None)
+
+    @pytest.mark.unit
+    def test_pro_wins_over_newer_plus(self):
+        from types import SimpleNamespace
+
+        plus = SimpleNamespace(id="sub_plus", tier="plus", created=200)
+        pro = SimpleNamespace(id="sub_pro", tier="pro", created=50)
+        picked = pick_highest_paid_stripe_subscription([plus, pro])
+        assert picked.id == "sub_pro"

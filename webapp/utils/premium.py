@@ -1,6 +1,6 @@
 """Premium subscription utilities for handling user tiers and feature access"""
 
-from typing import Literal
+from typing import Any, Literal, Optional, Sequence
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func, case, desc
 from uuid import UUID
@@ -42,17 +42,56 @@ TIER_FEATURES = {
 }
 
 
+def stripe_tier_rank(tier: Optional[str]) -> int:
+    """Lower is better: pro (0) before plus (1) before anything else (2)."""
+    if tier == "pro":
+        return 0
+    if tier == "plus":
+        return 1
+    return 2
+
+
 def paid_stripe_plan_order():
     """Order paid Stripe rows: pro before plus, then newest, then highest id."""
     return (
         case(
-            (StripeSubscription.tier == "pro", 0),
-            (StripeSubscription.tier == "plus", 1),
-            else_=2,
+            (StripeSubscription.tier == "pro", stripe_tier_rank("pro")),
+            (StripeSubscription.tier == "plus", stripe_tier_rank("plus")),
+            else_=stripe_tier_rank(None),
         ),
         desc(StripeSubscription.created_at),
         desc(StripeSubscription.id),
     )
+
+
+def _stripe_object_tier(subscription: Any) -> Optional[str]:
+    """Resolve plus/pro from a Stripe API object (or a mock with .tier)."""
+    tier = getattr(subscription, "tier", None)
+    if isinstance(tier, str) and tier:
+        return tier
+    try:
+        from utils.stripe_utils import get_tier_from_price_id
+
+        price_id = subscription.items.data[0].price.id
+        return get_tier_from_price_id(price_id)
+    except (AttributeError, IndexError, TypeError, KeyError):
+        return None
+
+
+def pick_highest_paid_stripe_subscription(subscriptions: Sequence[Any]) -> Any:
+    """Same ranking as paid_stripe_plan_order, for Stripe API objects.
+
+    pro before plus, then newest ``created``, then id.
+    """
+
+    def sort_key(sub: Any):
+        created = getattr(sub, "created", None)
+        if not isinstance(created, (int, float)):
+            created = 0
+        sub_id = str(getattr(sub, "id", "") or "")
+        return (stripe_tier_rank(_stripe_object_tier(sub)), -int(created), sub_id)
+
+    return min(subscriptions, key=sort_key)
 
 
 def paid_stripe_plan_subquery():

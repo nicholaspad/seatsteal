@@ -453,16 +453,12 @@ async def get_query_performance(
 
         # Database connection stats (using raw SQL)
         try:
-            db_stats_result = db.execute(
-                text(
-                    """
+            db_stats_result = db.execute(text("""
                 SELECT
                     (SELECT count(*) FROM pg_stat_activity) as total_connections,
                     (SELECT count(*) FROM pg_stat_activity WHERE state = 'active') as active_connections,
                     (SELECT count(*) FROM pg_stat_activity WHERE state = 'idle') as idle_connections
-                """
-                )
-            )
+                """))
             db_stats_row = db_stats_result.first()
             database_stats = {
                 "total_connections": db_stats_row.total_connections,

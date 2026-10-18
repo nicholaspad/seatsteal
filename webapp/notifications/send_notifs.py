@@ -313,8 +313,8 @@ class NotificationJob:
 
         latest_success_run = values(
             column("college_id", Integer),
-            column("started_at", DateTime(timezone=True)),
-            column("completed_at", DateTime(timezone=True)),
+            column("started_at", DateTime()),
+            column("completed_at", DateTime()),
             name="latest_success_run",
         ).data(
             [

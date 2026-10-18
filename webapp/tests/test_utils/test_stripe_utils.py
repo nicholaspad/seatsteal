@@ -180,13 +180,15 @@ class TestExtendSubscriptionTrial:
             await extend_subscription_trial("sub_expired_123", additional_days=7)
             after = datetime.now(timezone.utc)
 
-            new_ts = mock_modify.call_args.kwargs["trial_end"]
+            kwargs = mock_modify.call_args.kwargs
+            new_ts = kwargs["trial_end"]
             new_end = datetime.fromtimestamp(new_ts, tz=timezone.utc)
             # Stripe would reject expired+7d (still in the past). The extra
             # week must start from now. Unix timestamps drop microseconds.
             assert new_end >= before + timedelta(days=7) - timedelta(seconds=1)
             assert new_end <= after + timedelta(days=7)
             assert new_end > expired + timedelta(days=8)
+            assert kwargs["proration_behavior"] == "none"
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -205,7 +207,9 @@ class TestExtendSubscriptionTrial:
 
             await extend_subscription_trial("sub_active_123", additional_days=7)
 
-            new_ts = mock_modify.call_args.kwargs["trial_end"]
+            kwargs = mock_modify.call_args.kwargs
+            new_ts = kwargs["trial_end"]
             new_end = datetime.fromtimestamp(new_ts, tz=timezone.utc)
             expected = future + timedelta(days=7)
             assert abs((new_end - expected).total_seconds()) < 2
+            assert kwargs["proration_behavior"] == "none"

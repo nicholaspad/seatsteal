@@ -186,4 +186,5 @@ async def extend_subscription_trial(
     return stripe.Subscription.modify(
         subscription_id,
         trial_end=int(new_trial_end.timestamp()),
+        proration_behavior="none",
     )
