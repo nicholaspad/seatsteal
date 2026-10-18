@@ -54,6 +54,25 @@ class TestEmailServiceInit:
             assert service.from_email == "test@example.com"
 
     @pytest.mark.unit
+    def test_init_passes_timeout_config(self, mock_jinja_env):
+        """SES client gets bounded connect/read timeouts and retry cap."""
+        with patch("notifications.email_service.boto3") as mock_boto3, patch(
+            "notifications.email_service.settings"
+        ) as mock_settings:
+            mock_settings.aws_ses_enabled = True
+            mock_settings.AWS_SES_FROM_EMAIL = "test@example.com"
+            mock_settings.AWS_REGION = "us-east-1"
+            mock_settings.AWS_ACCESS_KEY_ID = "test_key"
+            mock_settings.AWS_SECRET_ACCESS_KEY = "test_secret"
+
+            EmailService()
+
+            config = mock_boto3.client.call_args.kwargs["config"]
+            assert config.connect_timeout == 5
+            assert config.read_timeout == 10
+            assert config.retries == {"max_attempts": 2}
+
+    @pytest.mark.unit
     def test_init_with_ses_disabled(self, mock_jinja_env):
         """Test initialization when AWS SES is disabled."""
         with patch("notifications.email_service.settings") as mock_settings:

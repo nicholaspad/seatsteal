@@ -25,6 +25,7 @@ Current implementation notes:
 """
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from jinja2 import Template, Environment, FileSystemLoader
 from pathlib import Path
@@ -32,6 +33,19 @@ from loguru import logger
 from typing import List, Optional
 
 from config import settings
+
+
+# Bound every SES call so a slow/unreachable endpoint can't stall the
+# 1-minute notification job (seat alerts + waitlist recovery emails).
+SES_CONNECT_TIMEOUT_SECONDS = 5
+SES_READ_TIMEOUT_SECONDS = 10
+SES_MAX_ATTEMPTS = 2
+
+SES_CLIENT_CONFIG = Config(
+    connect_timeout=SES_CONNECT_TIMEOUT_SECONDS,
+    read_timeout=SES_READ_TIMEOUT_SECONDS,
+    retries={"max_attempts": SES_MAX_ATTEMPTS},
+)
 
 
 class EmailService:
@@ -70,6 +84,7 @@ class EmailService:
                 region_name=settings.AWS_REGION,
                 aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                config=SES_CLIENT_CONFIG,
             )
             logger.info(f"EmailService initialized with sender: {self.from_email}")
         else:
