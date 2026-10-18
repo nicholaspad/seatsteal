@@ -14,18 +14,18 @@ from scraper.services.scraper_log import ScraperLogService
 from scraper.services.scraper_service import ScraperService
 
 # Wall-clock limit for one scraper_logs row (all retry attempts combined).
-DEFAULT_RUN_TIMEOUT_MINUTES = 60
+# cap = max(480m, 1.25 × longest successful run in the last 21 days).
+DEFAULT_RUN_TIMEOUT_MINUTES = 480
 DEFAULT_LOCK_TIMEOUT_MS = 900000  # 15 minutes
 
-# Schools whose full-catalog scrapes routinely exceed the default.
-# Cornell ~3h and UPenn ~2.5h recently; 240m leaves headroom. Purdue/USC
-# also run past 60m when healthy.
 RUN_TIMEOUT_MINUTES_BY_SHORT_NAME = {
-    "ncsu": 300,
-    "cornell": 240,
-    "upenn": 240,
-    "usc": 180,
-    "purdue": 150,
+    "uiuc": 900,  # 21-day max 707m
+    "purdue": 900,  # 21-day max 685m
+    "ncsu": 785,  # 21-day max 628m
+    "cornell": 709,  # 21-day max 567m
+    "usc": 540,  # 21-day max 432m
+    "asu": 539,  # 21-day max 431m
+    "osu": 491,  # 21-day max 393m
 }
 
 

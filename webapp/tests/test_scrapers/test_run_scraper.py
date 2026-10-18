@@ -1028,11 +1028,11 @@ class TestOrphanSweepAndNextCycle:
                 await cli._run_single_job(ncsu)
 
                 config = MockJob.call_args[0][2]
-                assert config.run_timeout_minutes == 300
-                assert config.lock_timeout_ms == 300 * 60 * 1000
+                assert config.run_timeout_minutes == 785
+                assert config.lock_timeout_ms == 785 * 60 * 1000
 
     def test_job_config_helper_matches_run_scraper(self):
         upenn = College(id=3, name="UPenn", short_name="upenn", is_active=True)
         config = job_config_for_college(upenn, skip_lock=True)
-        assert config.run_timeout_minutes == 240
+        assert config.run_timeout_minutes == 480
         assert config.skip_lock is True
