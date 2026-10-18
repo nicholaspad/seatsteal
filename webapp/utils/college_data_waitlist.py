@@ -2,8 +2,8 @@
 
 Recovery is a lightweight periodic check (see ``send_notifs.NotificationJob``),
 not the scraper write path. The notify function is idempotent (``notified_at``),
-batch-limited, and never deletes rows. Failures are logged and retried on the
-next pass.
+batch-limited, and never deletes rows. Failures increment ``attempts`` and
+are retried on the next pass until ``MAX_WAITLIST_ATTEMPTS``.
 """
 
 from __future__ import annotations
@@ -30,6 +30,8 @@ WaitlistChannel = Literal["sms", "email"]
 DEFAULT_NOTIFY_BATCH_LIMIT = 100
 WAITLIST_RATE_LIMIT = 8
 WAITLIST_RATE_WINDOW_SECONDS = 600
+WAITLIST_SEND_TIMEOUT_SECONDS = 30.0
+MAX_WAITLIST_ATTEMPTS = 5
 
 _rate_hits: dict[str, list[float]] = {}
 
@@ -188,11 +190,29 @@ def get_waitlist_counts_by_college(db: Session) -> list[dict[str, Any]]:
     ]
 
 
-def _call_maybe_async(fn, *args, **kwargs) -> bool:
-    result = fn(*args, **kwargs)
+async def _await_send_result(result: Any) -> Any:
     if asyncio.iscoroutine(result):
-        return bool(asyncio.run(result))
-    return bool(result)
+        return await result
+    return result
+
+
+def _call_maybe_async(fn, *args, **kwargs) -> bool:
+    """Run a sync or async send with the same 30s timeout seat alerts use."""
+    try:
+        return bool(
+            asyncio.run(
+                asyncio.wait_for(
+                    _await_send_result(fn(*args, **kwargs)),
+                    timeout=WAITLIST_SEND_TIMEOUT_SECONDS,
+                )
+            )
+        )
+    except asyncio.TimeoutError:
+        logger.error(
+            "Waitlist send timed out after {}s",
+            WAITLIST_SEND_TIMEOUT_SECONDS,
+        )
+        return False
 
 
 def _send_waitlist_email(email_service: Any, to_email: str, college_name: str) -> bool:
@@ -224,8 +244,9 @@ def notify_recovered_college_waitlists(
     """Send one-time recovery notices for colleges whose dataStatus is ok.
 
     Only active colleges are notified (inactive schools always report ok
-    and are not a 'data is back' event). Failures leave ``notified_at``
-    null so the next periodic pass retries. Rows are never deleted.
+    and are not a 'data is back' event). Failures increment ``attempts``
+    and leave ``notified_at`` null so the next periodic pass retries,
+    up to ``MAX_WAITLIST_ATTEMPTS``. Rows are never deleted.
     """
     from notifications.email_service import EmailService
     from notifications.sms_service import SMSService
@@ -234,7 +255,10 @@ def notify_recovered_college_waitlists(
         return {"examined": 0, "sent": 0, "failed": 0, "skipped": 0}
 
     now_utc = now or datetime.now(timezone.utc)
-    pending_filter = [CollegeDataWaitlist.notified_at.is_(None)]
+    pending_filter = [
+        CollegeDataWaitlist.notified_at.is_(None),
+        CollegeDataWaitlist.attempts < MAX_WAITLIST_ATTEMPTS,
+    ]
     if college_id is not None:
         pending_filter.append(CollegeDataWaitlist.college_id == college_id)
 
@@ -268,6 +292,7 @@ def notify_recovered_college_waitlists(
             .where(
                 CollegeDataWaitlist.college_id.in_(recovered_ids),
                 CollegeDataWaitlist.notified_at.is_(None),
+                CollegeDataWaitlist.attempts < MAX_WAITLIST_ATTEMPTS,
             )
             .order_by(CollegeDataWaitlist.created_at, CollegeDataWaitlist.id)
             .limit(batch_limit)
@@ -348,13 +373,23 @@ def notify_recovered_college_waitlists(
             db.commit()
             sent += 1
         else:
-            db.rollback()
+            row.attempts = (row.attempts or 0) + 1
+            row.last_attempt_at = now_utc
+            db.add(row)
+            db.commit()
             failed += 1
-            logger.error(
-                "Waitlist notify unsuccessful for row {} ({}); will retry",
-                row.id,
-                channel,
-            )
+            if row.attempts >= MAX_WAITLIST_ATTEMPTS:
+                logger.error(
+                    "Waitlist row {} exhausted {} attempts; giving up",
+                    row.id,
+                    MAX_WAITLIST_ATTEMPTS,
+                )
+            else:
+                logger.error(
+                    "Waitlist notify unsuccessful for row {} ({}); will retry",
+                    row.id,
+                    channel,
+                )
 
     return {
         "examined": len(pending_rows),

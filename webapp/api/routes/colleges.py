@@ -12,6 +12,7 @@ from api.middleware.auth import get_optional_user
 from utils.cache import CacheClient, _make_cache_key, _serialize_for_cache
 from utils.college_data_status import (
     apply_data_status_map,
+    get_college_data_status,
     get_colleges_data_status,
     overlay_data_status_on_college_dicts,
 )
@@ -168,11 +169,34 @@ async def join_college_data_waitlist(
 
     Auth is optional. Signed-in users are stored by user_id (and email).
     Signed-out visitors must provide a valid email. Duplicate signups
-    return 200. Never deletes existing rows.
+    return 200. Returns 409 unless the college is active and its current
+    dataStatus is not ok. Never deletes existing rows.
     """
     college = db.get(College, college_id)
     if not college:
         raise HTTPException(status_code=404, detail="College not found")
+
+    if not college.is_active:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": f"Seat data waitlist is not available for {college.name}.",
+                "code": "SCHOOL_INACTIVE",
+            },
+        )
+
+    college_status = get_college_data_status(db, college)
+    if college_status.data_status == "ok":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": (
+                    f"Seat data for {college.name} is already available. "
+                    "Waitlist signup is only open while data is stale."
+                ),
+                "code": "SCHOOL_DATA_OK",
+            },
+        )
 
     client_ip = _client_ip(request)
     if waitlist_rate_limited(client_ip, college_id):

@@ -77,9 +77,96 @@ class NotificationJob:
 
             # Find notifications to send based on current minute
             with SessionLocal() as db:
-                # Lightweight periodic recovery for stale-data waitlists.
-                # Isolated from the scraper write path; failures never block
-                # seat-alert sending.
+                notifications = self._find_notifications_to_send(db)
+                sent_count = 0
+                failed_count = 0
+
+                if not notifications:
+                    logger.info("✅ No notifications to send")
+                else:
+                    logger.info(f"📢 Found {len(notifications)} notifications to send")
+
+                    # Track tier statistics
+                    tier_stats = {}
+                    for notif in notifications:
+                        tier = notif["user_tier"]
+                        tier_stats[tier] = tier_stats.get(tier, 0) + 1
+
+                    logger.info(
+                        f"📊 Notifications by tier: {', '.join(f'{tier}: {count}' for tier, count in tier_stats.items())}"
+                    )
+
+                    # Separate Pro notifications from Plus/Free for priority sending
+                    pro_notifications = [
+                        n for n in notifications if n["user_tier"] == USER_TIERS["PRO"]
+                    ]
+                    other_notifications = [
+                        n for n in notifications if n["user_tier"] != USER_TIERS["PRO"]
+                    ]
+
+                    subscription_ids = []
+
+                    # Step 1: Send Pro notifications first (they get priority)
+                    if pro_notifications:
+                        logger.info(
+                            f"⚡ Sending {len(pro_notifications)} Pro notifications first (priority)"
+                        )
+                        for notification in pro_notifications:
+                            try:
+                                self._send_notification(notification, db)
+                                sent_count += 1
+                                subscription_ids.append(notification["subscription_id"])
+                            except Exception as e:
+                                logger.error(
+                                    f"❌ Failed to send notification for subscription {notification['subscription_id']}: {e}"
+                                )
+                                failed_count += 1
+
+                    # Step 2: Wait before sending Plus/Free (Pro priority delay)
+                    if pro_notifications and other_notifications:
+                        logger.info(
+                            f"⏳ Waiting {PRO_PRIORITY_DELAY_SECONDS}s before sending Plus/Free notifications (Pro priority)"
+                        )
+                        if not self.dry_run:
+                            time.sleep(PRO_PRIORITY_DELAY_SECONDS)
+                        else:
+                            logger.info(
+                                f"🧪 DRY RUN: Would wait {PRO_PRIORITY_DELAY_SECONDS}s"
+                            )
+
+                    # Step 3: Send Plus/Free notifications
+                    if other_notifications:
+                        logger.info(
+                            f"📤 Sending {len(other_notifications)} Plus/Free notifications"
+                        )
+                        for notification in other_notifications:
+                            try:
+                                self._send_notification(notification, db)
+                                sent_count += 1
+                                subscription_ids.append(notification["subscription_id"])
+                            except Exception as e:
+                                logger.error(
+                                    f"❌ Failed to send notification for subscription {notification['subscription_id']}: {e}"
+                                )
+                                failed_count += 1
+
+                    # Deactivate subscriptions (skip in dry-run mode)
+                    if not self.dry_run and subscription_ids:
+                        self._deactivate_subscriptions(db, subscription_ids)
+
+                    # Commit seat-alert work before waitlist recovery so a
+                    # recovery rollback cannot undo notification logs.
+                    if not self.dry_run:
+                        db.commit()
+
+                    if self.dry_run:
+                        logger.info(
+                            f"🧪 DRY RUN: Would deactivate {len(subscription_ids)} subscriptions"
+                        )
+
+                # Waitlist recovery AFTER seat alerts. Shares this session;
+                # rollback on error so a failed SQL statement cannot leave
+                # InFailedSqlTransaction for any later queries.
                 try:
                     from utils.college_data_waitlist import (
                         notify_recovered_college_waitlists,
@@ -99,102 +186,10 @@ class NotificationJob:
                             waitlist_result.get("examined", 0),
                         )
                 except Exception as e:
+                    db.rollback()
                     logger.exception(
                         "College data waitlist recovery failed (non-blocking): {}",
                         e,
-                    )
-
-                notifications = self._find_notifications_to_send(db)
-
-                if not notifications:
-                    logger.info("✅ No notifications to send")
-                    return {
-                        "success": True,
-                        "notifications_sent": 0,
-                        "duration_ms": int((time.time() - start_time) * 1000),
-                        "dry_run": self.dry_run,
-                    }
-
-                logger.info(f"📢 Found {len(notifications)} notifications to send")
-
-                # Track tier statistics
-                tier_stats = {}
-                for notif in notifications:
-                    tier = notif["user_tier"]
-                    tier_stats[tier] = tier_stats.get(tier, 0) + 1
-
-                logger.info(
-                    f"📊 Notifications by tier: {', '.join(f'{tier}: {count}' for tier, count in tier_stats.items())}"
-                )
-
-                # Separate Pro notifications from Plus/Free for priority sending
-                pro_notifications = [
-                    n for n in notifications if n["user_tier"] == USER_TIERS["PRO"]
-                ]
-                other_notifications = [
-                    n for n in notifications if n["user_tier"] != USER_TIERS["PRO"]
-                ]
-
-                # Send notifications with Pro priority
-                sent_count = 0
-                failed_count = 0
-                subscription_ids = []
-
-                # Step 1: Send Pro notifications first (they get priority)
-                if pro_notifications:
-                    logger.info(
-                        f"⚡ Sending {len(pro_notifications)} Pro notifications first (priority)"
-                    )
-                    for notification in pro_notifications:
-                        try:
-                            self._send_notification(notification, db)
-                            sent_count += 1
-                            subscription_ids.append(notification["subscription_id"])
-                        except Exception as e:
-                            logger.error(
-                                f"❌ Failed to send notification for subscription {notification['subscription_id']}: {e}"
-                            )
-                            failed_count += 1
-
-                # Step 2: Wait before sending Plus/Free notifications (Pro priority delay)
-                if pro_notifications and other_notifications:
-                    logger.info(
-                        f"⏳ Waiting {PRO_PRIORITY_DELAY_SECONDS}s before sending Plus/Free notifications (Pro priority)"
-                    )
-                    if not self.dry_run:
-                        time.sleep(PRO_PRIORITY_DELAY_SECONDS)
-                    else:
-                        logger.info(
-                            f"🧪 DRY RUN: Would wait {PRO_PRIORITY_DELAY_SECONDS}s"
-                        )
-
-                # Step 3: Send Plus/Free notifications
-                if other_notifications:
-                    logger.info(
-                        f"📤 Sending {len(other_notifications)} Plus/Free notifications"
-                    )
-                    for notification in other_notifications:
-                        try:
-                            self._send_notification(notification, db)
-                            sent_count += 1
-                            subscription_ids.append(notification["subscription_id"])
-                        except Exception as e:
-                            logger.error(
-                                f"❌ Failed to send notification for subscription {notification['subscription_id']}: {e}"
-                            )
-                            failed_count += 1
-
-                # Deactivate subscriptions (skip in dry-run mode)
-                if not self.dry_run and subscription_ids:
-                    self._deactivate_subscriptions(db, subscription_ids)
-
-                # Commit all notification logs and subscription updates
-                if not self.dry_run:
-                    db.commit()
-
-                if self.dry_run:
-                    logger.info(
-                        f"🧪 DRY RUN: Would deactivate {len(subscription_ids)} subscriptions"
                     )
 
                 duration_ms = int((time.time() - start_time) * 1000)

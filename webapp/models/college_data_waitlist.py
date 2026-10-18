@@ -30,6 +30,8 @@ class CollegeDataWaitlist(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     notified_at = Column(DateTime(timezone=True), nullable=True)
+    attempts = Column(Integer, nullable=False, server_default="0", default=0)
+    last_attempt_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index(

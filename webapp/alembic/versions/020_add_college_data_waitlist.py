@@ -34,6 +34,8 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("notified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("attempts", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("last_attempt_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["college_id"], ["colleges.id"]),
         sa.ForeignKeyConstraint(["user_id"], ["profiles.id"]),
         sa.PrimaryKeyConstraint("id"),

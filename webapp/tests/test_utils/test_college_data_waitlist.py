@@ -1,15 +1,22 @@
 """Tests for college data waitlist recovery notifications."""
 
+import asyncio
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from freezegun import freeze_time
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session
 
 from models.college import College
 from models.college_data_waitlist import CollegeDataWaitlist
+from models.enrollment import Enrollment
+from models.subscription import Subscription
 from models.user import Profile
 from utils.college_data_waitlist import (
+    MAX_WAITLIST_ATTEMPTS,
     choose_waitlist_channel,
     notify_recovered_college_waitlists,
     register_waitlist,
@@ -22,12 +29,16 @@ def _waitlist_row(
     user_id=None,
     email=None,
     notified_at=None,
+    attempts=0,
+    last_attempt_at=None,
 ) -> CollegeDataWaitlist:
     return CollegeDataWaitlist(
         college_id=college_id,
         user_id=user_id,
         email=email,
         notified_at=notified_at,
+        attempts=attempts,
+        last_attempt_at=last_attempt_at,
     )
 
 
@@ -239,6 +250,8 @@ class TestNotifyRecoveredWaitlists:
         test_db.refresh(row)
         assert first["failed"] == 1
         assert row.notified_at is None
+        assert row.attempts == 1
+        assert row.last_attempt_at is not None
 
         second = notify_recovered_college_waitlists(
             test_db, email_service=email_service, sms_service=sms_service
@@ -288,6 +301,70 @@ class TestNotifyRecoveredWaitlists:
         assert second.notified_at is not None
         assert test_db.query(CollegeDataWaitlist).count() == 1
 
+    @pytest.mark.unit
+    def test_stops_after_max_attempts(self, test_db: Session, test_college: College):
+        row = _waitlist_row(test_college.id, email="guest@example.com")
+        test_db.add(row)
+        test_db.commit()
+
+        email_service = MagicMock()
+        email_service.send_data_restored_notification.return_value = False
+        sms_service = MagicMock()
+
+        for expected in range(1, MAX_WAITLIST_ATTEMPTS + 1):
+            result = notify_recovered_college_waitlists(
+                test_db, email_service=email_service, sms_service=sms_service
+            )
+            test_db.refresh(row)
+            assert result["failed"] == 1
+            assert result["sent"] == 0
+            assert row.attempts == expected
+            assert row.notified_at is None
+            assert row.last_attempt_at is not None
+
+        exhausted = notify_recovered_college_waitlists(
+            test_db, email_service=email_service, sms_service=sms_service
+        )
+        test_db.refresh(row)
+        assert exhausted["examined"] == 0
+        assert exhausted["sent"] == 0
+        assert exhausted["failed"] == 0
+        assert row.attempts == MAX_WAITLIST_ATTEMPTS
+        assert row.notified_at is None
+        assert test_db.query(CollegeDataWaitlist).count() == 1
+        assert (
+            email_service.send_data_restored_notification.call_count
+            == MAX_WAITLIST_ATTEMPTS
+        )
+
+    @pytest.mark.unit
+    def test_send_timeout_counts_as_failure(
+        self, test_db: Session, test_college: College
+    ):
+        row = _waitlist_row(test_college.id, email="guest@example.com")
+        test_db.add(row)
+        test_db.commit()
+
+        async def hang(_to_email, _college_name):
+            await asyncio.sleep(5)
+            return True
+
+        email_service = MagicMock()
+        email_service.send_data_restored_notification = hang
+        sms_service = MagicMock()
+
+        with patch("utils.college_data_waitlist.WAITLIST_SEND_TIMEOUT_SECONDS", 0.01):
+            result = notify_recovered_college_waitlists(
+                test_db, email_service=email_service, sms_service=sms_service
+            )
+
+        test_db.refresh(row)
+        assert result["failed"] == 1
+        assert result["sent"] == 0
+        assert row.attempts == 1
+        assert row.notified_at is None
+        assert row.last_attempt_at is not None
+
 
 class TestNotifyFromNotificationJob:
     @pytest.mark.unit
@@ -318,3 +395,68 @@ class TestNotifyFromNotificationJob:
         row = test_db.query(CollegeDataWaitlist).one()
         assert row.notified_at is not None
         assert test_db.query(CollegeDataWaitlist).count() == 1
+
+    @pytest.mark.unit
+    @freeze_time("2024-01-15 10:00:00")
+    def test_waitlist_operational_error_does_not_block_seat_alerts(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_class,
+    ):
+        """A waitlist DBAPI error must rollback so seat alerts still send."""
+        from notifications.send_notifs import NotificationJob
+
+        test_db.add(_waitlist_row(test_college.id, email="guest@example.com"))
+        test_db.add(
+            Subscription(
+                user_id=test_user.id,
+                class_id=test_class.class_id,
+                college_id=test_college.id,
+                is_active=True,
+            )
+        )
+        test_db.add(
+            Enrollment(
+                class_id=test_class.class_id,
+                college_id=test_college.id,
+                enrollment_status="open",
+                scraped_at=datetime.now(timezone.utc),
+            )
+        )
+        test_db.commit()
+
+        def explode_waitlist(db, **kwargs):
+            try:
+                db.execute(text("SELECT 1 FROM __missing_waitlist_recovery"))
+            except DBAPIError as exc:
+                raise OperationalError(
+                    exc.statement,
+                    exc.params,
+                    exc.orig,
+                ) from exc
+
+        email_service = MagicMock()
+        email_service.send_course_notification = AsyncMock(return_value=True)
+        email_service.send_data_restored_notification.return_value = True
+        sms_service = MagicMock()
+        sms_service.is_enabled = False
+
+        job = NotificationJob(dry_run=False)
+        job.email_service = email_service
+        job.sms_service = sms_service
+
+        with patch("notifications.send_notifs.SessionLocal") as mock_session, patch(
+            "utils.college_data_waitlist.notify_recovered_college_waitlists",
+            side_effect=explode_waitlist,
+        ), patch.object(test_db, "rollback", wraps=test_db.rollback) as mock_rollback:
+            mock_session.return_value.__enter__.return_value = test_db
+            result = job.execute()
+
+        assert result["success"] is True
+        assert result["notifications_sent"] == 1
+        email_service.send_course_notification.assert_called_once()
+        assert mock_rollback.called
+        remaining = test_db.query(CollegeDataWaitlist).one()
+        assert remaining.notified_at is None

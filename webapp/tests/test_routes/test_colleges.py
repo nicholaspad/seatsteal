@@ -288,6 +288,58 @@ class TestCollegeDataWaitlist:
         yield
         reset_waitlist_rate_limiter()
 
+    def _mark_stale(self, test_db: Session, college: College) -> None:
+        college.data_available = False
+        test_db.commit()
+
+    @pytest.mark.unit
+    async def test_healthy_school_returns_409(
+        self,
+        client: AsyncClient,
+        test_college: College,
+    ):
+        response = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={"email": "visitor@example.com"},
+        )
+        assert response.status_code == 409
+        detail = response.json()["detail"]
+        assert detail["code"] == "SCHOOL_DATA_OK"
+
+    @pytest.mark.unit
+    async def test_inactive_school_returns_409(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        test_college.is_active = False
+        test_college.data_available = False
+        test_db.commit()
+
+        response = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={"email": "visitor@example.com"},
+        )
+        assert response.status_code == 409
+        detail = response.json()["detail"]
+        assert detail["code"] == "SCHOOL_INACTIVE"
+
+    @pytest.mark.unit
+    async def test_stale_school_returns_200(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        self._mark_stale(test_db, test_college)
+        response = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={"email": "visitor@example.com"},
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
     @pytest.mark.unit
     async def test_signed_in_signup(
         self,
@@ -296,6 +348,7 @@ class TestCollegeDataWaitlist:
         test_user: Profile,
         test_college: College,
     ):
+        self._mark_stale(test_db, test_college)
         response = await authenticated_client.post(
             f"/api/colleges/{test_college.id}/data-waitlist",
             json={},
@@ -318,6 +371,7 @@ class TestCollegeDataWaitlist:
         test_db: Session,
         test_college: College,
     ):
+        self._mark_stale(test_db, test_college)
         response = await client.post(
             f"/api/colleges/{test_college.id}/data-waitlist",
             json={"email": "visitor@example.com"},
@@ -339,6 +393,7 @@ class TestCollegeDataWaitlist:
         test_db: Session,
         test_college: College,
     ):
+        self._mark_stale(test_db, test_college)
         first = await authenticated_client.post(
             f"/api/colleges/{test_college.id}/data-waitlist",
             json={},
@@ -361,6 +416,7 @@ class TestCollegeDataWaitlist:
         test_db: Session,
         test_college: College,
     ):
+        self._mark_stale(test_db, test_college)
         first = await client.post(
             f"/api/colleges/{test_college.id}/data-waitlist",
             json={"email": "Visitor@Example.com"},
@@ -380,8 +436,10 @@ class TestCollegeDataWaitlist:
     async def test_invalid_email(
         self,
         client: AsyncClient,
+        test_db: Session,
         test_college: College,
     ):
+        self._mark_stale(test_db, test_college)
         response = await client.post(
             f"/api/colleges/{test_college.id}/data-waitlist",
             json={"email": "not-an-email"},
@@ -392,8 +450,10 @@ class TestCollegeDataWaitlist:
     async def test_signed_out_requires_email(
         self,
         client: AsyncClient,
+        test_db: Session,
         test_college: College,
     ):
+        self._mark_stale(test_db, test_college)
         response = await client.post(
             f"/api/colleges/{test_college.id}/data-waitlist",
             json={},
@@ -415,10 +475,12 @@ class TestCollegeDataWaitlist:
     async def test_rate_limited(
         self,
         client: AsyncClient,
+        test_db: Session,
         test_college: College,
     ):
         from utils.college_data_waitlist import WAITLIST_RATE_LIMIT
 
+        self._mark_stale(test_db, test_college)
         for i in range(WAITLIST_RATE_LIMIT):
             response = await client.post(
                 f"/api/colleges/{test_college.id}/data-waitlist",
