@@ -792,3 +792,42 @@ async def test_bu_fetch_error_is_outcome_error_not_partial(test_db: Session):
     assert "HTTP 502" in result["error"]
     assert "response_size=145" in result["error"]
     assert "0 courses" not in result["error"]
+    # format_exception_message prefixes the type but keeps status/size.
+
+
+class _EmptyStrError(Exception):
+    """Mirrors httpx/httpcore transport disconnects whose str(e) is empty."""
+
+    def __str__(self) -> str:
+        return ""
+
+
+@pytest.mark.asyncio
+async def test_scrape_college_empty_str_exception_includes_type():
+    """Empty str(e) must become type/repr, not a blank stats error."""
+    mock_db = MagicMock()
+    mock_college = MagicMock()
+    mock_college.short_name = "test"
+    mock_college.is_active = True
+    mock_college.id = 1
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_college
+    mock_db.execute.return_value = mock_result
+
+    service = ScraperService(mock_db)
+
+    with patch("scraper.services.scraper_service.SCRAPER_MAP") as mock_scraper_map:
+        mock_scraper_class = MagicMock()
+        mock_scraper_instance = MagicMock()
+        mock_scraper_instance.scrape_courses = AsyncMock(side_effect=_EmptyStrError())
+        mock_scraper_class.return_value = mock_scraper_instance
+        mock_scraper_map.get.return_value = mock_scraper_class
+
+        result = await service.scrape_college("test", "CS")
+
+        assert result["success"] is False
+        assert result["outcome"] == "error"
+        assert result["error"]
+        assert result["error"].strip() != ""
+        assert "_EmptyStrError" in result["error"]
+        assert result["error"] != "Unknown error during scraping"

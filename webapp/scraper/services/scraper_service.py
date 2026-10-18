@@ -9,6 +9,7 @@ from models.college import College
 from models.course import Course
 from models.class_model import Class
 from models.enrollment import Enrollment
+from scraper.utils.errors import format_exception_message
 from scraper.scrapers.cornell import CornellScraper
 from scraper.scrapers.brown import BrownScraper
 from scraper.scrapers.bu import BuFetchError, BuScraper
@@ -311,7 +312,10 @@ class ScraperService:
             # Rollback any partial data transaction
             self.db.rollback()
 
-            logger.error(f"Scrape failed for {college_short_name} {department}: {e}")
+            logger.error(
+                f"Scrape failed for {college_short_name} {department}: "
+                f"{format_exception_message(e)}"
+            )
 
             duration = (datetime.now() - start_time).total_seconds()
 
@@ -329,15 +333,18 @@ class ScraperService:
                 outcome = "error"
                 logger.error(
                     f"BU ClassSearch fetch/parse error for {college_short_name} "
-                    f"{department}: {e}"
+                    f"{department}: {format_exception_message(e)}"
                 )
 
-            # Build detailed error message, including timeout info from OperationalError
-            error_message = str(e)
+            # Include type/repr when str(e) is empty (httpx transport errors).
+            # Keep OperationalError.orig details so timeout tests stay readable.
+            error_message = format_exception_message(e)
             if isinstance(e, OperationalError):
                 # Extract detailed error from orig attribute if available
                 if hasattr(e, "orig") and e.orig:
-                    error_message = f"{error_message} (orig: {e.orig})"
+                    orig_text = str(e.orig)
+                    if orig_text and orig_text not in error_message:
+                        error_message = f"{error_message} (orig: {e.orig})"
                 # Check for timeout/QueryCanceled patterns
                 error_lower = error_message.lower()
                 if "timeout" in error_lower or "querycanceled" in error_lower:

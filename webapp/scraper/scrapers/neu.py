@@ -2,8 +2,33 @@ from typing import List, Dict, Any, Optional
 import asyncio
 import httpx
 from scraper.base import BaseScraper
+from scraper.utils.errors import format_exception_message
 from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
+
+
+# Banner totalCount can shift slightly while pages are in flight.
+TOTAL_COUNT_DRIFT_RATIO = 0.02
+
+
+def _response_meta(response: Optional[httpx.Response]) -> str:
+    """HTTP status and body size for NEU Banner responses."""
+    if response is None:
+        return "status=None bytes=0"
+    size = len(response.content) if response.content is not None else 0
+    return f"status={response.status_code} bytes={size}"
+
+
+def _covers_reported_total(fetched: int, total_count: int) -> bool:
+    """Whether raw sections fetched are complete enough vs Banner totalCount.
+
+    Compares raw API rows (not transformed classes) and allows about 2%
+    shortfall because ``totalCount`` can change mid-run.
+    """
+    if total_count <= 0:
+        return True
+    allowed_shortfall = int(total_count * TOTAL_COUNT_DRIFT_RATIO)
+    return fetched >= total_count - allowed_shortfall
 
 
 class NeuScraper(BaseScraper):
@@ -63,17 +88,27 @@ class NeuScraper(BaseScraper):
             # Validate session
             test_response = await self._fetch_api_response(0, 1)
             if not test_response or not test_response.get("success"):
-                raise Exception(
+                raise RuntimeError(
                     "Session validation failed - API test call unsuccessful"
                 )
 
+            expected_total = test_response.get("totalCount") or 0
             logger.info(
                 f"Session validated successfully for term: {self.current_term} "
-                f"({test_response.get('totalCount', 0)} total sections available)"
+                f"({expected_total} total sections available)"
             )
 
             # Fetch all courses
             all_classes = await self._fetch_all_courses(limit)
+
+            # Transient empty/failed Banner responses used to return [] and get
+            # saved as a non-retryable 0-course "partial". Fail loud so the
+            # job wrapper retries instead of treating 0 as a completed scrape.
+            if not all_classes and expected_total > 0:
+                raise RuntimeError(
+                    f"NEU scrape returned 0 classes but session reported "
+                    f"{expected_total} sections for term {self.current_term}"
+                )
 
             # Group classes by course
             courses_data = self._group_classes_by_course(all_classes)
@@ -95,7 +130,9 @@ class NeuScraper(BaseScraper):
             return courses_data
 
         except Exception as e:
-            logger.error(f"Failed to scrape NEU {department}: {e}")
+            logger.error(
+                f"Failed to scrape NEU {department}: {format_exception_message(e)}"
+            )
             raise
         finally:
             if self.client:
@@ -165,6 +202,7 @@ class NeuScraper(BaseScraper):
         """
         try:
             all_classes = []
+            raw_sections_fetched = 0
             batch_size = 5  # Fetch 5 pages concurrently
             page_max_size = 500  # Banner 9 supports up to 500 records per page
             current_page = 1
@@ -174,14 +212,24 @@ class NeuScraper(BaseScraper):
 
             logger.info("Starting NEU API fetch (will continue until empty page found)")
 
-            # Get total count from first response
+            # Get total count from first response. A missing or failed first
+            # page is a transient upstream failure, not an empty catalog.
             first_response = await self._fetch_api_response(0, page_max_size)
-            if first_response:
-                total_count = first_response.get("totalCount", 0)
-                total_pages = (total_count + page_max_size - 1) // page_max_size
-                logger.info(
-                    f"Starting pagination: {total_count} total sections across {total_pages} pages"
+            if not first_response:
+                raise RuntimeError("NEU first page request returned no response")
+            if not first_response.get("success"):
+                raise RuntimeError(
+                    "NEU first page returned success=false "
+                    f"(totalCount={first_response.get('totalCount')})"
                 )
+
+            total_count = first_response.get("totalCount") or 0
+            total_pages = (
+                (total_count + page_max_size - 1) // page_max_size if total_count else 0
+            )
+            logger.info(
+                f"Starting pagination: {total_count} total sections across {total_pages} pages"
+            )
 
             while not empty_page_found:
                 # Calculate page range for this batch
@@ -205,20 +253,41 @@ class NeuScraper(BaseScraper):
 
                 # Process results and collect classes
                 for i, result in enumerate(batch_results):
+                    if empty_page_found:
+                        break
+
                     page_number = current_page + i
 
                     if isinstance(result, Exception):
-                        logger.warning(f"Page {page_number} failed: {result}")
-                        continue
+                        raise RuntimeError(
+                            f"NEU page {page_number} failed: "
+                            f"{format_exception_message(result)}"
+                        ) from result
                     elif result is not None and len(result) > 0:
-                        # Transform sections to classes
+                        # Count raw Banner rows for stop/raise. Transform may
+                        # skip sections (empty course code) so class count
+                        # can be lower than totalCount without being a failure.
+                        raw_sections_fetched += len(result)
                         scraped_classes = self._transform_sections_to_classes(result)
                         all_classes.extend(scraped_classes)
                         pages_fetched += 1
                         logger.info(
                             f"Page {page_number}: {len(result)} sections extracted"
                         )
+                        if total_count > 0 and raw_sections_fetched >= total_count:
+                            empty_page_found = True
                     else:
+                        # Empty page after we already have (nearly) all reported
+                        # raw sections is the normal end of pagination. An
+                        # empty page when we are still short beyond ~2% drift
+                        # is a transient failure.
+                        if total_count > 0 and not _covers_reported_total(
+                            raw_sections_fetched, total_count
+                        ):
+                            raise RuntimeError(
+                                f"NEU page {page_number} empty after "
+                                f"{raw_sections_fetched}/{total_count} sections"
+                            )
                         logger.info(f"Page {page_number}: Empty page found - stopping")
                         empty_page_found = True
 
@@ -227,9 +296,13 @@ class NeuScraper(BaseScraper):
 
                 # Show progress
                 if total_count > 0:
-                    progress = min(100, round((len(all_classes) / total_count) * 100))
+                    progress = min(
+                        100, round((raw_sections_fetched / total_count) * 100)
+                    )
                     logger.info(
-                        f"Progress: {pages_fetched} pages fetched, {len(all_classes)}/{total_count} sections ({progress}%)"
+                        f"Progress: {pages_fetched} pages fetched, "
+                        f"{raw_sections_fetched}/{total_count} raw sections "
+                        f"({progress}%), {len(all_classes)} classes"
                     )
                 else:
                     logger.info(
@@ -240,13 +313,20 @@ class NeuScraper(BaseScraper):
                 if not empty_page_found:
                     await asyncio.sleep(0.5)
 
+            if not all_classes and total_count > 0:
+                raise RuntimeError(
+                    f"NEU extracted 0 classes but API reported {total_count} sections"
+                )
+
             logger.info(
                 f"Extracted {len(all_classes)} classes total from {pages_fetched} pages"
             )
             return all_classes
 
         except Exception as e:
-            logger.error(f"Error during NEU API course fetch: {e}")
+            logger.error(
+                f"Error during NEU API course fetch: {format_exception_message(e)}"
+            )
             raise
 
     async def _fetch_sections_page(
@@ -260,7 +340,11 @@ class NeuScraper(BaseScraper):
             page_max_size: Maximum number of records per page
 
         Returns:
-            List of section dictionaries or None on error
+            List of section dictionaries, or an empty list at end of pagination
+
+        Raises:
+            RuntimeError: When the API reports success=false
+            httpx.HTTPError: On HTTP or transport failure
         """
         try:
             url = f"{self.BASE_API_URL}/searchResults/searchResults"
@@ -293,6 +377,9 @@ class NeuScraper(BaseScraper):
                 headers["Cookie"] = cookie_string
 
             response = await self.client.get(url, params=params, headers=headers)
+            logger.info(
+                f"NEU searchResults offset={page_offset}: {_response_meta(response)}"
+            )
             response.raise_for_status()
             self.request_count += 1
 
@@ -301,30 +388,38 @@ class NeuScraper(BaseScraper):
             logger.debug(
                 f"API Response - success: {api_response.get('success')}, "
                 f"totalCount: {api_response.get('totalCount')}, "
-                f"dataLength: {len(api_response.get('data', []))}"
+                f"dataLength: {len(api_response.get('data', []))}, "
+                f"{_response_meta(response)}"
             )
 
             if not api_response.get("success"):
-                logger.warning("API returned success: false")
-                return []
+                raise RuntimeError(
+                    f"NEU API returned success=false at offset {page_offset} "
+                    f"({_response_meta(response)})"
+                )
 
             data = api_response.get("data")
             if not data or len(data) == 0:
                 logger.info(
                     f"No data returned for page offset {page_offset} "
-                    f"(totalCount: {api_response.get('totalCount')})"
+                    f"(totalCount: {api_response.get('totalCount')}, "
+                    f"{_response_meta(response)})"
                 )
                 return []
 
             logger.info(
                 f"Successfully fetched {len(data)} sections from API "
-                f"(total available: {api_response.get('totalCount')})"
+                f"(total available: {api_response.get('totalCount')}, "
+                f"{_response_meta(response)})"
             )
             return data
 
         except Exception as e:
-            logger.error(f"Error fetching sections page at offset {page_offset}: {e}")
-            return None
+            logger.error(
+                f"Error fetching sections page at offset {page_offset}: "
+                f"{format_exception_message(e)}"
+            )
+            raise
 
     async def _fetch_api_response(
         self, page_offset: int, page_max_size: int
@@ -337,7 +432,10 @@ class NeuScraper(BaseScraper):
             page_max_size: Maximum number of records per page
 
         Returns:
-            API response dictionary or None on error
+            API response dictionary
+
+        Raises:
+            httpx.HTTPError: On HTTP or transport failure
         """
         try:
             url = f"{self.BASE_API_URL}/searchResults/searchResults"
@@ -365,13 +463,19 @@ class NeuScraper(BaseScraper):
                 headers["Cookie"] = cookie_string
 
             response = await self.client.get(url, params=params, headers=headers)
+            logger.info(
+                f"NEU searchResults (raw) offset={page_offset}: {_response_meta(response)}"
+            )
             response.raise_for_status()
 
             return self.decode_json_response(response)
 
         except Exception as e:
-            logger.error(f"Error fetching API response at offset {page_offset}: {e}")
-            return None
+            logger.error(
+                f"Error fetching API response at offset {page_offset}: "
+                f"{format_exception_message(e)}"
+            )
+            raise
 
     def _transform_sections_to_classes(
         self, sections: List[Dict[str, Any]]

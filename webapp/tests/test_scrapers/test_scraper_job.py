@@ -27,6 +27,13 @@ from models.college import College
 from scraper.scraper_lock import LockResult
 
 
+class _EmptyStrError(Exception):
+    """Mirrors httpx/httpcore transport disconnects whose str(e) is empty."""
+
+    def __str__(self) -> str:
+        return ""
+
+
 # Test fixtures
 @pytest.fixture
 def test_college():
@@ -807,6 +814,35 @@ class TestExecuteErrorHandling:
 
                     assert result.success is False
                     assert "Unexpected error" in result.error
+
+    @pytest.mark.asyncio
+    async def test_execute_formats_empty_str_exception(
+        self, test_college, mock_db, mock_lock, mock_log_service
+    ):
+        """Empty str(e) must log type/repr instead of 'Unknown error'."""
+        mock_scraper_service = AsyncMock()
+        mock_scraper_service.scrape_college = AsyncMock(side_effect=_EmptyStrError())
+
+        config = JobConfig(retry_attempts=1, retry_delay_ms=1)
+
+        with patch("scraper.scraper_job.ScraperLock", return_value=mock_lock):
+            with patch(
+                "scraper.scraper_job.ScraperLogService", return_value=mock_log_service
+            ):
+                with patch(
+                    "scraper.scraper_job.ScraperService",
+                    return_value=mock_scraper_service,
+                ):
+                    job = ScraperJob(test_college, mock_db, config)
+
+                    result = await job.execute()
+
+                    assert result.success is False
+                    assert result.error
+                    assert result.error.strip() != ""
+                    assert "_EmptyStrError" in result.error
+                    assert result.error != "Unknown error during scraping"
+                    assert "Unknown error" not in result.error
 
 
 # ============================================================================
