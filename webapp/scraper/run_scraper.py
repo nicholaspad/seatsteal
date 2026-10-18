@@ -13,7 +13,7 @@ import asyncio
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Dict
 from loguru import logger
@@ -23,11 +23,14 @@ from sqlalchemy import select, update
 webapp_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from db.session import SessionLocal
-from db.connection import engine
+# Scraper-only engine/session. Do not use db.session.SessionLocal here —
+# that binds to the shared FastAPI engine (Stripe webhooks, API writes).
+from scraper.db import scraper_engine as engine
+from scraper.db import ScraperSessionLocal as SessionLocal
 from models.college import College
 from models.scraper import Scraper
-from scraper.scraper_job import ScraperJob, JobConfig
+from scraper.scraper_job import ScraperJob, job_config_for_college
+from scraper.services.scraper_log import ScraperLogService
 
 
 class ScraperCLI:
@@ -44,6 +47,7 @@ class ScraperCLI:
         )
         # Track running college tasks: {college_id: asyncio.Task}
         self._running_tasks: Dict[int, asyncio.Task] = {}
+        self.process_started_at = datetime.now(timezone.utc)
 
     async def _run_single_job(
         self,
@@ -65,7 +69,7 @@ class ScraperCLI:
         # Each job gets its own database session for thread safety
         with SessionLocal() as db:
             try:
-                config = JobConfig(subject=subject, limit=limit)
+                config = job_config_for_college(college, subject=subject, limit=limit)
                 job = ScraperJob(college, db, config)
 
                 result = await job.execute()
@@ -139,7 +143,9 @@ class ScraperCLI:
                 return False
 
             # Create job with skip_lock=True for CLI runs
-            config = JobConfig(subject=subject, limit=limit, skip_lock=True)
+            config = job_config_for_college(
+                college, subject=subject, limit=limit, skip_lock=True
+            )
             job = ScraperJob(college, db, config)
 
             # Execute job
@@ -210,6 +216,26 @@ class ScraperCLI:
         logger.info(f"✅ All jobs completed: {successful} successful, {failed} failed")
 
         return {"total": len(colleges), "successful": successful, "failed": failed}
+
+    async def sweep_orphaned_running_logs(self) -> int:
+        """
+        On process start, mark leftover `running` scraper_logs rows as error.
+
+        Only updates scraper_logs. The scrapers table is handled separately
+        by reset_all_scrapers_to_idle.
+        """
+        try:
+            with SessionLocal() as db:
+                log_service = ScraperLogService(db)
+                orphan_count = await log_service.mark_orphaned_running_logs(
+                    self.process_started_at
+                )
+                db.commit()
+                return orphan_count
+        except Exception as e:
+            logger.error(f"❌ Error sweeping orphaned scraper_logs: {e}")
+            logger.warning("⚠️ Continuing with startup despite orphan sweep error")
+            return 0
 
     async def reset_all_scrapers_to_idle(self) -> None:
         """
@@ -392,7 +418,9 @@ class ScraperCLI:
             f"{interval_mins} minute interval per college)"
         )
 
-        # Reset all scrapers to idle on first bootup
+        # Mark leftover running logs from a previous process, then clear locks
+        logger.info("🧹 Sweeping orphaned scraper_logs rows on bootup...")
+        await self.sweep_orphaned_running_logs()
         logger.info("🔄 Resetting all scraper statuses to idle on bootup...")
         await self.reset_all_scrapers_to_idle()
 

@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from scraper.run_scraper import ScraperCLI
-from scraper.scraper_job import JobResult, JobConfig
+from scraper.scraper_job import JobResult, JobConfig, job_config_for_college
 from models.college import College
 
 
@@ -699,28 +699,31 @@ class TestRediscovery:
             ),
         ):
             with patch.object(
-                ScraperCLI, "_run_college_loop", new_callable=AsyncMock
-            ) as mock_loop:
+                ScraperCLI, "sweep_orphaned_running_logs", new_callable=AsyncMock
+            ):
                 with patch.object(
-                    ScraperCLI, "_supervisor_loop", new_callable=AsyncMock
-                ):
-                    # Mock the loop to create tasks but not run them
-                    mock_loop.return_value = None
+                    ScraperCLI, "_run_college_loop", new_callable=AsyncMock
+                ) as mock_loop:
+                    with patch.object(
+                        ScraperCLI, "_supervisor_loop", new_callable=AsyncMock
+                    ):
+                        # Mock the loop to create tasks but not run them
+                        mock_loop.return_value = None
 
-                    cli = ScraperCLI()
+                        cli = ScraperCLI()
 
-                    # Start loop in background with short timeout
-                    loop_task = asyncio.create_task(cli.loop())
-                    await asyncio.sleep(0.1)  # Let it initialize
-                    loop_task.cancel()
-                    try:
-                        await loop_task
-                    except asyncio.CancelledError:
-                        pass
+                        # Start loop in background with short timeout
+                        loop_task = asyncio.create_task(cli.loop())
+                        await asyncio.sleep(0.1)  # Let it initialize
+                        loop_task.cancel()
+                        try:
+                            await loop_task
+                        except asyncio.CancelledError:
+                            pass
 
-                    # Should only start loop for active college
-                    assert mock_loop.call_count == 1
-                    assert cli._running_tasks[1]  # Active college should be running
+                        # Should only start loop for active college
+                        assert mock_loop.call_count == 1
+                        assert cli._running_tasks[1]  # Active college should be running
 
     @pytest.mark.asyncio
     async def test_newly_activated_college_gets_started(self, mock_db):
@@ -760,29 +763,34 @@ class TestRediscovery:
             ),
         ):
             with patch.object(
-                ScraperCLI, "_run_college_loop", new_callable=AsyncMock
-            ) as mock_loop:
-                mock_loop.return_value = None
-                cli = ScraperCLI()
-                cli.rediscovery_interval_seconds = 0.05  # Fast rediscovery for testing
+                ScraperCLI, "sweep_orphaned_running_logs", new_callable=AsyncMock
+            ):
+                with patch.object(
+                    ScraperCLI, "_run_college_loop", new_callable=AsyncMock
+                ) as mock_loop:
+                    mock_loop.return_value = None
+                    cli = ScraperCLI()
+                    cli.rediscovery_interval_seconds = (
+                        0.05  # Fast rediscovery for testing
+                    )
 
-                # Start loop in background
-                loop_task = asyncio.create_task(cli.loop())
+                    # Start loop in background
+                    loop_task = asyncio.create_task(cli.loop())
 
-                # Wait for initialization + at least one rediscovery cycle
-                await asyncio.sleep(0.2)
+                    # Wait for initialization + at least one rediscovery cycle
+                    await asyncio.sleep(0.2)
 
-                # Cancel the loop
-                loop_task.cancel()
-                try:
-                    await loop_task
-                except asyncio.CancelledError:
-                    pass
+                    # Cancel the loop
+                    loop_task.cancel()
+                    try:
+                        await loop_task
+                    except asyncio.CancelledError:
+                        pass
 
-                # Should have started both colleges
-                assert mock_loop.call_count >= 2
-                # Both colleges should be in running tasks at some point
-                # (new_college added after rediscovery)
+                    # Should have started both colleges
+                    assert mock_loop.call_count >= 2
+                    # Both colleges should be in running tasks at some point
+                    # (new_college added after rediscovery)
 
     @pytest.mark.asyncio
     async def test_deactivated_college_gets_cancelled(self, mock_db):
@@ -877,26 +885,29 @@ class TestRediscovery:
             ),
         ):
             with patch.object(
-                ScraperCLI, "_run_college_loop", new_callable=AsyncMock
-            ) as mock_loop:
-                mock_loop.return_value = None
+                ScraperCLI, "sweep_orphaned_running_logs", new_callable=AsyncMock
+            ):
+                with patch.object(
+                    ScraperCLI, "_run_college_loop", new_callable=AsyncMock
+                ) as mock_loop:
+                    mock_loop.return_value = None
 
-                cli = ScraperCLI()
-                cli.rediscovery_interval_seconds = 0.05
+                    cli = ScraperCLI()
+                    cli.rediscovery_interval_seconds = 0.05
 
-                loop_task = asyncio.create_task(cli.loop())
+                    loop_task = asyncio.create_task(cli.loop())
 
-                # Wait for supervisor to run at least twice (once with error)
-                await asyncio.sleep(0.2)
+                    # Wait for supervisor to run at least twice (once with error)
+                    await asyncio.sleep(0.2)
 
-                # Supervisor should still be running despite error
-                assert not loop_task.done()
+                    # Supervisor should still be running despite error
+                    assert not loop_task.done()
 
-                loop_task.cancel()
-                try:
-                    await loop_task
-                except asyncio.CancelledError:
-                    pass
+                    loop_task.cancel()
+                    try:
+                        await loop_task
+                    except asyncio.CancelledError:
+                        pass
 
     @pytest.mark.asyncio
     async def test_rediscovery_interval_configurable(self):
@@ -912,3 +923,116 @@ class TestRediscovery:
         with patch.dict(os.environ, {}, clear=True):
             cli = ScraperCLI()
             assert cli.rediscovery_interval_seconds == 60
+
+
+# ============================================================================
+# Startup sweep + next-cycle after timeout
+# ============================================================================
+
+
+class TestOrphanSweepAndNextCycle:
+    """Startup orphan sweep and scheduler continuing after a timed-out run"""
+
+    @pytest.mark.asyncio
+    async def test_sweep_orphaned_running_logs_commits(self, mock_db):
+        mock_log_service = AsyncMock()
+        mock_log_service.mark_orphaned_running_logs = AsyncMock(return_value=3)
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch(
+                "scraper.run_scraper.ScraperLogService", return_value=mock_log_service
+            ):
+                cli = ScraperCLI()
+                count = await cli.sweep_orphaned_running_logs()
+
+        assert count == 3
+        mock_log_service.mark_orphaned_running_logs.assert_called_once_with(
+            cli.process_started_at
+        )
+        mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_loop_calls_orphan_sweep_before_starting_jobs(self, mock_db):
+        mock_result = Mock()
+        mock_result.scalars = Mock(return_value=Mock(all=Mock(return_value=[])))
+        mock_result.rowcount = 0
+        mock_db.execute = Mock(return_value=mock_result)
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch.object(
+                ScraperCLI, "sweep_orphaned_running_logs", new_callable=AsyncMock
+            ) as mock_sweep:
+                with patch.object(
+                    ScraperCLI, "_supervisor_loop", new_callable=AsyncMock
+                ):
+                    cli = ScraperCLI()
+                    loop_task = asyncio.create_task(cli.loop())
+                    await asyncio.sleep(0.05)
+                    loop_task.cancel()
+                    try:
+                        await loop_task
+                    except asyncio.CancelledError:
+                        pass
+
+                    mock_sweep.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_college_loop_starts_next_cycle_after_failed_job(
+        self, test_college, mock_db
+    ):
+        """After a timeout/failure, the per-college loop starts the next cycle."""
+        call_count = {"n": 0}
+
+        async def fail_then_stop(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] >= 2:
+                raise asyncio.CancelledError()
+            return False
+
+        cli = ScraperCLI()
+        cli.college_loop_interval_seconds = 0.01
+
+        with patch.object(cli, "_run_single_job", side_effect=fail_then_stop):
+            with pytest.raises(asyncio.CancelledError):
+                await cli._run_college_loop(test_college)
+
+        assert call_count["n"] >= 2
+
+    @pytest.mark.asyncio
+    async def test_run_single_job_uses_college_timeout(self, mock_db):
+        ncsu = College(id=9, name="NC State", short_name="ncsu", is_active=True)
+        mock_job = Mock()
+        mock_job.execute = AsyncMock(return_value=JobResult(success=True))
+        mock_job.cleanup = Mock()
+
+        with patch(
+            "scraper.run_scraper.SessionLocal",
+            return_value=MagicMock(
+                __enter__=Mock(return_value=mock_db), __exit__=Mock()
+            ),
+        ):
+            with patch(
+                "scraper.run_scraper.ScraperJob", return_value=mock_job
+            ) as MockJob:
+                cli = ScraperCLI()
+                await cli._run_single_job(ncsu)
+
+                config = MockJob.call_args[0][2]
+                assert config.run_timeout_minutes == 785
+                assert config.lock_timeout_ms == 785 * 60 * 1000
+
+    def test_job_config_helper_matches_run_scraper(self):
+        upenn = College(id=3, name="UPenn", short_name="upenn", is_active=True)
+        config = job_config_for_college(upenn, skip_lock=True)
+        assert config.run_timeout_minutes == 480
+        assert config.skip_lock is True
