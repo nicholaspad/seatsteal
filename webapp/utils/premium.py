@@ -2,7 +2,7 @@
 
 from typing import Literal
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, case, desc
 from uuid import UUID
 
 from models.stripe_subscription import StripeSubscription
@@ -11,6 +11,12 @@ from utils.cache import get_cached_user_tier, cache_user_tier
 
 # Subscription tier types
 SubscriptionTier = Literal["free", "plus", "pro"]
+
+# Stripe statuses that still count as a paid plan for tier lookup and
+# notification cadence. past_due is included while Stripe is retrying;
+# canceled / unpaid / incomplete_expired and anything else fall through
+# to free.
+PAID_STRIPE_STATUSES = ("active", "trialing", "past_due")
 
 
 # Feature limits per tier
@@ -36,8 +42,38 @@ TIER_FEATURES = {
 }
 
 
+def paid_stripe_plan_order():
+    """Order paid Stripe rows: pro before plus, then newest, then highest id."""
+    return (
+        case(
+            (StripeSubscription.tier == "pro", 0),
+            (StripeSubscription.tier == "plus", 1),
+            else_=2,
+        ),
+        desc(StripeSubscription.created_at),
+        desc(StripeSubscription.id),
+    )
+
+
+def paid_stripe_plan_subquery():
+    """One paid Stripe plan per user. Same ranking as get_user_subscription_tier."""
+    return (
+        select(
+            StripeSubscription.user_id,
+            StripeSubscription.tier,
+        )
+        .where(StripeSubscription.status.in_(PAID_STRIPE_STATUSES))
+        .distinct(StripeSubscription.user_id)
+        .order_by(
+            StripeSubscription.user_id,
+            *paid_stripe_plan_order(),
+        )
+        .subquery()
+    )
+
+
 def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
-    """Get the subscription tier for a user based on their active Stripe subscription"""
+    """Get the subscription tier for a user based on their paid Stripe plan"""
     user_id_str = str(user_id)
 
     # Try to get tier from cache first (300s TTL)
@@ -45,16 +81,16 @@ def get_user_subscription_tier(user_id: UUID, db: Session) -> SubscriptionTier:
     if cached_tier:
         return cached_tier  # type: ignore
 
-    # Cache miss - query for active Stripe subscription
+    # Cache miss - query for the highest paid Stripe plan
     result = db.execute(
         select(StripeSubscription)
         .where(
             and_(
                 StripeSubscription.user_id == user_id,
-                StripeSubscription.status.in_(["active", "trialing"]),
+                StripeSubscription.status.in_(PAID_STRIPE_STATUSES),
             )
         )
-        .order_by(StripeSubscription.created_at.desc(), StripeSubscription.id.desc())
+        .order_by(*paid_stripe_plan_order())
         .limit(1)
     )
     subscription = result.scalar_one_or_none()
