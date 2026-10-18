@@ -11,7 +11,12 @@ from pathlib import Path
 webapp_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from scraper.scrapers.neu import NeuScraper, _response_meta
+from scraper.scrapers.neu import (
+    NeuScraper,
+    TOTAL_COUNT_DRIFT_RATIO,
+    _covers_reported_total,
+    _response_meta,
+)
 from models.college import College
 from tests.test_scrapers.conftest import create_mock_response
 
@@ -599,3 +604,107 @@ class TestNeuScraper:
                         RuntimeError, match="0 classes but session reported 3400"
                     ):
                         await scraper.scrape_courses("ALL")
+
+    @pytest.mark.unit
+    async def test_fetch_all_courses_succeeds_when_one_section_has_no_course_code(
+        self, mock_neu_db_session
+    ):
+        """Skipped transforms must not compare class count to Banner totalCount."""
+        scraper = NeuScraper(mock_neu_db_session)
+        sections = SAMPLE_NEU_SECTIONS + [
+            {
+                "courseReferenceNumber": "99999",
+                "subject": "",
+                "courseNumber": "",
+                "courseTitle": "Missing Data",
+                "sequenceNumber": "01",
+                "openSection": True,
+            }
+        ]
+
+        with patch.object(scraper, "_fetch_api_response") as mock_first:
+            mock_first.return_value = {
+                "success": True,
+                "totalCount": 5,
+                "data": sections,
+            }
+            with patch.object(scraper, "_fetch_sections_page") as mock_fetch:
+                mock_fetch.return_value = sections
+
+                result = await scraper._fetch_all_courses()
+
+        # 5 raw sections fetched; 1 skipped; 4 transformed classes remain.
+        assert len(result) == 4
+        assert all(item["course_code"] for item in result)
+
+    @pytest.mark.unit
+    async def test_fetch_all_courses_allows_total_count_drift(
+        self, mock_neu_db_session
+    ):
+        """Empty last page within ~2% of totalCount is not a transient failure."""
+        scraper = NeuScraper(mock_neu_db_session)
+        total_count = 100
+        allowed_shortfall = int(total_count * TOTAL_COUNT_DRIFT_RATIO)
+        fetched = total_count - allowed_shortfall
+        assert _covers_reported_total(fetched, total_count)
+        assert not _covers_reported_total(fetched - 1, total_count)
+
+        sections = [
+            {
+                "courseReferenceNumber": str(10000 + i),
+                "subject": "CS",
+                "courseNumber": str(2000 + i),
+                "courseTitle": f"Course {i}",
+                "sequenceNumber": "01",
+                "openSection": True,
+            }
+            for i in range(fetched)
+        ]
+
+        with patch.object(scraper, "_fetch_api_response") as mock_first:
+            mock_first.return_value = {
+                "success": True,
+                "totalCount": total_count,
+                "data": sections,
+            }
+            with patch.object(scraper, "_fetch_sections_page") as mock_fetch:
+                mock_fetch.side_effect = [sections, []]
+
+                result = await scraper._fetch_all_courses()
+
+        assert len(result) == fetched
+
+    @pytest.mark.unit
+    async def test_fetch_all_courses_raises_when_shortfall_exceeds_drift(
+        self, mock_neu_db_session
+    ):
+        """Shortfall beyond ~2% of totalCount is still a transient empty error."""
+        scraper = NeuScraper(mock_neu_db_session)
+        total_count = 100
+        allowed_shortfall = int(total_count * TOTAL_COUNT_DRIFT_RATIO)
+        fetched = total_count - allowed_shortfall - 1
+        sections = [
+            {
+                "courseReferenceNumber": str(10000 + i),
+                "subject": "CS",
+                "courseNumber": str(2000 + i),
+                "courseTitle": f"Course {i}",
+                "sequenceNumber": "01",
+                "openSection": True,
+            }
+            for i in range(fetched)
+        ]
+
+        with patch.object(scraper, "_fetch_api_response") as mock_first:
+            mock_first.return_value = {
+                "success": True,
+                "totalCount": total_count,
+                "data": sections,
+            }
+            with patch.object(scraper, "_fetch_sections_page") as mock_fetch:
+                mock_fetch.side_effect = [sections, []]
+
+                with pytest.raises(
+                    RuntimeError, match=f"empty after {fetched}/{total_count}"
+                ):
+                    await scraper._fetch_all_courses()

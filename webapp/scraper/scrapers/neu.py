@@ -7,12 +7,28 @@ from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
 
 
+# Banner totalCount can shift slightly while pages are in flight.
+TOTAL_COUNT_DRIFT_RATIO = 0.02
+
+
 def _response_meta(response: Optional[httpx.Response]) -> str:
     """HTTP status and body size for NEU Banner responses."""
     if response is None:
         return "status=None bytes=0"
     size = len(response.content) if response.content is not None else 0
     return f"status={response.status_code} bytes={size}"
+
+
+def _covers_reported_total(fetched: int, total_count: int) -> bool:
+    """Whether raw sections fetched are complete enough vs Banner totalCount.
+
+    Compares raw API rows (not transformed classes) and allows about 2%
+    shortfall because ``totalCount`` can change mid-run.
+    """
+    if total_count <= 0:
+        return True
+    allowed_shortfall = int(total_count * TOTAL_COUNT_DRIFT_RATIO)
+    return fetched >= total_count - allowed_shortfall
 
 
 class NeuScraper(BaseScraper):
@@ -186,6 +202,7 @@ class NeuScraper(BaseScraper):
         """
         try:
             all_classes = []
+            raw_sections_fetched = 0
             batch_size = 5  # Fetch 5 pages concurrently
             page_max_size = 500  # Banner 9 supports up to 500 records per page
             current_page = 1
@@ -247,23 +264,29 @@ class NeuScraper(BaseScraper):
                             f"{format_exception_message(result)}"
                         ) from result
                     elif result is not None and len(result) > 0:
-                        # Transform sections to classes
+                        # Count raw Banner rows for stop/raise. Transform may
+                        # skip sections (empty course code) so class count
+                        # can be lower than totalCount without being a failure.
+                        raw_sections_fetched += len(result)
                         scraped_classes = self._transform_sections_to_classes(result)
                         all_classes.extend(scraped_classes)
                         pages_fetched += 1
                         logger.info(
                             f"Page {page_number}: {len(result)} sections extracted"
                         )
-                        if total_count > 0 and len(all_classes) >= total_count:
+                        if total_count > 0 and raw_sections_fetched >= total_count:
                             empty_page_found = True
                     else:
-                        # Empty page after we already have all reported sections
-                        # is the normal end of pagination. An empty page when
-                        # we still expect data is a transient failure.
-                        if total_count > 0 and len(all_classes) < total_count:
+                        # Empty page after we already have (nearly) all reported
+                        # raw sections is the normal end of pagination. An
+                        # empty page when we are still short beyond ~2% drift
+                        # is a transient failure.
+                        if total_count > 0 and not _covers_reported_total(
+                            raw_sections_fetched, total_count
+                        ):
                             raise RuntimeError(
                                 f"NEU page {page_number} empty after "
-                                f"{len(all_classes)}/{total_count} sections"
+                                f"{raw_sections_fetched}/{total_count} sections"
                             )
                         logger.info(f"Page {page_number}: Empty page found - stopping")
                         empty_page_found = True
@@ -273,9 +296,13 @@ class NeuScraper(BaseScraper):
 
                 # Show progress
                 if total_count > 0:
-                    progress = min(100, round((len(all_classes) / total_count) * 100))
+                    progress = min(
+                        100, round((raw_sections_fetched / total_count) * 100)
+                    )
                     logger.info(
-                        f"Progress: {pages_fetched} pages fetched, {len(all_classes)}/{total_count} sections ({progress}%)"
+                        f"Progress: {pages_fetched} pages fetched, "
+                        f"{raw_sections_fetched}/{total_count} raw sections "
+                        f"({progress}%), {len(all_classes)} classes"
                     )
                 else:
                     logger.info(
