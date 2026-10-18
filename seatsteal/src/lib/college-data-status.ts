@@ -12,6 +12,12 @@ export function isCheckoutBlocked(
   return college?.checkoutBlocked === true;
 }
 
+export function isCollegeInactive(
+  college?: Pick<College, "isActive"> | null,
+): boolean {
+  return college?.isActive === false;
+}
+
 export function getCollegeDataStatus(
   college?: Pick<College, "dataStatus"> | null,
 ): CollegeDataStatus {

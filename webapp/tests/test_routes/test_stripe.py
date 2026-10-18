@@ -255,14 +255,14 @@ class TestCreateCheckoutSession:
         mock_checkout.assert_called_once()
 
     @pytest.mark.unit
-    async def test_create_checkout_session_allows_inactive_college(
+    async def test_create_checkout_session_refuses_inactive_college(
         self,
         authenticated_client: AsyncClient,
         test_db: Session,
         test_user: Profile,
         test_college: College,
     ):
-        """Users left on a dropped school must still be able to check out."""
+        """Users left on a dropped school cannot start Plus/Pro checkout."""
         test_college.is_active = False
         test_db.add(
             Scraper(
@@ -283,10 +283,6 @@ class TestCreateCheckoutSession:
         with patch("api.routes.stripe.create_checkout_session") as mock_checkout, patch(
             "api.routes.stripe.get_price_id_for_tier"
         ) as mock_price:
-            mock_session = MagicMock()
-            mock_session.id = "cs_inactive_college"
-            mock_session.url = "https://checkout.stripe.com/inactive"
-            mock_checkout.return_value = mock_session
             mock_price.return_value = "price_test123"
 
             response = await authenticated_client.post(
@@ -294,9 +290,12 @@ class TestCreateCheckoutSession:
                 json={"tier": "plus"},
             )
 
-        assert response.status_code == 200
-        assert response.json()["data"]["sessionId"] == "cs_inactive_college"
-        mock_checkout.assert_called_once()
+        assert response.status_code == 409
+        detail = response.json()["detail"]
+        assert detail["code"] == "SCHOOL_INACTIVE"
+        assert "not available" in detail["message"]
+        assert "temporarily unavailable" not in detail["message"]
+        mock_checkout.assert_not_called()
 
     @pytest.mark.unit
     async def test_create_checkout_session_fails_open_on_status_error(

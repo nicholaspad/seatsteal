@@ -19,9 +19,11 @@ import { useCollegeDataStatus } from "@/hooks/use-college-data-status";
 export function PricingTiers() {
   const history = useHistory();
   const { profile } = useSession();
-  const { college: userCollege, checkoutBlocked } = useCollegeDataStatus(
-    profile?.collegeId,
-  );
+  const {
+    college: userCollege,
+    checkoutBlocked,
+    schoolInactive,
+  } = useCollegeDataStatus(profile?.collegeId);
   const [loading, setLoading] = useState<string | null>(null);
   const [billingInterval, setBillingInterval] =
     useState<BillingInterval>("monthly");
@@ -187,7 +189,17 @@ export function PricingTiers() {
         </div>
       </div>
 
-      {checkoutBlocked && (
+      {schoolInactive && (
+        <p
+          className="text-center text-sm text-muted-foreground"
+          data-testid="inactive-school-plan-note"
+        >
+          Plus and Pro are not available for{" "}
+          {userCollege?.name ?? "your school"}.
+        </p>
+      )}
+
+      {checkoutBlocked && !schoolInactive && (
         <p
           className="text-center text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-4 py-3"
           data-testid="stale-school-checkout-note"
@@ -244,26 +256,32 @@ export function PricingTiers() {
                   </li>
                 ))}
               </ul>
-              <Button
-                className="w-full mt-4"
-                variant={tier.popular ? "default" : "outline"}
-                onClick={() => handleSubscribe(tier.id)}
-                disabled={
-                  loading === tier.id || (checkoutBlocked && tier.id !== "free")
-                }
-              >
-                {loading === tier.id ? (
-                  <>
-                    <Spinner className="size-4 mr-2" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    {tier.cta}
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </>
-                )}
-              </Button>
+              {!(
+                schoolInactive &&
+                (tier.id === "plus" || tier.id === "pro")
+              ) && (
+                <Button
+                  className="w-full mt-4"
+                  variant={tier.popular ? "default" : "outline"}
+                  onClick={() => handleSubscribe(tier.id)}
+                  disabled={
+                    loading === tier.id ||
+                    (checkoutBlocked && tier.id !== "free")
+                  }
+                >
+                  {loading === tier.id ? (
+                    <>
+                      <Spinner className="size-4 mr-2" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      {tier.cta}
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))}

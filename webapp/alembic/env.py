@@ -22,6 +22,7 @@ from models.subscription import Subscription
 from models.user import Profile
 from models.scraper_log import ScraperLog
 from models.enrollment import Enrollment
+from models.college_data_waitlist import CollegeDataWaitlist
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

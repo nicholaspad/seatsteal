@@ -4,6 +4,7 @@ import { fetchWithToasts, ServerErrorWithToast } from "@/lib/api";
 import {
   isCheckoutBlocked,
   isCollegeDataStale,
+  isCollegeInactive,
 } from "@/lib/college-data-status";
 import { logError } from "@/lib/logger";
 
@@ -47,5 +48,6 @@ export function useCollegeDataStatus(collegeId?: number | null) {
     loading,
     isStale: isCollegeDataStale(college),
     checkoutBlocked: isCheckoutBlocked(college),
+    schoolInactive: isCollegeInactive(college),
   };
 }

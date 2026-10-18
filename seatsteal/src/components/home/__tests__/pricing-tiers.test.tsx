@@ -580,6 +580,8 @@ describe("PricingTiers", () => {
     const mockCollege = async (college: {
       dataStatus: "ok" | "stale";
       checkoutBlocked?: boolean;
+      isActive?: boolean;
+      name?: string;
     }) => {
       globalThis.__mockSessionState.user = {
         id: "user123",
@@ -590,7 +592,7 @@ describe("PricingTiers", () => {
         phone: "",
         role: "user",
         collegeId: 1,
-        collegeName: "UIUC",
+        collegeName: college.name ?? "UIUC",
       };
 
       const { fetchWithToasts } = await import("@/lib/api");
@@ -602,7 +604,8 @@ describe("PricingTiers", () => {
               success: true,
               data: {
                 id: 1,
-                name: "University of Illinois",
+                name: college.name ?? "University of Illinois",
+                isActive: college.isActive ?? true,
                 dataStatus: college.dataStatus,
                 checkoutBlocked: college.checkoutBlocked ?? false,
                 lastUpdatedAt: "2026-10-16T12:00:00Z",
@@ -657,6 +660,35 @@ describe("PricingTiers", () => {
       });
       expect(subscribeButtons[0]).not.toBeDisabled();
       expect(subscribeButtons[1]).not.toBeDisabled();
+    });
+
+    it("hides Plus/Pro buttons for an inactive profile college", async () => {
+      await mockCollege({
+        dataStatus: "ok",
+        isActive: false,
+        name: "Brown University",
+      });
+
+      render(<PricingTiers />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("inactive-school-plan-note"),
+        ).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(/Plus and Pro are not available for Brown University/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/temporarily unavailable/i),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /subscribe/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /get started/i }),
+      ).toBeInTheDocument();
     });
   });
 });

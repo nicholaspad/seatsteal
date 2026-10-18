@@ -228,6 +228,7 @@ export function CourseDetails({
 
       {dataStale && localCourse.college && (
         <SchoolDataUnavailableBanner
+          collegeId={localCourse.college.id}
           schoolName={localCourse.college.name}
           lastUpdatedAt={
             localCourse.college.lastUpdatedAt ?? localCourse.lastScraperUpdate

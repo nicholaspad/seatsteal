@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from models.college import College
 from models.scraper import Scraper
 from models.scraper_log import ScraperLog
+from models.user import Profile
 
 
 class TestGetColleges:
@@ -274,3 +275,159 @@ class TestCollegeDataStatusApi:
         assert data["isActive"] is False
         assert data["dataStatus"] == "ok"
         assert data["checkoutBlocked"] is False
+
+
+class TestCollegeDataWaitlist:
+    """Tests for POST /api/colleges/{id}/data-waitlist."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_rate_limit(self):
+        from utils.college_data_waitlist import reset_waitlist_rate_limiter
+
+        reset_waitlist_rate_limiter()
+        yield
+        reset_waitlist_rate_limiter()
+
+    @pytest.mark.unit
+    async def test_signed_in_signup(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        test_college: College,
+    ):
+        response = await authenticated_client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={},
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+        from models.college_data_waitlist import CollegeDataWaitlist
+
+        rows = test_db.query(CollegeDataWaitlist).all()
+        assert len(rows) == 1
+        assert rows[0].user_id == test_user.id
+        assert rows[0].email == test_user.email
+        assert rows[0].notified_at is None
+
+    @pytest.mark.unit
+    async def test_signed_out_signup(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        response = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={"email": "visitor@example.com"},
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+        from models.college_data_waitlist import CollegeDataWaitlist
+
+        rows = test_db.query(CollegeDataWaitlist).all()
+        assert len(rows) == 1
+        assert rows[0].user_id is None
+        assert rows[0].email == "visitor@example.com"
+
+    @pytest.mark.unit
+    async def test_signed_in_dedupe(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        first = await authenticated_client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={},
+        )
+        second = await authenticated_client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={},
+        )
+        assert first.status_code == 200
+        assert second.status_code == 200
+
+        from models.college_data_waitlist import CollegeDataWaitlist
+
+        assert test_db.query(CollegeDataWaitlist).count() == 1
+
+    @pytest.mark.unit
+    async def test_email_dedupe_is_case_insensitive(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+        test_college: College,
+    ):
+        first = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={"email": "Visitor@Example.com"},
+        )
+        second = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={"email": "visitor@example.com"},
+        )
+        assert first.status_code == 200
+        assert second.status_code == 200
+
+        from models.college_data_waitlist import CollegeDataWaitlist
+
+        assert test_db.query(CollegeDataWaitlist).count() == 1
+
+    @pytest.mark.unit
+    async def test_invalid_email(
+        self,
+        client: AsyncClient,
+        test_college: College,
+    ):
+        response = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={"email": "not-an-email"},
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.unit
+    async def test_signed_out_requires_email(
+        self,
+        client: AsyncClient,
+        test_college: College,
+    ):
+        response = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={},
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.unit
+    async def test_unknown_college(
+        self,
+        client: AsyncClient,
+    ):
+        response = await client.post(
+            "/api/colleges/99999/data-waitlist",
+            json={"email": "visitor@example.com"},
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.unit
+    async def test_rate_limited(
+        self,
+        client: AsyncClient,
+        test_college: College,
+    ):
+        from utils.college_data_waitlist import WAITLIST_RATE_LIMIT
+
+        for i in range(WAITLIST_RATE_LIMIT):
+            response = await client.post(
+                f"/api/colleges/{test_college.id}/data-waitlist",
+                json={"email": f"visitor{i}@example.com"},
+            )
+            assert response.status_code == 200
+
+        response = await client.post(
+            f"/api/colleges/{test_college.id}/data-waitlist",
+            json={"email": "toomany@example.com"},
+        )
+        assert response.status_code == 429

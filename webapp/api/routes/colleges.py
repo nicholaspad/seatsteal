@@ -1,15 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 import json
 
 from db.session import get_db
 from models.college import College
+from models.user import Profile
+from api.middleware.auth import get_optional_user
 from utils.cache import CacheClient, _make_cache_key, _serialize_for_cache
 from utils.college_data_status import (
     apply_data_status_map,
     get_colleges_data_status,
     overlay_data_status_on_college_dicts,
+)
+from utils.college_data_waitlist import (
+    register_waitlist,
+    waitlist_rate_limited,
 )
 from utils.errors import log_and_raise_500
 from loguru import logger
@@ -133,3 +141,58 @@ async def get_college(college_id: int, db: Session = Depends(get_db)):
             logger.error(f"Cache write error: {e}")
 
     return response
+
+
+class DataWaitlistRequest(BaseModel):
+    email: Optional[EmailStr] = None
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
+@router.post("/{college_id}/data-waitlist")
+async def join_college_data_waitlist(
+    college_id: int,
+    request: Request,
+    body: Optional[DataWaitlistRequest] = None,
+    user: Optional[Profile] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """Register interest when a college's seat data is unavailable.
+
+    Auth is optional. Signed-in users are stored by user_id (and email).
+    Signed-out visitors must provide a valid email. Duplicate signups
+    return 200. Never deletes existing rows.
+    """
+    college = db.get(College, college_id)
+    if not college:
+        raise HTTPException(status_code=404, detail="College not found")
+
+    client_ip = _client_ip(request)
+    if waitlist_rate_limited(client_ip, college_id):
+        raise HTTPException(status_code=429, detail="Too many requests")
+
+    if user is None:
+        email = body.email if body is not None else None
+        if not email:
+            raise HTTPException(
+                status_code=422,
+                detail="Email is required",
+            )
+        try:
+            register_waitlist(db, college_id, email=str(email))
+        except Exception as e:
+            log_and_raise_500("Failed to join data waitlist", e)
+        return {"success": True}
+
+    try:
+        register_waitlist(db, college_id, user=user)
+    except Exception as e:
+        log_and_raise_500("Failed to join data waitlist", e)
+    return {"success": True}

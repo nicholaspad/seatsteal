@@ -270,6 +270,7 @@ export default function Courses() {
 
               {dataStale && selectedCollege && (
                 <SchoolDataUnavailableBanner
+                  collegeId={selectedCollege.id}
                   schoolName={selectedCollege.name}
                   lastUpdatedAt={selectedCollege.lastUpdatedAt}
                 />

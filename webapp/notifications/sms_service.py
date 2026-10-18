@@ -131,6 +131,28 @@ class SMSService:
             logger.error(f"Failed to send SMS to {to_phone}: {e}")
             return False
 
+    def send_data_restored_notification(self, to_phone: str, college_name: str) -> bool:
+        """Send a one-time SMS that a school's seat data is available again."""
+        if not self.is_enabled:
+            logger.warning("SMS service not enabled, skipping data-restored SMS")
+            return False
+
+        if not to_phone:
+            logger.warning("No phone number provided, skipping data-restored SMS")
+            return False
+
+        normalized_phone = self._normalize_phone(to_phone)
+        if not normalized_phone:
+            logger.warning(f"Invalid phone number format: {to_phone}")
+            return False
+
+        message = f"SeatSteal: Seat data for {college_name} is back."
+        if len(message) > self.MAX_SMS_LENGTH:
+            message = message[: self.MAX_SMS_LENGTH - 1] + "…"
+
+        self._wait_for_rate_limit()
+        return self._send_raw(normalized_phone, message)
+
     def send_course_notification(
         self,
         to_phone: str,

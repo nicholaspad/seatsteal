@@ -76,6 +76,33 @@ class NotificationJob:
 
             # Find notifications to send based on current minute
             with SessionLocal() as db:
+                # Lightweight periodic recovery for stale-data waitlists.
+                # Isolated from the scraper write path; failures never block
+                # seat-alert sending.
+                try:
+                    from utils.college_data_waitlist import (
+                        notify_recovered_college_waitlists,
+                    )
+
+                    waitlist_result = notify_recovered_college_waitlists(
+                        db,
+                        dry_run=self.dry_run,
+                        email_service=self.email_service,
+                        sms_service=self.sms_service,
+                    )
+                    if waitlist_result.get("sent") or waitlist_result.get("failed"):
+                        logger.info(
+                            "📬 Waitlist recovery: sent={} failed={} examined={}",
+                            waitlist_result.get("sent", 0),
+                            waitlist_result.get("failed", 0),
+                            waitlist_result.get("examined", 0),
+                        )
+                except Exception as e:
+                    logger.exception(
+                        "College data waitlist recovery failed (non-blocking): {}",
+                        e,
+                    )
+
                 notifications = self._find_notifications_to_send(db)
 
                 if not notifications:

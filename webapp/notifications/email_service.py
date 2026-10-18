@@ -418,6 +418,59 @@ View courses: {settings.effective_frontend_url}/courses
             logger.error(f"Unexpected error sending referral email to {to_email}: {e}")
             return False
 
+    async def send_data_restored_notification(
+        self, to_email: str, college_name: str
+    ) -> bool:
+        """Send a one-time notice that a school's seat data is available again."""
+        if not self.is_enabled:
+            logger.warning(
+                f"Cannot send data-restored email to {to_email}: email service not configured"
+            )
+            return False
+
+        try:
+            subject = f"Seat data is back for {college_name}"
+            html_body = f"""
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2>Seat data is back</h2>
+    <p>Seat data for <strong>{college_name}</strong> is available again on SeatSteal.</p>
+    <p><a href="{settings.effective_frontend_url}/courses">Browse courses</a></p>
+    <p style="font-size: 12px; color: #999; margin-top: 30px;">
+        SeatSteal
+    </p>
+</body>
+</html>
+"""
+            text_body = (
+                f"Seat data for {college_name} is available again on SeatSteal.\n\n"
+                f"{settings.effective_frontend_url}/courses\n"
+            )
+            response = self.ses_client.send_email(
+                Source=self.from_email,
+                Destination={"ToAddresses": [to_email]},
+                Message={
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {
+                        "Html": {"Data": html_body, "Charset": "UTF-8"},
+                        "Text": {"Data": text_body, "Charset": "UTF-8"},
+                    },
+                },
+            )
+            logger.info(
+                f"Sent data-restored email to {to_email} for {college_name}: "
+                f"{response['MessageId']}"
+            )
+            return True
+        except ClientError as e:
+            logger.error(f"Failed to send data-restored email to {to_email}: {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected error sending data-restored email to {to_email}: {e}"
+            )
+            return False
+
     def verify_email_address(self, email: str) -> bool:
         """
         Verify an email address with AWS SES (required for sandbox mode).
