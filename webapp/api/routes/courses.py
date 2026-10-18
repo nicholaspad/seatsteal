@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager, joinedload
 from sqlalchemy import select, func, or_, and_, text
 from typing import Optional
 import math
@@ -106,8 +106,8 @@ async def get_courses(
             logger.error(f"Cache read error: {e}")
 
     try:
-        # Build base query
-        conditions = [Course.is_active == True]
+        # Build base query. Browse/search never includes dropped schools.
+        conditions = [Course.is_active == True, College.is_active == True]
 
         if college_id and college_id != 0:
             conditions.append(Course.college_id == college_id)
@@ -133,7 +133,12 @@ async def get_courses(
             search_query = combined_similarity
 
         # Get total count
-        count_query = select(func.count()).select_from(Course).where(and_(*conditions))
+        count_query = (
+            select(func.count())
+            .select_from(Course)
+            .join(College, Course.college_id == College.id)
+            .where(and_(*conditions))
+        )
         total_result = db.execute(count_query)
         total = total_result.scalar()
 
@@ -143,7 +148,8 @@ async def get_courses(
         # Get courses with college
         courses_query = (
             select(Course)
-            .options(joinedload(Course.college))
+            .join(College, Course.college_id == College.id)
+            .options(contains_eager(Course.college))
             .where(and_(*conditions))
             .order_by(
                 search_query.desc() if search_query is not None else Course.course_code

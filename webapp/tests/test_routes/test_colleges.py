@@ -244,3 +244,33 @@ class TestCollegeDataStatusApi:
         college = next(c for c in response.json()["data"] if c["id"] == test_college.id)
         assert college["dataStatus"] == "stale"
         assert college["checkoutBlocked"] is True
+
+    @pytest.mark.unit
+    async def test_inactive_college_detail_stays_ok_with_stale_logs(
+        self,
+        client: AsyncClient,
+        test_db: Session,
+    ):
+        inactive_college = College(
+            name="Brown University",
+            short_name="brown",
+            is_active=False,
+        )
+        test_db.add(inactive_college)
+        test_db.commit()
+        test_db.refresh(inactive_college)
+        test_db.add(
+            Scraper(
+                college_id=inactive_college.id,
+                status="error",
+                last_success_at=datetime.now(timezone.utc) - timedelta(days=300),
+            )
+        )
+        test_db.commit()
+
+        response = await client.get(f"/api/colleges/{inactive_college.id}")
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["isActive"] is False
+        assert data["dataStatus"] == "ok"
+        assert data["checkoutBlocked"] is False

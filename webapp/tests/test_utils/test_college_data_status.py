@@ -151,6 +151,21 @@ class TestDeriveCollegeDataStatus:
         assert status.last_updated_at is None
 
     @pytest.mark.unit
+    def test_inactive_college_stays_ok_despite_stale_logs(self):
+        last_success = NOW - timedelta(days=300)
+        status = derive_college_data_status(
+            is_active=False,
+            data_available=False,
+            has_scraper=True,
+            last_success_at=last_success,
+            recent_runs=[("error", 0), ("error", 0)],
+            now=NOW,
+        )
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
+        assert status.last_updated_at == last_success
+
+    @pytest.mark.unit
     def test_custom_stale_window(self):
         status = derive_college_data_status(
             has_scraper=True,
@@ -450,3 +465,32 @@ class TestGetCollegeDataStatusFromDb:
         assert status_map[test_college.id].checkout_blocked is True
         assert status_map[other.id].data_status == "ok"
         assert status_map[other.id].checkout_blocked is False
+
+    @pytest.mark.unit
+    def test_inactive_college_with_stale_error_logs_is_ok(
+        self, test_db: Session, test_college: College
+    ):
+        """Dropped schools (Brown/UF) must not show a banner or block checkout."""
+        last_success = NOW - timedelta(days=300)
+        test_college.is_active = False
+        test_db.commit()
+        scraper = _add_scraper(test_db, test_college, last_success_at=last_success)
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(days=2),
+        )
+        _add_log(
+            test_db,
+            scraper,
+            outcome="error",
+            courses_created=0,
+            started_at=NOW - timedelta(hours=1),
+        )
+
+        status = get_college_data_status(test_db, test_college, now=NOW)
+        assert status.data_status == "ok"
+        assert status.checkout_blocked is False
+        assert status.last_updated_at == last_success

@@ -16,7 +16,10 @@ checkout.
 
 A single error or 0-course partial does not flag the school. Colleges
 with no scraper row are left ``ok`` so brand-new schools are not
-flagged before their first run. Notification sending is not affected.
+flagged before their first run. Inactive / dropped colleges
+(``is_active=false``) stay ``ok`` with checkout allowed so leftover
+profiles (e.g. Brown, UF) never see the banner or a pricing pause.
+Notification sending is not affected.
 """
 
 from __future__ import annotations
@@ -98,6 +101,7 @@ def derive_college_data_status(
     recent_runs: Optional[Sequence[tuple[Optional[str], int]]] = None,
     now: Optional[datetime] = None,
     stale_after_hours: Optional[float] = None,
+    is_active: bool = True,
 ) -> CollegeDataStatus:
     """Pure derivation used by the API and tests.
 
@@ -109,9 +113,18 @@ def derive_college_data_status(
     ``checkout_blocked`` follows only the admin flag and the 24h
     no-success window. Two consecutive failed-empty runs set
     ``data_status`` to stale without blocking checkout.
+
+    Inactive colleges always return ``ok`` / not checkout-blocked,
+    regardless of scraper health or the admin availability flag.
     """
     now_utc = _as_utc(now) or datetime.now(timezone.utc)
     last_success = _as_utc(last_success_at)
+    if not is_active:
+        return CollegeDataStatus(
+            data_status="ok",
+            last_updated_at=last_success,
+            checkout_blocked=False,
+        )
     window_hours = (
         DEFAULT_STALE_AFTER_HOURS
         if stale_after_hours is None
@@ -237,6 +250,7 @@ def get_colleges_data_status(
             recent_runs=[(log.outcome, log.courses_created) for log in logs],
             now=now_utc,
             stale_after_hours=window_hours,
+            is_active=bool(getattr(college, "is_active", True)),
         )
     return result
 
