@@ -11,7 +11,7 @@ from pathlib import Path
 webapp_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from scraper.scrapers.neu import NeuScraper
+from scraper.scrapers.neu import NeuScraper, _response_meta
 from models.college import College
 from tests.test_scrapers.conftest import create_mock_response
 
@@ -333,8 +333,17 @@ class TestNeuScraper:
         assert result == []
 
     @pytest.mark.unit
+    def test_response_meta_includes_status_and_size(self):
+        """Helper used in NEU logs/errors includes HTTP status and body size."""
+        mock_response = create_mock_response(SAMPLE_NEU_API_RESPONSE, status_code=200)
+        meta = _response_meta(mock_response)
+        assert "status=200" in meta
+        assert f"bytes={len(mock_response.content)}" in meta
+        assert _response_meta(None) == "status=None bytes=0"
+
+    @pytest.mark.unit
     async def test_fetch_sections_page_api_failure(self, mock_neu_db_session):
-        """Test handling of API failure response."""
+        """success=false is a real error, not an empty last page."""
         scraper = NeuScraper(mock_neu_db_session)
         scraper.session_cookies = {"JSESSIONID": "test123"}
 
@@ -351,9 +360,11 @@ class TestNeuScraper:
         mock_client.get.return_value = mock_response
         scraper.client = mock_client
 
-        result = await scraper._fetch_sections_page(0, 500)
+        with pytest.raises(RuntimeError, match="success=false") as exc_info:
+            await scraper._fetch_sections_page(0, 500)
 
-        assert result == []
+        assert "status=200" in str(exc_info.value)
+        assert "bytes=" in str(exc_info.value)
 
     @pytest.mark.unit
     async def test_fetch_api_response_for_validation(self, mock_neu_db_session):
@@ -379,16 +390,22 @@ class TestNeuScraper:
         """Test fetching all courses when data fits in single page."""
         scraper = NeuScraper(mock_neu_db_session)
 
-        # Mock _fetch_sections_page to return data on first call, empty on second
-        with patch.object(scraper, "_fetch_sections_page") as mock_fetch:
-            mock_fetch.side_effect = [SAMPLE_NEU_SECTIONS, []]
+        with patch.object(scraper, "_fetch_api_response") as mock_first:
+            mock_first.return_value = {
+                "success": True,
+                "totalCount": 4,
+                "data": SAMPLE_NEU_SECTIONS,
+            }
+            # Mock _fetch_sections_page to return data on first call, empty on second
+            with patch.object(scraper, "_fetch_sections_page") as mock_fetch:
+                mock_fetch.side_effect = [SAMPLE_NEU_SECTIONS, []]
 
-            result = await scraper._fetch_all_courses()
+                result = await scraper._fetch_all_courses()
 
-            # Should have made 2 calls (first batch of 5 pages, first returns data, second empty)
-            assert mock_fetch.call_count >= 2
-            # Should have transformed all sections
-            assert len(result) == 4
+                # First page of the batch returns all 4 sections; remaining
+                # concurrent pages in the batch are ignored once complete.
+                assert mock_fetch.call_count >= 1
+                assert len(result) == 4
 
     @pytest.mark.unit
     async def test_scrape_courses_all(self, mock_neu_db_session):
@@ -488,3 +505,97 @@ class TestNeuScraper:
                     result = await scraper.scrape_courses("ALL", limit=1)
 
                     assert len(result) == 1
+
+    @pytest.mark.unit
+    async def test_fetch_sections_page_logs_status_and_size(self, mock_neu_db_session):
+        """Successful page fetches log HTTP status and response size."""
+        scraper = NeuScraper(mock_neu_db_session)
+        scraper.session_cookies = {"JSESSIONID": "test123"}
+
+        mock_response = create_mock_response(SAMPLE_NEU_API_RESPONSE)
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        scraper.client = mock_client
+
+        with patch("scraper.scrapers.neu.logger") as mock_logger:
+            result = await scraper._fetch_sections_page(0, 500)
+
+        assert result == SAMPLE_NEU_SECTIONS
+        logged = " ".join(str(call) for call in mock_logger.info.call_args_list)
+        expected_bytes = len(mock_response.content)
+        assert "status=200" in logged
+        assert f"bytes={expected_bytes}" in logged
+
+    @pytest.mark.unit
+    async def test_fetch_sections_page_http_error_raises(self, mock_neu_db_session):
+        """HTTP failures raise instead of returning None / empty."""
+        import httpx
+
+        scraper = NeuScraper(mock_neu_db_session)
+        scraper.session_cookies = {"JSESSIONID": "test123"}
+
+        request = httpx.Request(
+            "GET",
+            "https://nubanner.neu.edu/StudentRegistrationSsb/ssb/searchResults/searchResults",
+        )
+        response = httpx.Response(503, request=request, content=b"unavailable")
+        mock_client = AsyncMock()
+        mock_client.get.return_value = response
+        scraper.client = mock_client
+
+        with patch("scraper.scrapers.neu.logger") as mock_logger:
+            with pytest.raises(httpx.HTTPStatusError):
+                await scraper._fetch_sections_page(0, 500)
+
+        logged = " ".join(
+            str(call)
+            for call in mock_logger.info.call_args_list
+            + mock_logger.error.call_args_list
+        )
+        assert "status=503" in logged
+        assert "bytes=11" in logged
+
+    @pytest.mark.unit
+    async def test_fetch_all_courses_raises_on_transient_empty_first_page(
+        self, mock_neu_db_session
+    ):
+        """Empty first page while totalCount > 0 must raise, not return 0."""
+        scraper = NeuScraper(mock_neu_db_session)
+
+        with patch.object(scraper, "_fetch_api_response") as mock_first:
+            mock_first.return_value = {
+                "success": True,
+                "totalCount": 1200,
+                "data": SAMPLE_NEU_SECTIONS,
+            }
+            with patch.object(scraper, "_fetch_sections_page") as mock_fetch:
+                # Transient empty / failed page treated as end-of-catalog before.
+                mock_fetch.return_value = []
+
+                with pytest.raises(RuntimeError, match="empty after 0/1200"):
+                    await scraper._fetch_all_courses()
+
+    @pytest.mark.unit
+    async def test_scrape_courses_raises_when_fetch_returns_zero(
+        self, mock_neu_db_session
+    ):
+        """0 classes after session reported sections is a retryable error."""
+        scraper = NeuScraper(mock_neu_db_session)
+
+        with patch.object(scraper, "_setup_session_for_term", new_callable=AsyncMock):
+            with patch.object(scraper, "_fetch_api_response") as mock_api_response:
+                with patch.object(scraper, "_fetch_all_courses") as mock_fetch_all:
+                    mock_api_response.return_value = {
+                        "success": True,
+                        "totalCount": 3400,
+                    }
+                    mock_fetch_all.return_value = []
+
+                    mock_client = AsyncMock()
+                    mock_client.aclose = AsyncMock()
+                    scraper.client = mock_client
+
+                    with pytest.raises(
+                        RuntimeError, match="0 classes but session reported 3400"
+                    ):
+                        await scraper.scrape_courses("ALL")

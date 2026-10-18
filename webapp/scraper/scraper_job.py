@@ -12,6 +12,7 @@ from models.college import College
 from scraper.scraper_lock import ScraperLock
 from scraper.services.scraper_log import ScraperLogService
 from scraper.services.scraper_service import ScraperService
+from scraper.utils.errors import format_exception_message
 
 # Wall-clock limit for one scraper_logs row (all retry attempts combined).
 # cap = max(480m, 1.25 × longest successful run in the last 21 days).
@@ -285,13 +286,13 @@ class ScraperJob:
 
         except Exception as e:
             duration_ms = int((time.time() - start_time) * 1000)
-            error_message = str(e)
+            error_message = format_exception_message(e)
 
             self.lock.release(
                 "error", error_message=error_message, duration_ms=duration_ms
             )
             logger.error(
-                f"❌ Scraper job for {self.college.name} threw exception after {duration_ms}ms: {e}"
+                f"❌ Scraper job for {self.college.name} threw exception after {duration_ms}ms: {error_message}"
             )
 
             # Update log with error outcome
@@ -329,8 +330,10 @@ class ScraperJob:
                 if stats.get("success", False):
                     return JobResult(success=True, stats=stats)
                 else:
-                    # Scrape failed - extract error with fallback to generic message
-                    error_from_stats = stats.get("error") or ""
+                    # Scrape failed - extract error with fallback to generic message.
+                    # stats["error"] is formatted by ScraperService via
+                    # format_exception_message so empty str(e) is not blank.
+                    error_from_stats = (stats.get("error") or "").strip()
                     last_error = (
                         error_from_stats
                         if error_from_stats
@@ -366,7 +369,7 @@ class ScraperJob:
                         await asyncio.sleep(delay_ms / 1000)
 
             except Exception as e:
-                last_error = str(e)
+                last_error = format_exception_message(e)
                 logger.error(
                     f"❌ Attempt {attempt}/{self.config.retry_attempts} failed for {self.college.name}: {last_error}"
                 )

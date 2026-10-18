@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional
 import asyncio
 import httpx
 from scraper.base import BaseScraper
+from scraper.utils.errors import format_exception_message
 from scraper.utils.logger import scraper_logger as logger
 from scraper.utils.term_code_db import get_term_code_from_db
 
@@ -28,21 +29,7 @@ def format_osu_request_error(
     when ``repr(e)`` and the request (shard/catalog-number, page) are useful.
     Named HTTP errors keep their original message.
     """
-    message = str(exc).strip()
-    exc_type = type(exc).__name__
-    exc_repr = repr(exc)
-
-    if message:
-        detail = f"{exc_type}: {message}"
-    else:
-        detail = f"{exc_type}: {exc_repr}"
-
-    cause = exc.__cause__ or exc.__context__
-    if cause is not None:
-        cause_msg = str(cause).strip() or repr(cause)
-        cause_type = type(cause).__name__
-        if cause_msg and cause_msg not in detail:
-            detail = f"{detail} (cause: {cause_type}: {cause_msg})"
+    detail = format_exception_message(exc)
 
     request_desc = f"url={url}"
     if params:
