@@ -561,3 +561,25 @@ class TestSMSServiceQueue:
         assert result["sent"] == 0
         assert result["failed"] == 0
         assert result["total"] == 0
+
+
+class TestSMSServiceHttpTimeout:
+    """Twilio client must be built with a bounded HTTP timeout."""
+
+    def test_client_uses_http_timeout(self):
+        from notifications import sms_service as sms_module
+
+        with patch.object(sms_module, "settings") as mock_settings, patch(
+            "twilio.rest.Client"
+        ) as mock_client_cls:
+            mock_settings.twilio_enabled = True
+            mock_settings.TWILIO_ACCOUNT_SID = "AC_test"
+            mock_settings.TWILIO_AUTH_TOKEN = "token"
+            mock_settings.TWILIO_FROM_NUMBER = "+15550000000"
+
+            service = sms_module.SMSService()
+
+            assert service.is_enabled is True
+            http_client = mock_client_cls.call_args.kwargs["http_client"]
+            assert http_client.timeout == sms_module.SMSService.HTTP_TIMEOUT_SECONDS
+            assert sms_module.SMSService.HTTP_TIMEOUT_SECONDS == 10.0

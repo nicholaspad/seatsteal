@@ -41,6 +41,10 @@ class SMSService:
     # Rate limit: 1 message per second (Twilio sole proprietor limit)
     RATE_LIMIT_INTERVAL = 1.0  # seconds between messages
 
+    # Per-request HTTP timeout for Twilio API calls. The Twilio SDK has no
+    # timeout by default, so a hung connection could stall the notification job.
+    HTTP_TIMEOUT_SECONDS = 10.0
+
     def __init__(self):
         """Initialize Twilio client if configured"""
         self.client = None
@@ -56,9 +60,12 @@ class SMSService:
         if settings.twilio_enabled:
             try:
                 from twilio.rest import Client
+                from twilio.http.http_client import TwilioHttpClient
 
                 self.client = Client(
-                    settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN
+                    settings.TWILIO_ACCOUNT_SID,
+                    settings.TWILIO_AUTH_TOKEN,
+                    http_client=TwilioHttpClient(timeout=self.HTTP_TIMEOUT_SECONDS),
                 )
                 logger.info(
                     f"SMSService initialized with from number: {self.from_number}"
