@@ -6,13 +6,16 @@ When a user applies a referral code, both the referee and referrer receive
 """
 
 import logging
-from typing import Optional, Tuple
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Optional, Tuple
 from uuid import UUID
 import stripe
 from sqlalchemy.orm import Session
 
 from models.referral_redemption import ReferralRedemption
+from models.stripe_customer import StripeCustomer
 from utils.stripe_utils import (
     create_trial_subscription,
     extend_subscription_trial,
@@ -27,19 +30,51 @@ from utils.database import get_stripe_customer
 
 logger = logging.getLogger(__name__)
 
-# Statuses we can safely extend with trial_end. past_due is paid for
-# tier lookup, but Stripe rejects trial_end updates on past_due, and
-# creating a second Pro trial on top of it would double-bill.
+# No referral rewards while an invoice is unpaid (past_due).
 EXTENDABLE_STRIPE_STATUSES = ("active", "trialing")
 
+REFEREE_PAST_DUE_MESSAGE = "Update your card to claim your free Pro week."
 
-def _referral_trial_action(subscriptions) -> Tuple[str, Optional[object]]:
+
+class ReferralTrialAction(str, Enum):
+    EXTEND = "extend"
+    CREATE = "create"
+    SKIP_PAST_DUE = "skip_past_due"
+    FAILED = "failed"
+
+
+class ReferralTrialOutcome(str, Enum):
+    GRANTED = "granted"
+    SKIPPED_PAST_DUE = "skipped_past_due"
+    FAILED = "failed"
+
+
+@dataclass
+class ReferralTrialPlan:
+    """Inspect-only decision. No Stripe subscription writes have happened yet."""
+
+    action: ReferralTrialAction
+    existing_subscription: Optional[object] = None
+    stripe_customer: Optional[StripeCustomer] = None
+
+
+@dataclass
+class ReferralTrialResult:
+    """Result of applying a planned referral trial. Skip is not a failure."""
+
+    outcome: ReferralTrialOutcome
+    subscription_id: Optional[str] = None
+
+
+def _referral_trial_action(
+    subscriptions,
+) -> Tuple[ReferralTrialAction, Optional[object]]:
     """Decide how to apply a referral trial given the customer's Stripe subs.
 
     Returns one of:
-        ("extend", sub)        — active/trialing: extend the highest paid plan
-        ("skip_past_due", sub) — past_due only: skip (do not create or extend)
-        ("create", None)       — no paid sub: create a new Pro trial
+        (EXTEND, sub)        — active/trialing: extend the highest paid plan
+        (SKIP_PAST_DUE, sub) — past_due only: skip (do not create or extend)
+        (CREATE, None)       — no paid sub: create a new Pro trial
 
     past_due is an explicit branch so it cannot fall through to create.
     Reapplying the skipped reward when the sub later becomes active would
@@ -51,13 +86,19 @@ def _referral_trial_action(subscriptions) -> Tuple[str, Optional[object]]:
     past_due = [sub for sub in paid if sub.status == "past_due"]
 
     if extendable:
-        return "extend", pick_highest_paid_stripe_subscription(extendable)
+        return (
+            ReferralTrialAction.EXTEND,
+            pick_highest_paid_stripe_subscription(extendable),
+        )
     if past_due:
-        return "skip_past_due", pick_highest_paid_stripe_subscription(past_due)
-    return "create", None
+        return (
+            ReferralTrialAction.SKIP_PAST_DUE,
+            pick_highest_paid_stripe_subscription(past_due),
+        )
+    return ReferralTrialAction.CREATE, None
 
 
-def _log_skipped_past_due_reward(user_id: UUID, subscription_id: str) -> None:
+def _log_skipped_past_due_reward(user_id: UUID, subscription_id: Optional[str]) -> None:
     logger.warning(
         "Skipping referral trial reward user_id=%s subscription_id=%s reason=past_due",
         user_id,
@@ -65,149 +106,127 @@ def _log_skipped_past_due_reward(user_id: UUID, subscription_id: str) -> None:
     )
 
 
-async def create_referee_trial(
-    user_id: UUID, redemption: ReferralRedemption, db: Session
-) -> Optional[str]:
-    """Create a 7-day Pro trial subscription for the referee (user who used the code)
-
-    If referee has no paid Stripe subscription, creates a new Pro trial.
-    If they already have an active or trialing subscription, extends it by
-    7 days instead of creating a second Pro trial.
-    If they only have a past_due subscription, skips the reward (extending
-    past_due is invalid; creating a new trial would double-bill).
-
-    Args:
-        user_id: UUID of the referee
-        redemption: ReferralRedemption record being processed
-        db: Database session
-
-    Returns:
-        Stripe subscription ID if successful, None otherwise
-    """
+async def plan_referral_trial(user_id: UUID, db: Session) -> ReferralTrialPlan:
+    """Inspect Stripe subscriptions without creating or extending any."""
     try:
-        # Get or create Stripe customer
         stripe_customer = await get_stripe_customer(user_id, db)
         if not stripe_customer:
-            logger.error(f"Failed to get Stripe customer for referee {user_id}")
-            return None
+            logger.error(f"Failed to get Stripe customer for user {user_id}")
+            return ReferralTrialPlan(action=ReferralTrialAction.FAILED)
 
         subscriptions = stripe.Subscription.list(
             customer=stripe_customer.stripe_customer_id,
             limit=10,
         )
+        action, existing = _referral_trial_action(subscriptions)
+        return ReferralTrialPlan(
+            action=action,
+            existing_subscription=existing,
+            stripe_customer=stripe_customer,
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to plan referral trial for user {user_id}: {e}",
+            exc_info=True,
+        )
+        return ReferralTrialPlan(action=ReferralTrialAction.FAILED)
 
-        action, existing_subscription = _referral_trial_action(subscriptions)
 
-        if action == "extend":
+async def apply_referral_trial(
+    user_id: UUID,
+    redemption: ReferralRedemption,
+    db: Session,
+    *,
+    role: str,
+    plan: ReferralTrialPlan,
+) -> ReferralTrialResult:
+    """Apply a previously planned referral trial. Skip does not write to Stripe."""
+    try:
+        if plan.action == ReferralTrialAction.SKIP_PAST_DUE:
+            existing_id = getattr(plan.existing_subscription, "id", None)
+            _log_skipped_past_due_reward(user_id, existing_id)
+            if role == "referrer":
+                redemption.referrer_previous_tier = get_user_subscription_tier(
+                    user_id, db
+                )
+            return ReferralTrialResult(outcome=ReferralTrialOutcome.SKIPPED_PAST_DUE)
+
+        if plan.action == ReferralTrialAction.FAILED:
+            return ReferralTrialResult(outcome=ReferralTrialOutcome.FAILED)
+
+        if not plan.stripe_customer:
+            logger.error(f"Missing Stripe customer on referral plan for user {user_id}")
+            return ReferralTrialResult(outcome=ReferralTrialOutcome.FAILED)
+
+        if role == "referrer":
+            redemption.referrer_previous_tier = get_user_subscription_tier(user_id, db)
+
+        if plan.action == ReferralTrialAction.EXTEND:
             subscription = await extend_subscription_trial(
-                existing_subscription.id, additional_days=7
+                plan.existing_subscription.id, additional_days=7
             )
             logger.info(
-                f"Extended trial for referee subscription {subscription.id} by 7 days"
+                f"Extended trial for {role} subscription {subscription.id} by 7 days"
             )
-        elif action == "skip_past_due":
-            _log_skipped_past_due_reward(user_id, existing_subscription.id)
-            return None
         else:
             subscription = await create_trial_subscription(
-                customer_id=stripe_customer.stripe_customer_id,
+                customer_id=plan.stripe_customer.stripe_customer_id,
                 tier="pro",
                 trial_days=7,
                 user_id=str(user_id),
-                metadata={"redemption_id": redemption.id, "role": "referee"},
+                metadata={"redemption_id": redemption.id, "role": role},
             )
             logger.info(
-                f"Created referee trial subscription {subscription.id} for user {user_id}"
+                f"Created {role} trial subscription {subscription.id} for user {user_id}"
             )
 
-        # Store subscription ID and trial end date
-        redemption.referee_trial_subscription_id = subscription.id
-        redemption.referee_trial_end = datetime.fromtimestamp(subscription.trial_end)
+        if role == "referee":
+            redemption.referee_trial_subscription_id = subscription.id
+            redemption.referee_trial_end = datetime.fromtimestamp(
+                subscription.trial_end
+            )
+        else:
+            redemption.referrer_trial_subscription_id = subscription.id
+            redemption.referrer_trial_end = datetime.fromtimestamp(
+                subscription.trial_end
+            )
+            invalidate_user_caches(user_id)
 
-        return subscription.id
-
+        return ReferralTrialResult(
+            outcome=ReferralTrialOutcome.GRANTED,
+            subscription_id=subscription.id,
+        )
     except Exception as e:
         logger.error(
-            f"Failed to create referee trial for user {user_id}: {e}", exc_info=True
+            f"Failed to apply {role} referral trial for user {user_id}: {e}",
+            exc_info=True,
         )
-        return None
+        return ReferralTrialResult(outcome=ReferralTrialOutcome.FAILED)
+
+
+async def create_referee_trial(
+    user_id: UUID, redemption: ReferralRedemption, db: Session
+) -> ReferralTrialResult:
+    """Create a 7-day Pro trial subscription for the referee (user who used the code)
+
+    Inspects first, then writes. Prefer plan_referral_trial + apply_referral_trial
+    in the route so both parties are decided before any Stripe write.
+    """
+    plan = await plan_referral_trial(user_id, db)
+    return await apply_referral_trial(
+        user_id, redemption, db, role="referee", plan=plan
+    )
 
 
 async def create_referrer_trial(
     referrer_id: UUID, redemption: ReferralRedemption, db: Session
-) -> Optional[str]:
+) -> ReferralTrialResult:
     """Create or extend a 7-day Pro trial for the referrer (user who owns the code)
 
-    If the referrer has no paid Stripe subscription, creates a new Pro trial.
-    If they already have an active or trialing subscription, extends it by
-    7 days instead of creating a second Pro trial.
-    If they only have a past_due subscription, skips the reward (extending
-    past_due is invalid; creating a new trial would double-bill).
-
-    Args:
-        referrer_id: UUID of the referrer
-        redemption: ReferralRedemption record being processed
-        db: Database session
-
-    Returns:
-        Stripe subscription ID if successful, None otherwise
+    Inspects first, then writes. Prefer plan_referral_trial + apply_referral_trial
+    in the route so both parties are decided before any Stripe write.
     """
-    try:
-        # Get referrer's current tier
-        current_tier = get_user_subscription_tier(referrer_id, db)
-        redemption.referrer_previous_tier = current_tier
-
-        # Get or create Stripe customer
-        stripe_customer = await get_stripe_customer(referrer_id, db)
-        if not stripe_customer:
-            logger.error(f"Failed to get Stripe customer for referrer {referrer_id}")
-            return None
-
-        subscriptions = stripe.Subscription.list(
-            customer=stripe_customer.stripe_customer_id,
-            limit=10,
-        )
-
-        action, existing_subscription = _referral_trial_action(subscriptions)
-
-        if action == "extend":
-            subscription = await extend_subscription_trial(
-                existing_subscription.id, additional_days=7
-            )
-            redemption.referrer_trial_subscription_id = subscription.id
-            redemption.referrer_trial_end = datetime.fromtimestamp(
-                subscription.trial_end
-            )
-            logger.info(
-                f"Extended trial for referrer subscription {subscription.id} by 7 days"
-            )
-        elif action == "skip_past_due":
-            _log_skipped_past_due_reward(referrer_id, existing_subscription.id)
-            return None
-        else:
-            subscription = await create_trial_subscription(
-                customer_id=stripe_customer.stripe_customer_id,
-                tier="pro",
-                trial_days=7,
-                user_id=str(referrer_id),
-                metadata={"redemption_id": redemption.id, "role": "referrer"},
-            )
-            redemption.referrer_trial_subscription_id = subscription.id
-            redemption.referrer_trial_end = datetime.fromtimestamp(
-                subscription.trial_end
-            )
-            logger.info(
-                f"Created referrer trial subscription {subscription.id} for user {referrer_id}"
-            )
-
-        # Invalidate tier cache so referrer sees Pro tier immediately
-        invalidate_user_caches(referrer_id)
-
-        return redemption.referrer_trial_subscription_id
-
-    except Exception as e:
-        logger.error(
-            f"Failed to create/extend referrer trial for user {referrer_id}: {e}",
-            exc_info=True,
-        )
-        return None
+    plan = await plan_referral_trial(referrer_id, db)
+    return await apply_referral_trial(
+        referrer_id, redemption, db, role="referrer", plan=plan
+    )

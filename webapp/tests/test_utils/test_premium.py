@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import datetime
 from uuid import uuid4
+from unittest.mock import patch
 
 from utils.premium import (
     get_user_subscription_tier,
@@ -17,6 +18,7 @@ from utils.premium import (
     PAID_STRIPE_STATUSES,
     stripe_tier_rank,
     pick_highest_paid_stripe_subscription,
+    _stripe_object_tier,
 )
 from models.user import Profile
 from models.stripe_subscription import StripeSubscription
@@ -823,3 +825,77 @@ class TestPickHighestPaidStripeSubscription:
         pro = SimpleNamespace(id="sub_pro", tier="pro", created=50)
         picked = pick_highest_paid_stripe_subscription([plus, pro])
         assert picked.id == "sub_pro"
+
+    @pytest.mark.unit
+    def test_construct_from_pro_wins_over_newer_plus(self):
+        import stripe
+
+        plus = stripe.Subscription.construct_from(
+            {
+                "id": "sub_plus_newer",
+                "object": "subscription",
+                "status": "active",
+                "created": 200,
+                "items": {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "si_plus",
+                            "object": "subscription_item",
+                            "price": {"id": "price_plus", "object": "price"},
+                        }
+                    ],
+                },
+            },
+            "sk_test",
+        )
+        pro = stripe.Subscription.construct_from(
+            {
+                "id": "sub_pro_older",
+                "object": "subscription",
+                "status": "active",
+                "created": 50,
+                "items": {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "si_pro",
+                            "object": "subscription_item",
+                            "price": {"id": "price_pro", "object": "price"},
+                        }
+                    ],
+                },
+            },
+            "sk_test",
+        )
+
+        assert callable(plus.items)
+        with patch(
+            "utils.stripe_utils.get_tier_from_price_id",
+            side_effect=lambda pid: {
+                "price_pro": "pro",
+                "price_plus": "plus",
+            }.get(pid),
+        ):
+            picked = pick_highest_paid_stripe_subscription([plus, pro])
+            assert picked.id == "sub_pro_older"
+            assert _stripe_object_tier(pro) == "pro"
+            assert _stripe_object_tier(plus) == "plus"
+
+    @pytest.mark.unit
+    def test_logs_when_price_id_cannot_be_read(self, caplog):
+        import logging
+        import stripe
+
+        sub = stripe.Subscription.construct_from(
+            {
+                "id": "sub_missing_items",
+                "object": "subscription",
+                "status": "active",
+                "created": 1,
+            },
+            "sk_test",
+        )
+        with caplog.at_level(logging.ERROR):
+            assert _stripe_object_tier(sub) is None
+        assert "Failed to read price id" in caplog.text

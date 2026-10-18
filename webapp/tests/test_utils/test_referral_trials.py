@@ -12,7 +12,26 @@ from models.referral import Referral
 from models.referral_redemption import ReferralRedemption
 from models.stripe_customer import StripeCustomer
 from models.college import College
-from utils.referral_trials import create_referee_trial, create_referrer_trial
+from utils.referral_trials import (
+    ReferralTrialOutcome,
+    create_referee_trial,
+    create_referrer_trial,
+)
+
+
+def _assert_granted(result, sub_id: str) -> None:
+    assert result.outcome == ReferralTrialOutcome.GRANTED
+    assert result.subscription_id == sub_id
+
+
+def _assert_skipped(result) -> None:
+    assert result.outcome == ReferralTrialOutcome.SKIPPED_PAST_DUE
+    assert result.subscription_id is None
+
+
+def _assert_failed(result) -> None:
+    assert result.outcome == ReferralTrialOutcome.FAILED
+    assert result.subscription_id is None
 
 
 @pytest.fixture
@@ -94,7 +113,7 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             # Assertions
-            assert result == "sub_trial_123"
+            _assert_granted(result, "sub_trial_123")
             assert test_redemption.referee_trial_subscription_id == "sub_trial_123"
             assert test_redemption.referee_trial_end is not None
 
@@ -147,7 +166,7 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             # Assertions
-            assert result == "sub_plus_123"
+            _assert_granted(result, "sub_plus_123")
             assert test_redemption.referee_trial_subscription_id == "sub_plus_123"
 
             # Verify extend was called (NOT create)
@@ -191,7 +210,7 @@ class TestCreateRefereeTrial:
 
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
-            assert result == "sub_pro_123"
+            _assert_granted(result, "sub_pro_123")
             mock_extend.assert_called_once_with("sub_pro_123", additional_days=7)
 
     @pytest.mark.asyncio
@@ -233,7 +252,7 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             # Assert trialing subscription was extended (NO upgrade to Pro)
-            assert result == "sub_trial_plus_123"
+            _assert_granted(result, "sub_trial_plus_123")
             mock_extend.assert_called_once_with("sub_trial_plus_123", additional_days=7)
 
     @pytest.mark.asyncio
@@ -273,7 +292,7 @@ class TestCreateRefereeTrial:
 
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
-            assert result == "sub_trial_pro_123"
+            _assert_granted(result, "sub_trial_pro_123")
             mock_extend.assert_called_once_with("sub_trial_pro_123", additional_days=7)
 
     @pytest.mark.asyncio
@@ -293,7 +312,7 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             # Should return None and not raise exception
-            assert result is None
+            _assert_failed(result)
             assert test_redemption.referee_trial_subscription_id is None
 
     @pytest.mark.asyncio
@@ -324,7 +343,7 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             # Should return None and not raise exception
-            assert result is None
+            _assert_failed(result)
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -357,7 +376,7 @@ class TestCreateRefereeTrial:
 
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
-            assert result is None
+            _assert_failed(result)
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -404,7 +423,7 @@ class TestCreateRefereeTrial:
 
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
-            assert result == "sub_pro_older"
+            _assert_granted(result, "sub_pro_older")
             mock_extend.assert_called_once_with("sub_pro_older", additional_days=7)
 
     @pytest.mark.asyncio
@@ -442,7 +461,7 @@ class TestCreateRefereeTrial:
                     test_user.id, test_redemption, test_db
                 )
 
-            assert result is None
+            _assert_skipped(result)
             mock_extend.assert_not_called()
             mock_create.assert_not_called()
             assert "past_due" in caplog.text
@@ -496,7 +515,7 @@ class TestCreateRefereeTrial:
 
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
-            assert result == "sub_active_pro"
+            _assert_granted(result, "sub_active_pro")
             mock_extend.assert_called_once_with("sub_active_pro", additional_days=7)
             mock_create.assert_not_called()
 
@@ -541,7 +560,7 @@ class TestCreateReferrerTrial:
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
             # Assertions
-            assert result == "sub_referrer_trial_123"
+            _assert_granted(result, "sub_referrer_trial_123")
             assert (
                 test_redemption.referrer_trial_subscription_id
                 == "sub_referrer_trial_123"
@@ -601,7 +620,7 @@ class TestCreateReferrerTrial:
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
             # Assert Plus subscription was extended (NO upgrade to Pro)
-            assert result == "sub_plus_123"
+            _assert_granted(result, "sub_plus_123")
             assert test_redemption.referrer_previous_tier == "plus"
             mock_extend.assert_called_once_with("sub_plus_123", additional_days=7)
             mock_invalidate.assert_called_once()
@@ -656,7 +675,7 @@ class TestCreateReferrerTrial:
 
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
-            assert result == "sub_pro_older"
+            _assert_granted(result, "sub_pro_older")
             mock_extend.assert_called_once_with("sub_pro_older", additional_days=7)
 
     @pytest.mark.asyncio
@@ -701,7 +720,7 @@ class TestCreateReferrerTrial:
 
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
-            assert result == "sub_pro_123"
+            _assert_granted(result, "sub_pro_123")
             assert test_redemption.referrer_previous_tier == "pro"
             mock_extend.assert_called_once_with("sub_pro_123", additional_days=7)
 
@@ -748,7 +767,7 @@ class TestCreateReferrerTrial:
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
             # Assert trialing Plus was extended (NO upgrade)
-            assert result == "sub_trial_plus_123"
+            _assert_granted(result, "sub_trial_plus_123")
             mock_extend.assert_called_once_with("sub_trial_plus_123", additional_days=7)
             mock_invalidate.assert_called_once()
 
@@ -794,7 +813,7 @@ class TestCreateReferrerTrial:
 
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
-            assert result == "sub_trial_pro_123"
+            _assert_granted(result, "sub_trial_pro_123")
             mock_extend.assert_called_once_with("sub_trial_pro_123", additional_days=7)
 
     @pytest.mark.asyncio
@@ -833,7 +852,7 @@ class TestCreateReferrerTrial:
 
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
-            assert result == "sub_trial_123"
+            _assert_granted(result, "sub_trial_123")
             mock_create.assert_called_once()
 
     @pytest.mark.asyncio
@@ -856,7 +875,7 @@ class TestCreateReferrerTrial:
 
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
-            assert result is None
+            _assert_failed(result)
             assert test_redemption.referrer_trial_subscription_id is None
 
     @pytest.mark.asyncio
@@ -889,7 +908,7 @@ class TestCreateReferrerTrial:
 
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
-            assert result is None
+            _assert_failed(result)
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -925,7 +944,7 @@ class TestCreateReferrerTrial:
 
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
-            assert result is None
+            _assert_failed(result)
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -1012,7 +1031,7 @@ class TestCreateReferrerTrial:
                     test_user.id, test_redemption, test_db
                 )
 
-            assert result is None
+            _assert_skipped(result)
             mock_extend.assert_not_called()
             mock_create.assert_not_called()
             assert "past_due" in caplog.text
@@ -1098,7 +1117,7 @@ class TestReferralTrialStripeSdkParams:
                     role, test_user, test_redemption, test_db, None
                 )
 
-            assert result is None
+            _assert_skipped(result)
             modify.assert_not_called()
             create.assert_not_called()
             retrieve.assert_not_called()
@@ -1145,7 +1164,7 @@ class TestReferralTrialStripeSdkParams:
                 role, test_user, test_redemption, test_db, None
             )
 
-            assert result == f"sub_{status}_sdk"
+            _assert_granted(result, f"sub_{status}_sdk")
             modify.assert_called_once()
             create.assert_not_called()
             kwargs = modify.call_args.kwargs
@@ -1192,7 +1211,7 @@ class TestReferralTrialStripeSdkParams:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
             after = datetime.now(timezone.utc)
 
-            assert result == "sub_expired_sdk"
+            _assert_granted(result, "sub_expired_sdk")
             create.assert_not_called()
             kwargs = modify.call_args.kwargs
             assert kwargs["proration_behavior"] == "none"

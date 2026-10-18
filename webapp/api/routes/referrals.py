@@ -19,7 +19,13 @@ from config import settings
 from utils.errors import log_and_raise_500
 from utils.stripe_utils import create_stripe_customer
 from utils.cache import invalidate_user_caches
-from utils.referral_trials import create_referee_trial, create_referrer_trial
+from utils.referral_trials import (
+    ReferralTrialAction,
+    ReferralTrialOutcome,
+    apply_referral_trial,
+    plan_referral_trial,
+    REFEREE_PAST_DUE_MESSAGE,
+)
 from utils.premium import get_user_subscription_tier
 from notifications.email_service import EmailService
 from loguru import logger
@@ -170,7 +176,27 @@ async def apply_referral_code(
         # Get current tiers before applying referral (for email notifications)
         referee_previous_tier = get_user_subscription_tier(user.id, db)
 
-        # Create redemption record
+        # Decide both parties before any Stripe subscription write.
+        referee_plan = await plan_referral_trial(user.id, db)
+        if referee_plan.action == ReferralTrialAction.SKIP_PAST_DUE:
+            raise HTTPException(
+                status_code=409,
+                detail=REFEREE_PAST_DUE_MESSAGE,
+            )
+        if referee_plan.action == ReferralTrialAction.FAILED:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create your trial. Please try again or contact support.",
+            )
+
+        referrer_plan = await plan_referral_trial(referral.referrer_id, db)
+        if referrer_plan.action == ReferralTrialAction.FAILED:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create referrer trial. Please try again or contact support.",
+            )
+
+        # Create redemption record only after both actions are known
         redemption = ReferralRedemption(
             referral_id=referral.id,
             referee_id=user.id,
@@ -178,26 +204,27 @@ async def apply_referral_code(
         db.add(redemption)
         db.flush()  # Get redemption.id
 
-        # Create trials for both users immediately
-        referee_sub_id = await create_referee_trial(user.id, redemption, db)
-        referrer_sub_id = await create_referrer_trial(
-            referral.referrer_id, redemption, db
+        referee_trial = await apply_referral_trial(
+            user.id, redemption, db, role="referee", plan=referee_plan
         )
-
-        # Verify both trials were created successfully
-        if not referee_sub_id:
+        if referee_trial.outcome != ReferralTrialOutcome.GRANTED:
             db.rollback()
             raise HTTPException(
                 status_code=500,
                 detail="Failed to create your trial. Please try again or contact support.",
             )
 
-        if not referrer_sub_id:
+        referrer_trial = await apply_referral_trial(
+            referral.referrer_id, redemption, db, role="referrer", plan=referrer_plan
+        )
+        if referrer_trial.outcome == ReferralTrialOutcome.FAILED:
             db.rollback()
             raise HTTPException(
                 status_code=500,
                 detail="Failed to create referrer trial. Please try again or contact support.",
             )
+        # SKIPPED_PAST_DUE for the referrer is success: referee is granted,
+        # redemption is saved, referrer_trial_subscription_id stays null.
 
         db.commit()
 
@@ -208,10 +235,10 @@ async def apply_referral_code(
         # Send success emails to both users
         try:
             # Get referrer profile for email
-            referrer_result = db.execute(
+            referrer_row = db.execute(
                 select(Profile).where(Profile.id == referral.referrer_id)
             )
-            referrer = referrer_result.scalar_one_or_none()
+            referrer = referrer_row.scalar_one_or_none()
 
             if referrer and user.email and referrer.email:
                 email_service = EmailService()
@@ -231,13 +258,14 @@ async def apply_referral_code(
                     tier_name=referee_tier_name,
                 )
 
-                # Send email to referrer (user who owns the code)
-                await email_service.send_referral_success_email(
-                    to_email=referrer.email,
-                    other_user_email=user.email,
-                    is_referrer=True,
-                    tier_name=referrer_tier_name,
-                )
+                # Referrer skip is not a grant — don't email them a Pro week.
+                if referrer_trial.outcome == ReferralTrialOutcome.GRANTED:
+                    await email_service.send_referral_success_email(
+                        to_email=referrer.email,
+                        other_user_email=user.email,
+                        is_referrer=True,
+                        tier_name=referrer_tier_name,
+                    )
 
                 logger.info(
                     f"Sent referral success emails to {user.email} and {referrer.email}"
@@ -250,7 +278,11 @@ async def apply_referral_code(
             "success": True,
             "data": ApplyReferralResponse(
                 success=True,
-                message="🎉 Your referral has been applied. You and your referrer have received 7 days of Pro access!",
+                message=(
+                    "🎉 Your referral has been applied. You've received 7 days of Pro access!"
+                    if referrer_trial.outcome == ReferralTrialOutcome.SKIPPED_PAST_DUE
+                    else "🎉 Your referral has been applied. You and your referrer have received 7 days of Pro access!"
+                ),
             ),
         }
 

@@ -1,5 +1,6 @@
 """Premium subscription utilities for handling user tiers and feature access"""
 
+import logging
 from typing import Any, Literal, Optional, Sequence
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, func, case, desc
@@ -8,6 +9,8 @@ from uuid import UUID
 from models.stripe_subscription import StripeSubscription
 from models.subscription import Subscription
 from utils.cache import get_cached_user_tier, cache_user_tier
+
+logger = logging.getLogger(__name__)
 
 # Subscription tier types
 SubscriptionTier = Literal["free", "plus", "pro"]
@@ -65,17 +68,33 @@ def paid_stripe_plan_order():
 
 
 def _stripe_object_tier(subscription: Any) -> Optional[str]:
-    """Resolve plus/pro from a Stripe API object (or a mock with .tier)."""
+    """Resolve plus/pro from a Stripe API object.
+
+    On stripe>=13, ``subscription.items`` is dict.items, not the line items.
+    Use the same bracket access as the webhook handler.
+    """
+    price_id = None
+    try:
+        price_id = subscription["items"]["data"][0]["price"]["id"]
+    except Exception:
+        logger.exception(
+            "Failed to read price id from Stripe subscription %s",
+            (
+                subscription.get("id")
+                if hasattr(subscription, "get")
+                else getattr(subscription, "id", None)
+            ),
+        )
+
+    if isinstance(price_id, str) and price_id:
+        from utils.stripe_utils import get_tier_from_price_id
+
+        return get_tier_from_price_id(price_id)
+
     tier = getattr(subscription, "tier", None)
     if isinstance(tier, str) and tier:
         return tier
-    try:
-        from utils.stripe_utils import get_tier_from_price_id
-
-        price_id = subscription.items.data[0].price.id
-        return get_tier_from_price_id(price_id)
-    except (AttributeError, IndexError, TypeError, KeyError):
-        return None
+    return None
 
 
 def pick_highest_paid_stripe_subscription(subscriptions: Sequence[Any]) -> Any:

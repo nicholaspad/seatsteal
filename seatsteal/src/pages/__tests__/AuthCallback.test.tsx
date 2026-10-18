@@ -8,6 +8,7 @@ const mockHistoryReplace = vi.fn();
 const mockFetchWithToasts = vi.fn();
 const mockLogError = vi.fn();
 const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 const mockRefreshSubscriptionTier = vi.fn();
 
 vi.mock("react-router-dom", async () => {
@@ -36,7 +37,7 @@ vi.mock("@/lib/logger", () => ({
 vi.mock("sonner", () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
-    error: vi.fn(),
+    error: (...args: unknown[]) => mockToastError(...args),
   },
 }));
 
@@ -242,6 +243,45 @@ describe("AuthCallback Page", () => {
       await waitFor(() => {
         expect(localStorage.getItem("referral_code")).toBeNull();
       });
+    });
+
+    it("surfaces past_due 409 message with manage subscription action", async () => {
+      localStorage.setItem("referral_code", "TESTCODE");
+
+      mockFetchWithToasts.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            detail: "Update your card to claim your free Pro week.",
+          }),
+      } as Response);
+
+      render(
+        <MemoryRouter>
+          <AuthCallback />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalled();
+      });
+
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Update your card to claim your free Pro week.",
+        expect.objectContaining({
+          action: expect.objectContaining({
+            label: "Manage subscription",
+          }),
+        }),
+      );
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+      expect(mockLogError).not.toHaveBeenCalledWith(
+        "Failed to apply referral code",
+        expect.anything(),
+      );
+      expect(localStorage.getItem("referral_code")).toBeNull();
+      expect(mockHistoryReplace).toHaveBeenCalledWith("/dashboard");
     });
   });
 

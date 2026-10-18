@@ -78,6 +78,30 @@ export default function AuthCallback() {
               toast.success("🎉 Your referral has been applied!");
               // Refetch the user's tier so they see "pro" immediately on dashboard
               await refreshSubscriptionTier();
+            } else {
+              let detail = "Failed to apply referral code";
+              try {
+                const body = (await response.json()) as { detail?: unknown };
+                if (typeof body.detail === "string" && body.detail.trim()) {
+                  detail = body.detail;
+                }
+              } catch {
+                // Keep the fallback if the body isn't JSON.
+              }
+
+              if (response.status === 409) {
+                toast.error(detail, {
+                  duration: 12000,
+                  action: {
+                    label: "Manage subscription",
+                    onClick: () => {
+                      history.replace("/dashboard");
+                    },
+                  },
+                });
+              } else {
+                toast.error(detail);
+              }
             }
 
             localStorage.removeItem("referral_code");
