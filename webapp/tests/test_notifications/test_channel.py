@@ -15,6 +15,11 @@ class TestShouldSendSms:
         assert should_send_sms("", True) is False
         assert should_send_sms("   ", True) is False
 
+    def test_requires_twilio_and_college_sms(self):
+        assert should_send_sms("5551234567", True, sms_service_enabled=True) is True
+        assert should_send_sms("5551234567", True, sms_service_enabled=False) is False
+        assert should_send_sms("5551234567", False, sms_service_enabled=True) is False
+
 
 class TestChooseNotificationChannel:
     def test_sms_when_college_enables_sms(self, test_user, test_college):
@@ -25,3 +30,12 @@ class TestChooseNotificationChannel:
         assert test_user.phone
         test_college.sms_enabled = False
         assert choose_notification_channel(test_user, test_college) == "email"
+
+    def test_email_when_sms_service_disabled(self, test_user, test_college):
+        test_college.sms_enabled = True
+        assert (
+            choose_notification_channel(
+                test_user, test_college, sms_service_enabled=False
+            )
+            == "email"
+        )

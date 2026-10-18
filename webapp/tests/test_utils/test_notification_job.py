@@ -56,6 +56,7 @@ class TestNotificationJobLogging:
             "user_email": test_user.email,
             "user_phone": test_user.phone,
             "user_tier": "free",
+            "sms_enabled": True,
         }
 
     @pytest.mark.unit

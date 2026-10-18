@@ -19,7 +19,9 @@ with no scraper row are left ``ok`` so brand-new schools are not
 flagged before their first run. Inactive / dropped colleges
 (``is_active=false``) stay ``ok`` with checkout allowed so leftover
 profiles (e.g. Brown, UF) never see the banner or a pricing pause.
-Notification sending is not affected.
+Seat-alert sending reuses these same rules and skips stale schools;
+inactive colleges stay ``ok`` here but are already excluded by
+``College.is_active`` in the notification query.
 """
 
 from __future__ import annotations

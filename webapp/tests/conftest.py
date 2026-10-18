@@ -2,9 +2,9 @@
 
 import pytest
 import asyncio
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator, Generator, Optional
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from httpx import AsyncClient, ASGITransport
@@ -54,6 +54,8 @@ from models.subscription import Subscription
 from models.stripe_customer import StripeCustomer
 from models.stripe_subscription import StripeSubscription
 from models.college_data_waitlist import CollegeDataWaitlist  # noqa: F401
+from models.scraper import Scraper
+from models.scraper_log import ScraperLog
 from config import settings
 
 # Test database URL - Use PostgreSQL test database
@@ -208,6 +210,75 @@ def test_class(test_db: Session, test_course: Course) -> Class:
     test_db.commit()
     test_db.refresh(test_class)
     return test_class
+
+
+def add_scraper_log(
+    db: Session,
+    scraper: Scraper,
+    *,
+    outcome: str,
+    started_at: datetime,
+    completed_at: Optional[datetime] = None,
+    courses_created: int = 5,
+    error_message: Optional[str] = None,
+) -> ScraperLog:
+    """Insert a scraper_logs row for notification / data-status tests."""
+    log = ScraperLog(
+        scraper_id=scraper.id,
+        outcome=outcome,
+        courses_created=courses_created,
+        classes_created=courses_created,
+        enrollments_saved=courses_created,
+        started_at=started_at,
+        completed_at=completed_at if completed_at is not None else started_at,
+        error_message=error_message,
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return log
+
+
+def add_successful_scrape(
+    db: Session,
+    college: College,
+    *,
+    started_at: datetime,
+    completed_at: datetime,
+) -> tuple[Scraper, ScraperLog]:
+    """Insert a scraper plus a successful run covering [started_at, completed_at]."""
+    scraper = Scraper(
+        college_id=college.id,
+        status="idle",
+        last_success_at=completed_at,
+        last_run_at=completed_at,
+    )
+    db.add(scraper)
+    db.commit()
+    db.refresh(scraper)
+    log = add_scraper_log(
+        db,
+        scraper,
+        outcome="success",
+        started_at=started_at,
+        completed_at=completed_at,
+        courses_created=5,
+    )
+    return scraper, log
+
+
+@pytest.fixture
+def successful_scrape(
+    test_db: Session, test_college: College
+) -> tuple[Scraper, ScraperLog]:
+    """A recent successful run whose window covers datetime.now() enrollments."""
+    now = datetime.now(timezone.utc)
+    return add_successful_scrape(
+        test_db,
+        test_college,
+        started_at=now - timedelta(hours=2),
+        completed_at=now + timedelta(hours=1),
+    )
 
 
 @pytest.fixture

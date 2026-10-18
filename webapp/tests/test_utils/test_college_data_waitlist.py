@@ -15,6 +15,7 @@ from models.college_data_waitlist import CollegeDataWaitlist
 from models.enrollment import Enrollment
 from models.subscription import Subscription
 from models.user import Profile
+from tests.conftest import add_successful_scrape
 from utils.college_data_waitlist import (
     MAX_WAITLIST_ATTEMPTS,
     choose_waitlist_channel,
@@ -510,7 +511,7 @@ class TestNotifyFromNotificationJob:
         assert test_db.query(CollegeDataWaitlist).count() == 1
 
     @pytest.mark.unit
-    @freeze_time("2024-01-15 10:00:00")
+    @freeze_time("2024-01-15 10:00:00+00:00")
     def test_waitlist_operational_error_does_not_block_seat_alerts(
         self,
         test_db: Session,
@@ -521,6 +522,13 @@ class TestNotifyFromNotificationJob:
         """A waitlist DBAPI error must rollback so seat alerts still send."""
         from notifications.send_notifs import NotificationJob
 
+        now = datetime.now(timezone.utc)
+        add_successful_scrape(
+            test_db,
+            test_college,
+            started_at=now - timedelta(hours=2),
+            completed_at=now + timedelta(hours=1),
+        )
         test_db.add(_waitlist_row(test_college.id, email="guest@example.com"))
         test_db.add(
             Subscription(
