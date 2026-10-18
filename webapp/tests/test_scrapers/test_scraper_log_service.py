@@ -642,8 +642,7 @@ class TestMarkOrphanedRunningLogs:
         assert orphan.outcome == "error"
         assert orphan.error_message == "orphaned by restart"
         assert orphan.completed_at is not None
-        assert orphan.duration_ms is not None
-        assert orphan.duration_ms >= 0
+        assert orphan.duration_ms is None
         assert in_process.outcome == "running"
         assert in_process.error_message is None
         assert already_done.outcome == "success"
@@ -738,3 +737,83 @@ class TestMarkOrphanedRunningLogs:
         assert naive_current.outcome == "running"
         assert offset_at_cutoff.outcome == "running"
         assert cutoff == as_utc_datetime(datetime(2026, 10, 16, 15, 0, 0))
+
+    def test_duration_ms_column_is_nullable(self, test_db: Session):
+        """scraper_logs.duration_ms is nullable int4, so the sweep can set NULL."""
+        pg_nullable = test_db.execute(
+            text(
+                "SELECT is_nullable FROM information_schema.columns "
+                "WHERE table_name = 'scraper_logs' AND column_name = 'duration_ms'"
+            )
+        ).scalar_one()
+        assert pg_nullable == "YES"
+
+        sa_col = inspect(ScraperLog).columns["duration_ms"]
+        assert sa_col.nullable is True
+
+    @pytest.mark.asyncio
+    async def test_sweep_nulls_duration_ms_for_long_running_orphans(
+        self, test_db: Session, test_college: College
+    ):
+        """60d, 400d, and 1min pre-boot running rows are swept; post-boot stays running.
+
+        Rows older than ~24.8 days overflow int4 if duration_ms is computed as
+        CAST(EXTRACT(epoch)*1000 AS INTEGER). The sweep must succeed for all of
+        them in one UPDATE and leave duration_ms NULL.
+        """
+        scraper = Scraper(college_id=test_college.id, status="idle")
+        test_db.add(scraper)
+        test_db.flush()
+
+        process_started_at = datetime.now(timezone.utc)
+        orphan_60d = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
+            started_at=process_started_at - timedelta(days=60),
+        )
+        orphan_400d = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
+            started_at=process_started_at - timedelta(days=400),
+        )
+        orphan_1min = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
+            started_at=process_started_at - timedelta(minutes=1),
+        )
+        post_boot = ScraperLog(
+            scraper_id=scraper.id,
+            outcome="running",
+            courses_created=0,
+            classes_created=0,
+            started_at=process_started_at + timedelta(seconds=5),
+        )
+        test_db.add_all([orphan_60d, orphan_400d, orphan_1min, post_boot])
+        test_db.commit()
+
+        service = ScraperLogService(test_db)
+        count = await service.mark_orphaned_running_logs(process_started_at)
+        test_db.commit()
+
+        assert count == 3
+        test_db.refresh(orphan_60d)
+        test_db.refresh(orphan_400d)
+        test_db.refresh(orphan_1min)
+        test_db.refresh(post_boot)
+
+        for orphan in (orphan_60d, orphan_400d, orphan_1min):
+            assert orphan.outcome == "error"
+            assert orphan.error_message == "orphaned by restart"
+            assert orphan.completed_at is not None
+            assert orphan.duration_ms is None
+
+        assert post_boot.outcome == "running"
+        assert post_boot.error_message is None
+        assert post_boot.completed_at is None
+        assert post_boot.duration_ms is None

@@ -1,6 +1,6 @@
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import Integer, and_, cast, func, select, update
+from sqlalchemy import and_, select, update
 from datetime import datetime, timezone
 from loguru import logger
 
@@ -165,16 +165,17 @@ class ScraperLogService:
         started_at is PostgreSQL timestamptz. The cutoff is normalized to
         UTC-aware so the comparison is timezone-correct whether the caller
         passes naive UTC (historic start_log writes) or an aware datetime.
+
+        duration_ms is set to NULL. Computing EXTRACT(epoch FROM now -
+        started_at)*1000 as INTEGER overflows int4 after ~24.8 days, and
+        some production orphans have been running since 2025. The column
+        is nullable, so one guarded UPDATE can mark every matching row
+        without overflowing and without Python-side per-row math.
         """
         cutoff = as_utc_datetime(process_started_at)
         completed_at = datetime.now(timezone.utc)
-        duration_ms = func.greatest(
-            0,
-            cast(
-                func.extract("epoch", completed_at - ScraperLog.started_at) * 1000,
-                Integer,
-            ),
-        )
+        # duration_ms is nullable int4. Computing EXTRACT(epoch)*1000 as INTEGER
+        # overflows after ~24.8 days, so leave it NULL rather than CAST.
         result = self.db.execute(
             update(ScraperLog)
             .where(
@@ -187,7 +188,7 @@ class ScraperLogService:
                 outcome="error",
                 error_message="orphaned by restart",
                 completed_at=completed_at,
-                duration_ms=duration_ms,
+                duration_ms=None,
             )
             .execution_options(synchronize_session=False)
         )
