@@ -60,6 +60,9 @@ async def create_stripe_checkout_session(
                     college_status = get_college_data_status(db, college)
                 except Exception as e:
                     # Fail open: a status-check outage must not block checkout.
+                    # Roll back so a failed SQL statement cannot leave this
+                    # session in InFailedSqlTransaction for later queries.
+                    db.rollback()
                     logger.warning(
                         "College data status check failed; allowing checkout: {}",
                         e,
