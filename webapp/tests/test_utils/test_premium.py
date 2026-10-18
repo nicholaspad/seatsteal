@@ -335,6 +335,38 @@ class TestGetUserSubscriptionTier:
         assert tier == "free"
 
     @pytest.mark.unit
+    def test_incomplete_subscription_returns_free(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        self._add_plan(
+            test_db,
+            test_user,
+            tier="pro",
+            status="incomplete",
+            suffix="incomplete_pro",
+        )
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "free"
+
+    @pytest.mark.unit
+    def test_incomplete_expired_subscription_returns_free(
+        self,
+        test_db: Session,
+        test_user: Profile,
+    ):
+        self._add_plan(
+            test_db,
+            test_user,
+            tier="pro",
+            status="incomplete_expired",
+            suffix="incomplete_expired_pro",
+        )
+        tier = get_user_subscription_tier(test_user.id, test_db)
+        assert tier == "free"
+
+    @pytest.mark.unit
     def test_pro_wins_over_newer_plus(
         self,
         test_db: Session,

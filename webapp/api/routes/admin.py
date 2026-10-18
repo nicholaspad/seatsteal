@@ -19,12 +19,12 @@ from models.query_performance_metric import QueryPerformanceMetric
 from models.scraper import Scraper
 from models.scraper_log import ScraperLog
 from models.class_model import Class
-from models.stripe_subscription import StripeSubscription
 from api.middleware.auth import require_admin
 from utils.errors import log_and_raise_500
 from utils.cache import invalidate_user_caches, invalidate_cache
 from utils.college_data_status import get_college_data_status
 from utils.college_data_waitlist import get_waitlist_counts_by_college
+from utils.premium import paid_stripe_plan_subquery
 from schemas.admin import TermUpdateRequest, TermUpdateResponse, TermUpdateCleanupStats
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -453,12 +453,16 @@ async def get_query_performance(
 
         # Database connection stats (using raw SQL)
         try:
-            db_stats_result = db.execute(text("""
+            db_stats_result = db.execute(
+                text(
+                    """
                 SELECT
                     (SELECT count(*) FROM pg_stat_activity) as total_connections,
                     (SELECT count(*) FROM pg_stat_activity WHERE state = 'active') as active_connections,
                     (SELECT count(*) FROM pg_stat_activity WHERE state = 'idle') as idle_connections
-                """))
+                """
+                )
+            )
             db_stats_row = db_stats_result.first()
             database_stats = {
                 "total_connections": db_stats_row.total_connections,
@@ -1031,34 +1035,9 @@ async def get_users(
         total_pages = (total_count + limit - 1) // limit if total_count > 0 else 0
         offset = (page - 1) * limit
 
-        # Subquery to get the most recent active/trialing subscription for each user
-        latest_subscription_subquery = (
-            select(
-                StripeSubscription.user_id,
-                StripeSubscription.tier,
-                func.row_number()
-                .over(
-                    partition_by=StripeSubscription.user_id,
-                    order_by=[
-                        desc(StripeSubscription.created_at),
-                        desc(StripeSubscription.id),
-                    ],
-                )
-                .label("rn"),
-            )
-            .where(StripeSubscription.status.in_(["active", "trialing"]))
-            .subquery()
-        )
-
-        # Filter to get only the most recent subscription (rn = 1)
-        latest_subscription = (
-            select(
-                latest_subscription_subquery.c.user_id,
-                latest_subscription_subquery.c.tier,
-            )
-            .where(latest_subscription_subquery.c.rn == 1)
-            .subquery()
-        )
+        # Same paid statuses and ranking as seat alerts / get_user_subscription_tier
+        # so a past_due Pro user shows as Pro in the admin list.
+        latest_subscription = paid_stripe_plan_subquery()
 
         # Get users with college data and tier
         users_query = (

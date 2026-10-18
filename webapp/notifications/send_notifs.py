@@ -29,7 +29,17 @@ from loguru import logger
 webapp_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(webapp_dir))
 
-from sqlalchemy import select, and_, desc, case, literal, true
+from sqlalchemy import (
+    select,
+    and_,
+    desc,
+    case,
+    literal,
+    values,
+    column,
+    Integer,
+    DateTime,
+)
 from sqlalchemy.orm import Session
 
 from db.session import SessionLocal
@@ -269,28 +279,48 @@ class NotificationJob:
             logger.info("⚠️ All active colleges are stale; skipping seat alerts")
             return []
 
-        # Drive from active subscriptions (small) with per-row LATERAL
-        # lookups instead of DISTINCT ON over the whole enrollments table.
-        # For each subscription: latest successful scraper run for that
-        # school, then that class's latest enrollment in the run window.
-        # Ignores error / partial / timeout / running / orphaned-by-restart
-        # rows. Uses scrapers_college_id_idx, scraper_logs indexes, and
-        # enrollments_class_scraped_idx (class_id, scraped_at).
-        latest_success_run = (
+        # Latest successful scraper run once per college in Python (not
+        # per subscription). Ignores error / partial / timeout / running /
+        # orphaned-by-restart rows. Uses scrapers_college_id_idx and
+        # scraper_logs indexes. Then drive from active subscriptions with a
+        # LATERAL lookup for that class's latest enrollment in the run
+        # window (enrollments_class_scraped_idx).
+        latest_run_rows = db.execute(
             select(
-                ScraperLog.started_at.label("started_at"),
-                ScraperLog.completed_at.label("completed_at"),
+                Scraper.college_id,
+                ScraperLog.started_at,
+                ScraperLog.completed_at,
             )
             .select_from(ScraperLog)
             .join(Scraper, ScraperLog.scraper_id == Scraper.id)
             .where(
-                Scraper.college_id == Subscription.college_id,
                 ScraperLog.outcome == "success",
                 ScraperLog.completed_at.isnot(None),
+                Scraper.college_id.in_(ok_college_ids),
             )
-            .order_by(desc(ScraperLog.completed_at), desc(ScraperLog.id))
-            .limit(1)
-            .lateral("latest_success_run")
+            .distinct(Scraper.college_id)
+            .order_by(
+                Scraper.college_id,
+                desc(ScraperLog.completed_at),
+                desc(ScraperLog.id),
+            )
+        ).all()
+        if not latest_run_rows:
+            logger.info(
+                "⚠️ No successful scraper runs for fresh colleges; skipping seat alerts"
+            )
+            return []
+
+        latest_success_run = values(
+            column("college_id", Integer),
+            column("started_at", DateTime(timezone=True)),
+            column("completed_at", DateTime(timezone=True)),
+            name="latest_success_run",
+        ).data(
+            [
+                (row.college_id, row.started_at, row.completed_at)
+                for row in latest_run_rows
+            ]
         )
 
         latest_enrollment = (
@@ -335,7 +365,10 @@ class NotificationJob:
                 ).label("user_tier"),
             )
             .select_from(Subscription)
-            .join(latest_success_run, true())
+            .join(
+                latest_success_run,
+                Subscription.college_id == latest_success_run.c.college_id,
+            )
             .join(
                 latest_enrollment,
                 latest_enrollment.c.enrollment_status == "open",

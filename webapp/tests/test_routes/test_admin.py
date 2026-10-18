@@ -1230,6 +1230,55 @@ class TestGetUsers:
         assert data["users"][0]["tier"] == "free"
 
     @pytest.mark.unit
+    async def test_get_users_past_due_pro_shows_as_pro(
+        self,
+        admin_client: AsyncClient,
+        test_db: Session,
+        test_college,
+    ):
+        from uuid import uuid4
+        from models.stripe_customer import StripeCustomer
+
+        timestamp = datetime.now(timezone.utc).timestamp()
+        user_id = uuid4()
+        user = Profile(
+            id=user_id,
+            email=f"past_due_user_{timestamp}@example.com",
+            role="user",
+            college_id=test_college.id,
+        )
+        test_db.add(user)
+        test_db.commit()
+
+        customer = StripeCustomer(
+            user_id=user_id,
+            stripe_customer_id=f"cus_test_past_due_{timestamp}",
+            email=f"past_due_user_{timestamp}@example.com",
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        subscription = StripeSubscription(
+            user_id=user_id,
+            stripe_subscription_id=f"sub_test_past_due_{timestamp}",
+            stripe_customer_id=customer.stripe_customer_id,
+            status="past_due",
+            price_id="price_pro",
+            tier="pro",
+        )
+        test_db.add(subscription)
+        test_db.commit()
+
+        response = await admin_client.get(
+            f"/api/admin/users?search=past_due_user_{timestamp}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data["users"]) == 1
+        assert data["users"][0]["tier"] == "pro"
+
+    @pytest.mark.unit
     async def test_get_users_uses_most_recent_subscription(
         self,
         admin_client: AsyncClient,

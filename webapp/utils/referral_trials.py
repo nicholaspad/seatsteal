@@ -18,7 +18,7 @@ from utils.stripe_utils import (
     extend_subscription_trial,
     get_price_id_for_tier,
 )
-from utils.premium import get_user_subscription_tier
+from utils.premium import PAID_STRIPE_STATUSES, get_user_subscription_tier
 from utils.cache import invalidate_user_caches
 from utils.database import get_stripe_customer
 
@@ -30,8 +30,9 @@ async def create_referee_trial(
 ) -> Optional[str]:
     """Create a 7-day Pro trial subscription for the referee (user who used the code)
 
-    If referee has no subscription, creates a new Pro trial.
-    If they have an active subscription, extends it by 7 days.
+    If referee has no paid Stripe subscription, creates a new Pro trial.
+    If they already have a paid or past_due subscription, extends it by 7 days
+    instead of creating a second Pro trial.
 
     Args:
         user_id: UUID of the referee
@@ -48,18 +49,18 @@ async def create_referee_trial(
             logger.error(f"Failed to get Stripe customer for referee {user_id}")
             return None
 
-        # Check if referee has an active or trialing subscription
+        # Check if referee already has a paid plan, including past_due.
+        # Creating a second 7-day Pro trial on top of past_due would double-bill.
         subscriptions = stripe.Subscription.list(
             customer=stripe_customer.stripe_customer_id,
             limit=10,
         )
 
-        # Filter for active or trialing subscriptions
-        active_or_trialing = [
-            sub for sub in subscriptions.data if sub.status in ["active", "trialing"]
+        paid_subscriptions = [
+            sub for sub in subscriptions.data if sub.status in PAID_STRIPE_STATUSES
         ]
 
-        if not active_or_trialing:
+        if not paid_subscriptions:
             # No subscription - create new Pro trial
             subscription = await create_trial_subscription(
                 customer_id=stripe_customer.stripe_customer_id,
@@ -73,8 +74,8 @@ async def create_referee_trial(
                 f"Created referee trial subscription {subscription.id} for user {user_id}"
             )
         else:
-            # Has subscription - extend trial by 7 days on current subscription
-            existing_subscription = active_or_trialing[0]
+            # Has a paid/past_due subscription - extend it by 7 days
+            existing_subscription = paid_subscriptions[0]
 
             subscription = await extend_subscription_trial(
                 existing_subscription.id, additional_days=7
@@ -102,8 +103,9 @@ async def create_referrer_trial(
 ) -> Optional[str]:
     """Create or extend a 7-day Pro trial for the referrer (user who owns the code)
 
-    If the referrer is on free tier, creates a new Pro trial.
-    If they have an active subscription, extends it by 7 days.
+    If the referrer has no paid Stripe subscription, creates a new Pro trial.
+    If they already have a paid or past_due subscription, extends it by 7 days
+    instead of creating a second Pro trial.
 
     Args:
         referrer_id: UUID of the referrer
@@ -124,18 +126,17 @@ async def create_referrer_trial(
             logger.error(f"Failed to get Stripe customer for referrer {referrer_id}")
             return None
 
-        # Check if referrer has an active or trialing subscription
+        # Check if referrer already has a paid plan, including past_due.
         subscriptions = stripe.Subscription.list(
             customer=stripe_customer.stripe_customer_id,
             limit=10,
         )
 
-        # Filter for active or trialing subscriptions
-        active_or_trialing = [
-            sub for sub in subscriptions.data if sub.status in ["active", "trialing"]
+        paid_subscriptions = [
+            sub for sub in subscriptions.data if sub.status in PAID_STRIPE_STATUSES
         ]
 
-        if current_tier == "free" or not active_or_trialing:
+        if not paid_subscriptions:
             # Referrer is on free tier - create new Pro trial
             subscription = await create_trial_subscription(
                 customer_id=stripe_customer.stripe_customer_id,
@@ -155,9 +156,9 @@ async def create_referrer_trial(
             )
 
         else:
-            # Referrer has active or trialing subscription - extend trial by 7 days
-            # DO NOT upgrade tier - just extend their current subscription
-            existing_subscription = active_or_trialing[0]
+            # Referrer has a paid/past_due subscription - extend it by 7 days.
+            # DO NOT create a second Pro trial (that would double-bill).
+            existing_subscription = paid_subscriptions[0]
 
             # Extend trial on current subscription
             subscription = await extend_subscription_trial(

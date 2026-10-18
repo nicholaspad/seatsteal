@@ -403,6 +403,48 @@ class TestCreateRefereeTrial:
             assert result == "sub_first_123"
             mock_extend.assert_called_once_with("sub_first_123", additional_days=7)
 
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    async def test_past_due_subscription_extends_instead_of_new_trial(
+        self,
+        test_db: Session,
+        test_user: Profile,
+        test_redemption: ReferralRedemption,
+        test_stripe_customer: StripeCustomer,
+    ):
+        mock_past_due = MagicMock()
+        mock_past_due.id = "sub_past_due_123"
+        mock_past_due.status = "past_due"
+
+        mock_sub_list = MagicMock()
+        mock_sub_list.data = [mock_past_due]
+
+        mock_extended_sub = MagicMock()
+        mock_extended_sub.id = "sub_past_due_123"
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
+
+        with patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend, patch(
+            "utils.referral_trials.create_trial_subscription", new_callable=AsyncMock
+        ) as mock_create:
+
+            mock_get_customer.return_value = test_stripe_customer
+            mock_list.return_value = mock_sub_list
+            mock_extend.return_value = mock_extended_sub
+
+            result = await create_referee_trial(test_user.id, test_redemption, test_db)
+
+            assert result == "sub_past_due_123"
+            mock_extend.assert_called_once_with("sub_past_due_123", additional_days=7)
+            mock_create.assert_not_called()
+
 
 class TestCreateReferrerTrial:
     """Tests for create_referrer_trial function."""
@@ -821,3 +863,50 @@ class TestCreateReferrerTrial:
 
                 # Assert tier was stored correctly
                 assert test_redemption.referrer_previous_tier == tier
+
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    async def test_past_due_subscription_extends_instead_of_new_trial(
+        self,
+        test_db: Session,
+        test_user: Profile,
+        test_redemption: ReferralRedemption,
+        test_stripe_customer: StripeCustomer,
+    ):
+        mock_past_due = MagicMock()
+        mock_past_due.id = "sub_past_due_456"
+        mock_past_due.status = "past_due"
+
+        mock_sub_list = MagicMock()
+        mock_sub_list.data = [mock_past_due]
+
+        mock_extended_sub = MagicMock()
+        mock_extended_sub.id = "sub_past_due_456"
+        mock_extended_sub.trial_end = int(
+            (datetime.now() + timedelta(days=14)).timestamp()
+        )
+
+        with patch(
+            "utils.referral_trials.get_user_subscription_tier"
+        ) as mock_get_tier, patch(
+            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
+        ) as mock_get_customer, patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.referral_trials.extend_subscription_trial", new_callable=AsyncMock
+        ) as mock_extend, patch(
+            "utils.referral_trials.create_trial_subscription", new_callable=AsyncMock
+        ) as mock_create, patch(
+            "utils.referral_trials.invalidate_user_caches"
+        ):
+
+            mock_get_tier.return_value = "pro"
+            mock_get_customer.return_value = test_stripe_customer
+            mock_list.return_value = mock_sub_list
+            mock_extend.return_value = mock_extended_sub
+
+            result = await create_referrer_trial(test_user.id, test_redemption, test_db)
+
+            assert result == "sub_past_due_456"
+            mock_extend.assert_called_once_with("sub_past_due_456", additional_days=7)
+            mock_create.assert_not_called()
