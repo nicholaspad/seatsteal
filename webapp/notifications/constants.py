@@ -25,3 +25,8 @@ USER_TIERS = {
     "PLUS": "plus",
     "PRO": "pro",
 }
+
+# Stripe statuses that still count as a paid plan for notification cadence.
+# past_due is included while Stripe is retrying payment; canceled / unpaid /
+# incomplete_expired and anything else fall through to free.
+PAID_STRIPE_STATUSES = ("active", "trialing", "past_due")

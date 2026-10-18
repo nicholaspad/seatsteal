@@ -667,6 +667,125 @@ class TestSeatAlertQueryRegression:
         assert len(notifications) == 1
         assert notifications[0]["user_tier"] == "pro"
 
+    def _open_class_with_stripe_status(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_class: Class,
+        *,
+        tier: str,
+        status: str,
+        suffix: str,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        scraper = self._add_scraper(test_db, test_college, now)
+        add_scraper_log(
+            test_db,
+            scraper,
+            outcome="success",
+            started_at=now - timedelta(hours=1),
+            completed_at=now,
+        )
+        test_db.add(
+            StripeCustomer(
+                user_id=test_user.id,
+                stripe_customer_id=f"cus_{suffix}",
+                email=test_user.email,
+            )
+        )
+        test_db.add(
+            StripeSubscription(
+                user_id=test_user.id,
+                stripe_subscription_id=f"sub_{suffix}",
+                stripe_customer_id=f"cus_{suffix}",
+                price_id=f"price_{tier}",
+                tier=tier,
+                status=status,
+            )
+        )
+        self._subscribe_user(test_db, test_user, test_class, test_college)
+        self._add_enrollment(
+            test_db,
+            test_class,
+            test_college,
+            status="open",
+            scraped_at=now - timedelta(minutes=5),
+        )
+        test_db.commit()
+
+    @pytest.mark.unit
+    def test_past_due_plan_counts_as_paid(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        self._open_class_with_stripe_status(
+            test_db,
+            test_college,
+            test_user,
+            test_class,
+            tier="plus",
+            status="past_due",
+            suffix="past_due",
+        )
+        notifications = self._find_at_minute_zero(test_db)
+        assert len(notifications) == 1
+        assert notifications[0]["user_tier"] == "plus"
+
+    @pytest.mark.unit
+    def test_unpaid_plan_counts_as_free(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        self._open_class_with_stripe_status(
+            test_db,
+            test_college,
+            test_user,
+            test_class,
+            tier="pro",
+            status="unpaid",
+            suffix="unpaid",
+        )
+        notifications = self._find_at_minute_zero(test_db)
+        assert len(notifications) == 1
+        assert notifications[0]["user_tier"] == "free"
+
+    @pytest.mark.unit
+    def test_canceled_plan_counts_as_free(
+        self,
+        test_db: Session,
+        test_college: College,
+        test_user: Profile,
+        test_course: Course,
+        test_class: Class,
+        mock_email_service,
+        mock_sms_service,
+    ):
+        self._open_class_with_stripe_status(
+            test_db,
+            test_college,
+            test_user,
+            test_class,
+            tier="pro",
+            status="canceled",
+            suffix="canceled",
+        )
+        notifications = self._find_at_minute_zero(test_db)
+        assert len(notifications) == 1
+        assert notifications[0]["user_tier"] == "free"
+
 
 class TestSendNotification:
     """Tests for _send_notification method."""
