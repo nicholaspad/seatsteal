@@ -129,6 +129,7 @@ async def create_trial_subscription(
     user_id: str,
     trial_days: int = 7,
     metadata: dict = None,
+    idempotency_key: Optional[str] = None,
 ) -> stripe.Subscription:
     """Create a subscription with trial period that auto-cancels without payment
 
@@ -138,6 +139,7 @@ async def create_trial_subscription(
         user_id: User ID for metadata
         trial_days: Number of days for trial (default 7)
         metadata: Additional metadata to attach
+        idempotency_key: Optional Stripe Idempotency-Key for safe retries
 
     Returns:
         Stripe Subscription object
@@ -148,24 +150,30 @@ async def create_trial_subscription(
     if metadata:
         subscription_metadata.update(metadata)
 
-    return stripe.Subscription.create(
-        customer=customer_id,
-        items=[{"price": price_id}],
-        trial_period_days=trial_days,
-        trial_settings={"end_behavior": {"missing_payment_method": "cancel"}},
-        metadata=subscription_metadata,
-    )
+    create_kwargs = {
+        "customer": customer_id,
+        "items": [{"price": price_id}],
+        "trial_period_days": trial_days,
+        "trial_settings": {"end_behavior": {"missing_payment_method": "cancel"}},
+        "metadata": subscription_metadata,
+    }
+    if idempotency_key:
+        create_kwargs["idempotency_key"] = idempotency_key
+
+    return stripe.Subscription.create(**create_kwargs)
 
 
 async def extend_subscription_trial(
     subscription_id: str,
     additional_days: int = 7,
+    idempotency_key: Optional[str] = None,
 ) -> stripe.Subscription:
     """Extend an existing subscription's trial by additional days
 
     Args:
         subscription_id: Stripe subscription ID
         additional_days: Number of days to add (default 7)
+        idempotency_key: Optional Stripe Idempotency-Key for safe retries
 
     Returns:
         Updated Stripe Subscription object
@@ -183,8 +191,11 @@ async def extend_subscription_trial(
 
     new_trial_end = base + timedelta(days=additional_days)
 
-    return stripe.Subscription.modify(
-        subscription_id,
-        trial_end=int(new_trial_end.timestamp()),
-        proration_behavior="none",
-    )
+    modify_kwargs = {
+        "trial_end": int(new_trial_end.timestamp()),
+        "proration_behavior": "none",
+    }
+    if idempotency_key:
+        modify_kwargs["idempotency_key"] = idempotency_key
+
+    return stripe.Subscription.modify(subscription_id, **modify_kwargs)

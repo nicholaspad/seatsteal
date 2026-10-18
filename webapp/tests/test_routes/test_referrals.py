@@ -20,6 +20,7 @@ from utils.referral_trials import (
     ReferralTrialPlan,
     ReferralTrialResult,
     REFEREE_PAST_DUE_MESSAGE,
+    referral_idempotency_key,
 )
 
 
@@ -343,15 +344,14 @@ class TestApplyReferralCode:
         assert redemption is None
 
     @pytest.mark.unit
-    async def test_apply_rollback_on_referrer_trial_failure(
+    async def test_apply_keeps_redemption_when_referrer_trial_fails(
         self,
         authenticated_client: AsyncClient,
         test_db: Session,
         test_user: Profile,
         second_user: Profile,
     ):
-        """Test that database rolls back when referrer trial creation fails."""
-        # Create referral code
+        """Referee grant is committed even if the referrer Stripe write fails."""
         referral = Referral(
             referrer_id=second_user.id,
             referral_code="TESTCODE",
@@ -360,21 +360,33 @@ class TestApplyReferralCode:
         test_db.commit()
         test_db.refresh(referral)
 
-        with mock_referral_trials(referrer_plan=FAILED_PLAN):
+        with mock_referral_trials(
+            referrer_result=ReferralTrialResult(outcome=ReferralTrialOutcome.FAILED)
+        ):
             response = await authenticated_client.post(
                 "/api/referrals/apply",
                 json={"referral_code": "TESTCODE"},
             )
 
-        # Should return 500 error
-        assert response.status_code == 500
-        assert "Failed to create referrer trial" in response.json()["detail"]
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        assert (
+            "you've received 7 days of pro access"
+            in response.json()["data"]["message"].lower()
+        )
 
-        # Verify NO redemption was created (database rollback)
         redemption = (
             test_db.query(ReferralRedemption).filter_by(referee_id=test_user.id).first()
         )
-        assert redemption is None
+        assert redemption is not None
+        assert redemption.referrer_trial_subscription_id is None
+
+        retry = await authenticated_client.post(
+            "/api/referrals/apply",
+            json={"referral_code": "TESTCODE"},
+        )
+        assert retry.status_code == 400
+        assert "already claimed a referral code" in retry.json()["detail"].lower()
 
     @pytest.mark.unit
     async def test_apply_rollback_on_both_trials_fail(
@@ -779,6 +791,177 @@ class TestApplyReferralCode:
             test_db.query(ReferralRedemption).filter_by(referee_id=test_user.id).all()
         )
         assert len(redemptions) == 1
+
+    @pytest.mark.unit
+    async def test_referrer_modify_failure_returns_200_and_blocks_retry(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        """Referee Stripe write is committed; referrer modify failure still 200."""
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.add(
+            StripeCustomer(
+                user_id=test_user.id,
+                stripe_customer_id="cus_referee",
+                email=test_user.email,
+            )
+        )
+        test_db.add(
+            StripeCustomer(
+                user_id=second_user.id,
+                stripe_customer_id="cus_referrer",
+                email=second_user.email,
+            )
+        )
+        test_db.commit()
+
+        referrer_sub = MagicMock()
+        referrer_sub.id = "sub_referrer_active"
+        referrer_sub.status = "active"
+        referrer_sub.tier = "pro"
+        referrer_sub.created = 1
+        referrer_sub.trial_end = int(
+            (datetime.now(timezone.utc) + timedelta(days=3)).timestamp()
+        )
+
+        created = MagicMock()
+        created.id = "sub_referee_new"
+        created.trial_end = int(
+            (datetime.now(timezone.utc) + timedelta(days=7)).timestamp()
+        )
+
+        def list_side_effect(customer=None, **_kwargs):
+            if customer == "cus_referrer":
+                return MagicMock(data=[referrer_sub])
+            return MagicMock(data=[])
+
+        with patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.stripe_utils.stripe.Subscription.create"
+        ) as mock_create, patch(
+            "utils.stripe_utils.stripe.Subscription.modify"
+        ) as mock_modify, patch(
+            "utils.stripe_utils.stripe.Subscription.retrieve"
+        ) as mock_retrieve:
+            mock_list.side_effect = list_side_effect
+            mock_create.return_value = created
+            mock_retrieve.return_value = referrer_sub
+            mock_modify.side_effect = Exception("stripe modify failed")
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+            assert response.status_code == 200
+            mock_create.assert_called_once()
+            assert mock_create.call_args.kwargs[
+                "idempotency_key"
+            ] == referral_idempotency_key(test_user.id, "referee")
+            mock_modify.assert_called_once()
+            assert mock_modify.call_args.kwargs[
+                "idempotency_key"
+            ] == referral_idempotency_key(test_user.id, "referrer")
+
+            redemption = (
+                test_db.query(ReferralRedemption)
+                .filter_by(referee_id=test_user.id)
+                .first()
+            )
+            assert redemption is not None
+            assert redemption.referee_trial_subscription_id == "sub_referee_new"
+            assert redemption.referrer_trial_subscription_id is None
+
+            retry = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        assert retry.status_code == 400
+        assert "already claimed a referral code" in retry.json()["detail"].lower()
+        assert mock_create.call_count == 1
+        assert mock_modify.call_count == 1
+
+    @pytest.mark.unit
+    async def test_apply_success_both_trials_via_stripe_sdk(
+        self,
+        authenticated_client: AsyncClient,
+        test_db: Session,
+        test_user: Profile,
+        second_user: Profile,
+    ):
+        referral = Referral(
+            referrer_id=second_user.id,
+            referral_code="TESTCODE",
+        )
+        test_db.add(referral)
+        test_db.add(
+            StripeCustomer(
+                user_id=test_user.id,
+                stripe_customer_id="cus_referee",
+                email=test_user.email,
+            )
+        )
+        test_db.add(
+            StripeCustomer(
+                user_id=second_user.id,
+                stripe_customer_id="cus_referrer",
+                email=second_user.email,
+            )
+        )
+        test_db.commit()
+
+        referee_created = MagicMock()
+        referee_created.id = "sub_referee_new"
+        referee_created.trial_end = int(
+            (datetime.now(timezone.utc) + timedelta(days=7)).timestamp()
+        )
+        referrer_created = MagicMock()
+        referrer_created.id = "sub_referrer_new"
+        referrer_created.trial_end = int(
+            (datetime.now(timezone.utc) + timedelta(days=7)).timestamp()
+        )
+
+        with patch(
+            "utils.referral_trials.stripe.Subscription.list"
+        ) as mock_list, patch(
+            "utils.stripe_utils.stripe.Subscription.create"
+        ) as mock_create, patch(
+            "utils.stripe_utils.stripe.Subscription.modify"
+        ) as mock_modify, patch(
+            "utils.stripe_utils.stripe.Subscription.retrieve"
+        ) as mock_retrieve:
+            mock_list.return_value = MagicMock(data=[])
+            mock_create.side_effect = [referee_created, referrer_created]
+
+            response = await authenticated_client.post(
+                "/api/referrals/apply",
+                json={"referral_code": "TESTCODE"},
+            )
+
+        assert response.status_code == 200
+        mock_modify.assert_not_called()
+        mock_retrieve.assert_not_called()
+        assert mock_create.call_count == 2
+        keys = [call.kwargs["idempotency_key"] for call in mock_create.call_args_list]
+        assert keys == [
+            referral_idempotency_key(test_user.id, "referee"),
+            referral_idempotency_key(test_user.id, "referrer"),
+        ]
+        redemption = (
+            test_db.query(ReferralRedemption).filter_by(referee_id=test_user.id).first()
+        )
+        assert redemption is not None
+        assert redemption.referee_trial_subscription_id == "sub_referee_new"
+        assert redemption.referrer_trial_subscription_id == "sub_referrer_new"
 
 
 class TestValidateReferralCode:

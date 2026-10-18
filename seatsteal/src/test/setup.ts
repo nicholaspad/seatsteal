@@ -21,6 +21,8 @@ interface MockSessionState {
   tierLoading: boolean;
   subscriptionStatus: SubscriptionStatus | null;
   subscriptionStatusLoading: boolean;
+  refreshSubscriptionTier: () => Promise<void>;
+  refreshSubscriptionStatus: () => Promise<void>;
 }
 
 // Attach mock state to globalThis so it can be accessed from vi.mock factories
@@ -38,6 +40,8 @@ globalThis.__mockSessionState = {
   tierLoading: false,
   subscriptionStatus: null,
   subscriptionStatusLoading: false,
+  refreshSubscriptionTier: vi.fn().mockResolvedValue(undefined),
+  refreshSubscriptionStatus: vi.fn().mockResolvedValue(undefined),
 };
 
 // Export for use in test utils
@@ -53,6 +57,12 @@ export const resetMockSessionState = () => {
   globalThis.__mockSessionState.tierLoading = false;
   globalThis.__mockSessionState.subscriptionStatus = null;
   globalThis.__mockSessionState.subscriptionStatusLoading = false;
+  globalThis.__mockSessionState.refreshSubscriptionTier = vi
+    .fn()
+    .mockResolvedValue(undefined);
+  globalThis.__mockSessionState.refreshSubscriptionStatus = vi
+    .fn()
+    .mockResolvedValue(undefined);
 };
 
 // Mock window.matchMedia (needed for Ionic/theme detection)

@@ -10,6 +10,7 @@ from utils.stripe_utils import (
     get_tier_from_price_id,
     verify_webhook_signature,
     extend_subscription_trial,
+    create_trial_subscription,
 )
 
 
@@ -213,3 +214,56 @@ class TestExtendSubscriptionTrial:
             expected = future + timedelta(days=7)
             assert abs((new_end - expected).total_seconds()) < 2
             assert kwargs["proration_behavior"] == "none"
+
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    async def test_forwards_idempotency_key_to_modify(self):
+        mock_sub = MagicMock()
+        mock_sub.trial_end = None
+
+        with patch(
+            "utils.stripe_utils.stripe.Subscription.retrieve"
+        ) as mock_retrieve, patch(
+            "utils.stripe_utils.stripe.Subscription.modify"
+        ) as mock_modify:
+            mock_retrieve.return_value = mock_sub
+            mock_modify.return_value = mock_sub
+
+            await extend_subscription_trial(
+                "sub_active_123",
+                additional_days=7,
+                idempotency_key="referral-trial-abc-referee",
+            )
+
+            assert (
+                mock_modify.call_args.kwargs["idempotency_key"]
+                == "referral-trial-abc-referee"
+            )
+            assert mock_modify.call_args.kwargs["proration_behavior"] == "none"
+
+
+class TestCreateTrialSubscription:
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    async def test_forwards_idempotency_key_to_create(self):
+        mock_sub = MagicMock()
+        mock_sub.id = "sub_new"
+
+        with patch("utils.stripe_utils.get_price_id_for_tier") as mock_price, patch(
+            "utils.stripe_utils.stripe.Subscription.create"
+        ) as mock_create:
+            mock_price.return_value = "price_pro"
+            mock_create.return_value = mock_sub
+
+            await create_trial_subscription(
+                customer_id="cus_123",
+                tier="pro",
+                user_id="user-1",
+                trial_days=7,
+                idempotency_key="referral-trial-abc-referrer",
+            )
+
+            assert (
+                mock_create.call_args.kwargs["idempotency_key"]
+                == "referral-trial-abc-referrer"
+            )

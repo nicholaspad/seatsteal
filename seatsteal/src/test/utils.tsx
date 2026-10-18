@@ -71,6 +71,12 @@ export function customRender(
     tierLoading,
     subscriptionStatus,
     subscriptionStatusLoading,
+    refreshSubscriptionTier:
+      globalThis.__mockSessionState?.refreshSubscriptionTier ??
+      (async () => undefined),
+    refreshSubscriptionStatus:
+      globalThis.__mockSessionState?.refreshSubscriptionStatus ??
+      (async () => undefined),
   };
 
   function Wrapper({ children }: { children: React.ReactNode }) {

@@ -16,6 +16,7 @@ from utils.referral_trials import (
     ReferralTrialOutcome,
     create_referee_trial,
     create_referrer_trial,
+    referral_idempotency_key,
 )
 
 
@@ -32,6 +33,14 @@ def _assert_skipped(result) -> None:
 def _assert_failed(result) -> None:
     assert result.outcome == ReferralTrialOutcome.FAILED
     assert result.subscription_id is None
+
+
+def _assert_extend_called(mock_extend, sub_id, referee_id, role: str) -> None:
+    mock_extend.assert_called_once_with(
+        sub_id,
+        additional_days=7,
+        idempotency_key=referral_idempotency_key(referee_id, role),
+    )
 
 
 @pytest.fixture
@@ -123,6 +132,9 @@ class TestCreateRefereeTrial:
             assert call_kwargs["customer_id"] == "cus_test123"
             assert call_kwargs["tier"] == "pro"
             assert call_kwargs["trial_days"] == 7
+            assert call_kwargs["idempotency_key"] == referral_idempotency_key(
+                test_user.id, "referee"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -170,7 +182,7 @@ class TestCreateRefereeTrial:
             assert test_redemption.referee_trial_subscription_id == "sub_plus_123"
 
             # Verify extend was called (NOT create)
-            mock_extend.assert_called_once_with("sub_plus_123", additional_days=7)
+            _assert_extend_called(mock_extend, "sub_plus_123", test_user.id, "referee")
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -211,7 +223,7 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             _assert_granted(result, "sub_pro_123")
-            mock_extend.assert_called_once_with("sub_pro_123", additional_days=7)
+            _assert_extend_called(mock_extend, "sub_pro_123", test_user.id, "referee")
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -253,7 +265,9 @@ class TestCreateRefereeTrial:
 
             # Assert trialing subscription was extended (NO upgrade to Pro)
             _assert_granted(result, "sub_trial_plus_123")
-            mock_extend.assert_called_once_with("sub_trial_plus_123", additional_days=7)
+            _assert_extend_called(
+                mock_extend, "sub_trial_plus_123", test_user.id, "referee"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -293,7 +307,9 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             _assert_granted(result, "sub_trial_pro_123")
-            mock_extend.assert_called_once_with("sub_trial_pro_123", additional_days=7)
+            _assert_extend_called(
+                mock_extend, "sub_trial_pro_123", test_user.id, "referee"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -305,13 +321,12 @@ class TestCreateRefereeTrial:
     ):
         """Test graceful handling when Stripe customer creation fails."""
         with patch(
-            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
-        ) as mock_get_customer:
-            mock_get_customer.return_value = None
+            "utils.referral_trials.create_stripe_customer", new_callable=AsyncMock
+        ) as mock_create_customer:
+            mock_create_customer.side_effect = Exception("Stripe customer error")
 
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
-            # Should return None and not raise exception
             _assert_failed(result)
             assert test_redemption.referee_trial_subscription_id is None
 
@@ -424,7 +439,7 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             _assert_granted(result, "sub_pro_older")
-            mock_extend.assert_called_once_with("sub_pro_older", additional_days=7)
+            _assert_extend_called(mock_extend, "sub_pro_older", test_user.id, "referee")
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -516,7 +531,9 @@ class TestCreateRefereeTrial:
             result = await create_referee_trial(test_user.id, test_redemption, test_db)
 
             _assert_granted(result, "sub_active_pro")
-            mock_extend.assert_called_once_with("sub_active_pro", additional_days=7)
+            _assert_extend_called(
+                mock_extend, "sub_active_pro", test_user.id, "referee"
+            )
             mock_create.assert_not_called()
 
 
@@ -576,6 +593,9 @@ class TestCreateReferrerTrial:
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["tier"] == "pro"
             assert call_kwargs["trial_days"] == 7
+            assert call_kwargs["idempotency_key"] == referral_idempotency_key(
+                test_user.id, "referrer"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -622,7 +642,7 @@ class TestCreateReferrerTrial:
             # Assert Plus subscription was extended (NO upgrade to Pro)
             _assert_granted(result, "sub_plus_123")
             assert test_redemption.referrer_previous_tier == "plus"
-            mock_extend.assert_called_once_with("sub_plus_123", additional_days=7)
+            _assert_extend_called(mock_extend, "sub_plus_123", test_user.id, "referrer")
             mock_invalidate.assert_called_once()
 
     @pytest.mark.asyncio
@@ -676,7 +696,9 @@ class TestCreateReferrerTrial:
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
             _assert_granted(result, "sub_pro_older")
-            mock_extend.assert_called_once_with("sub_pro_older", additional_days=7)
+            _assert_extend_called(
+                mock_extend, "sub_pro_older", test_user.id, "referrer"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -722,7 +744,7 @@ class TestCreateReferrerTrial:
 
             _assert_granted(result, "sub_pro_123")
             assert test_redemption.referrer_previous_tier == "pro"
-            mock_extend.assert_called_once_with("sub_pro_123", additional_days=7)
+            _assert_extend_called(mock_extend, "sub_pro_123", test_user.id, "referrer")
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -768,7 +790,9 @@ class TestCreateReferrerTrial:
 
             # Assert trialing Plus was extended (NO upgrade)
             _assert_granted(result, "sub_trial_plus_123")
-            mock_extend.assert_called_once_with("sub_trial_plus_123", additional_days=7)
+            _assert_extend_called(
+                mock_extend, "sub_trial_plus_123", test_user.id, "referrer"
+            )
             mock_invalidate.assert_called_once()
 
     @pytest.mark.asyncio
@@ -814,7 +838,9 @@ class TestCreateReferrerTrial:
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
             _assert_granted(result, "sub_trial_pro_123")
-            mock_extend.assert_called_once_with("sub_trial_pro_123", additional_days=7)
+            _assert_extend_called(
+                mock_extend, "sub_trial_pro_123", test_user.id, "referrer"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -867,11 +893,11 @@ class TestCreateReferrerTrial:
         with patch(
             "utils.referral_trials.get_user_subscription_tier"
         ) as mock_get_tier, patch(
-            "utils.referral_trials.get_stripe_customer", new_callable=AsyncMock
-        ) as mock_get_customer:
+            "utils.referral_trials.create_stripe_customer", new_callable=AsyncMock
+        ) as mock_create_customer:
 
             mock_get_tier.return_value = "free"
-            mock_get_customer.return_value = None
+            mock_create_customer.side_effect = Exception("Stripe customer error")
 
             result = await create_referrer_trial(test_user.id, test_redemption, test_db)
 
@@ -1169,6 +1195,9 @@ class TestReferralTrialStripeSdkParams:
             create.assert_not_called()
             kwargs = modify.call_args.kwargs
             assert kwargs["proration_behavior"] == "none"
+            assert kwargs["idempotency_key"] == referral_idempotency_key(
+                test_user.id, role
+            )
             expected = datetime.fromtimestamp(
                 trial_end_ts, tz=timezone.utc
             ) + timedelta(days=7)
@@ -1215,7 +1244,56 @@ class TestReferralTrialStripeSdkParams:
             create.assert_not_called()
             kwargs = modify.call_args.kwargs
             assert kwargs["proration_behavior"] == "none"
+            assert kwargs["idempotency_key"] == referral_idempotency_key(
+                test_user.id, "referee"
+            )
             new_end = datetime.fromtimestamp(kwargs["trial_end"], tz=timezone.utc)
             assert new_end >= before + timedelta(days=7) - timedelta(seconds=1)
             assert new_end <= after + timedelta(days=7)
             assert new_end > expired + timedelta(days=8)
+
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    @pytest.mark.parametrize("role", ["referee", "referrer"])
+    async def test_create_passes_idempotency_key(
+        self,
+        role,
+        test_db: Session,
+        test_user: Profile,
+        test_redemption: ReferralRedemption,
+        test_stripe_customer: StripeCustomer,
+    ):
+        created = MagicMock()
+        created.id = "sub_created_sdk"
+        created.trial_end = int(
+            (datetime.now(timezone.utc) + timedelta(days=7)).timestamp()
+        )
+        (
+            mock_get_customer,
+            mock_list,
+            mock_retrieve,
+            mock_modify,
+            mock_create,
+            mock_get_tier,
+            _mock_invalidate,
+        ) = self._sdk_patches()
+
+        with mock_get_customer as get_customer, mock_list as listed, mock_retrieve as retrieve, mock_modify as modify, mock_create as create, mock_get_tier as get_tier, (
+            _mock_invalidate
+        ):
+            get_customer.return_value = test_stripe_customer
+            get_tier.return_value = "free"
+            listed.return_value = MagicMock(data=[])
+            create.return_value = created
+
+            result = await self._run_role(
+                role, test_user, test_redemption, test_db, None
+            )
+
+            _assert_granted(result, "sub_created_sdk")
+            modify.assert_not_called()
+            retrieve.assert_not_called()
+            create.assert_called_once()
+            assert create.call_args.kwargs[
+                "idempotency_key"
+            ] == referral_idempotency_key(test_user.id, role)

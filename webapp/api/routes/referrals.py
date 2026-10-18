@@ -214,19 +214,23 @@ async def apply_referral_code(
                 detail="Failed to create your trial. Please try again or contact support.",
             )
 
+        # Persist the referee grant before the referrer Stripe write so a
+        # referrer failure cannot roll back a trial that already landed in Stripe.
+        db.commit()
+
         referrer_trial = await apply_referral_trial(
             referral.referrer_id, redemption, db, role="referrer", plan=referrer_plan
         )
         if referrer_trial.outcome == ReferralTrialOutcome.FAILED:
-            db.rollback()
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create referrer trial. Please try again or contact support.",
+            logger.error(
+                "Referrer trial failed after referee grant was committed; "
+                "leaving referrer_trial_subscription_id null "
+                f"referee_id={user.id} redemption_id={redemption.id}"
             )
-        # SKIPPED_PAST_DUE for the referrer is success: referee is granted,
-        # redemption is saved, referrer_trial_subscription_id stays null.
-
-        db.commit()
+        else:
+            # GRANTED or SKIPPED_PAST_DUE: save referrer fields (or leave
+            # referrer_trial_subscription_id null on skip).
+            db.commit()
 
         # Invalidate tier caches for both users
         invalidate_user_caches(str(user.id))
@@ -279,9 +283,9 @@ async def apply_referral_code(
             "data": ApplyReferralResponse(
                 success=True,
                 message=(
-                    "🎉 Your referral has been applied. You've received 7 days of Pro access!"
-                    if referrer_trial.outcome == ReferralTrialOutcome.SKIPPED_PAST_DUE
-                    else "🎉 Your referral has been applied. You and your referrer have received 7 days of Pro access!"
+                    "🎉 Your referral has been applied. You and your referrer have received 7 days of Pro access!"
+                    if referrer_trial.outcome == ReferralTrialOutcome.GRANTED
+                    else "🎉 Your referral has been applied. You've received 7 days of Pro access!"
                 ),
             ),
         }
