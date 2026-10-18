@@ -32,15 +32,27 @@ def _waitlist_row(
 
 
 class TestChooseWaitlistChannel:
-    def test_sms_when_user_has_phone(self, test_user: Profile):
-        assert choose_waitlist_channel(test_user) == "sms"
+    def test_sms_when_opted_in(self, test_user: Profile, test_college: College):
+        test_college.sms_enabled = True
+        assert choose_waitlist_channel(test_user, test_college) == "sms"
 
-    def test_email_when_user_has_no_phone(self, test_user: Profile):
+    def test_email_when_phone_on_file_but_sms_not_opted_in(
+        self, test_user: Profile, test_college: College
+    ):
+        assert test_user.phone
+        test_college.sms_enabled = False
+        assert choose_waitlist_channel(test_user, test_college) == "email"
+
+    def test_email_when_user_has_no_phone(
+        self, test_user: Profile, test_college: College
+    ):
         test_user.phone = None
-        assert choose_waitlist_channel(test_user) == "email"
+        test_college.sms_enabled = True
+        assert choose_waitlist_channel(test_user, test_college) == "email"
 
-    def test_email_for_guests(self):
-        assert choose_waitlist_channel(None) == "email"
+    def test_email_for_guests(self, test_college: College):
+        test_college.sms_enabled = True
+        assert choose_waitlist_channel(None, test_college) == "email"
 
 
 class TestNotifyRecoveredWaitlists:
@@ -48,6 +60,7 @@ class TestNotifyRecoveredWaitlists:
     def test_notifies_pending_rows_when_data_is_ok(
         self, test_db: Session, test_college: College, test_user: Profile
     ):
+        test_college.sms_enabled = True
         guest_row = _waitlist_row(test_college.id, email="guest@example.com")
         user_row = _waitlist_row(
             test_college.id, user_id=test_user.id, email=test_user.email
@@ -58,6 +71,7 @@ class TestNotifyRecoveredWaitlists:
         email_service = MagicMock()
         email_service.send_data_restored_notification.return_value = True
         sms_service = MagicMock()
+        sms_service.is_enabled = True
         sms_service.send_data_restored_notification.return_value = True
 
         result = notify_recovered_college_waitlists(
@@ -136,10 +150,12 @@ class TestNotifyRecoveredWaitlists:
         email_service.send_data_restored_notification.assert_not_called()
 
     @pytest.mark.unit
-    def test_email_when_signed_in_user_has_no_phone(
+    def test_email_when_phone_on_file_but_sms_not_opted_in(
         self, test_db: Session, test_college: College, test_user: Profile
     ):
-        test_user.phone = None
+        """Phone on file is not enough; college.sms_enabled is the SMS opt-in."""
+        assert test_user.phone
+        test_college.sms_enabled = False
         test_db.add(
             _waitlist_row(test_college.id, user_id=test_user.id, email=test_user.email)
         )
@@ -148,6 +164,56 @@ class TestNotifyRecoveredWaitlists:
         email_service = MagicMock()
         email_service.send_data_restored_notification.return_value = True
         sms_service = MagicMock()
+        sms_service.is_enabled = True
+
+        result = notify_recovered_college_waitlists(
+            test_db, email_service=email_service, sms_service=sms_service
+        )
+
+        assert result["sent"] == 1
+        email_service.send_data_restored_notification.assert_called_once_with(
+            test_user.email, test_college.name
+        )
+        sms_service.send_data_restored_notification.assert_not_called()
+
+    def test_sms_when_opted_in(
+        self, test_db: Session, test_college: College, test_user: Profile
+    ):
+        test_college.sms_enabled = True
+        test_db.add(
+            _waitlist_row(test_college.id, user_id=test_user.id, email=test_user.email)
+        )
+        test_db.commit()
+
+        email_service = MagicMock()
+        sms_service = MagicMock()
+        sms_service.is_enabled = True
+        sms_service.send_data_restored_notification.return_value = True
+
+        result = notify_recovered_college_waitlists(
+            test_db, email_service=email_service, sms_service=sms_service
+        )
+
+        assert result["sent"] == 1
+        sms_service.send_data_restored_notification.assert_called_once_with(
+            test_user.phone, test_college.name
+        )
+        email_service.send_data_restored_notification.assert_not_called()
+
+    def test_email_when_signed_in_user_has_no_phone(
+        self, test_db: Session, test_college: College, test_user: Profile
+    ):
+        test_user.phone = None
+        test_college.sms_enabled = True
+        test_db.add(
+            _waitlist_row(test_college.id, user_id=test_user.id, email=test_user.email)
+        )
+        test_db.commit()
+
+        email_service = MagicMock()
+        email_service.send_data_restored_notification.return_value = True
+        sms_service = MagicMock()
+        sms_service.is_enabled = True
 
         result = notify_recovered_college_waitlists(
             test_db, email_service=email_service, sms_service=sms_service

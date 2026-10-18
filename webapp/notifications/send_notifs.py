@@ -43,6 +43,7 @@ from models.stripe_subscription import StripeSubscription
 from models.notification_log import NotificationLog
 from notifications.email_service import EmailService
 from notifications.sms_service import SMSService
+from notifications.channel import should_send_sms
 from notifications.constants import (
     NOTIFICATION_CADENCE,
     USER_TIERS,
@@ -350,7 +351,7 @@ class NotificationJob:
                 f"🧪 DRY RUN: Would send email to {user_email} ({user_tier}) - "
                 f"{course_title} {section_code} at {college_name} is now OPEN!"
             )
-            if user_phone:
+            if should_send_sms(user_phone, self.sms_service.is_enabled):
                 logger.info(
                     f"🧪 DRY RUN: Would send SMS to {user_phone} ({user_tier}) - "
                     f"{course_title} {section_code} at {college_name} is now OPEN!"
@@ -405,10 +406,10 @@ class NotificationJob:
         )
         db.add(email_log)
 
-        # Send SMS notification if user has phone on file
+        # Same SMS gate as waitlist recovery: phone + SMS enabled.
         sms_success = False
         sms_attempted = False
-        if user_phone and self.sms_service.is_enabled:
+        if should_send_sms(user_phone, self.sms_service.is_enabled):
             sms_attempted = True
             logger.info(
                 f"📱 SENDING SMS: To {user_phone} ({user_tier}) - "

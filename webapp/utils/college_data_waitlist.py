@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from models.college import College
 from models.college_data_waitlist import CollegeDataWaitlist
 from models.user import Profile
+from notifications.channel import choose_notification_channel
 from utils.college_data_status import get_colleges_data_status
 
 WaitlistChannel = Literal["sms", "email"]
@@ -60,11 +61,18 @@ def normalize_waitlist_email(email: Optional[str]) -> Optional[str]:
     return cleaned.lower() if cleaned else None
 
 
-def choose_waitlist_channel(user: Optional[Profile]) -> WaitlistChannel:
-    """Reuse existing seat-alert preference: SMS if a phone is on file."""
-    if user is not None and (user.phone or "").strip():
-        return "sms"
-    return "email"
+def choose_waitlist_channel(
+    user: Optional[Profile],
+    college: Optional[College] = None,
+    *,
+    sms_service_enabled: bool = True,
+) -> WaitlistChannel:
+    """Same SMS-vs-email gate as seat alerts: phone AND college.sms_enabled."""
+    return choose_notification_channel(
+        user,
+        college,
+        sms_service_enabled=sms_service_enabled,
+    )
 
 
 def find_existing_waitlist_row(
@@ -297,7 +305,11 @@ def notify_recovered_college_waitlists(
             continue
 
         user = users_by_id.get(row.user_id) if row.user_id else None
-        channel = choose_waitlist_channel(user)
+        channel = choose_waitlist_channel(
+            user,
+            college,
+            sms_service_enabled=bool(getattr(sms_service, "is_enabled", True)),
+        )
         destination_email = (
             normalize_waitlist_email(user.email)
             if user is not None
