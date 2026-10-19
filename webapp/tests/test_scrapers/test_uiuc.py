@@ -751,31 +751,70 @@ async def test_fetch_with_retry_exhausted(scraper):
     await scraper.client.aclose()
 
 
+SAMPLE_AWS_ELB_403_HTML = """<html>
+<head><title>403 Forbidden</title></head>
+<body>
+<center><h1>403 Forbidden</h1></center>
+</body>
+</html>
+"""
+
+
 @pytest.mark.asyncio
-async def test_fetch_with_retry_403_no_retry(scraper):
-    """Test that 403 errors fail immediately without retry."""
+async def test_fetch_with_retry_403_then_success(scraper):
+    """HTTP 403 is retried with backoff and a later 200 succeeds."""
     await scraper._ensure_client()
 
     with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
-        # Mock 403 response
-        import httpx
+        mock_get.side_effect = [
+            _mock_http_response(403, SAMPLE_AWS_ELB_403_HTML.encode()),
+            _mock_http_response(200, SAMPLE_SUBJECTS_XML.encode()),
+        ]
 
-        mock_response = MagicMock()
-        mock_response.status_code = 403
+        result = await scraper._fetch_with_retry(
+            "https://courses.illinois.edu/cisapp/explorer/schedule/2026/fall.xml"
+        )
 
-        def raise_403():
-            raise httpx.HTTPStatusError(
-                "403", request=MagicMock(), response=mock_response
+        assert mock_get.call_count == 2
+        assert result.status_code == 200
+
+    await scraper.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_with_retry_403_retry_exhausted(scraper):
+    """Persistent HTTP 403 is retried then raised after backoff is exhausted."""
+    await scraper._ensure_client()
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = _mock_http_response(
+            403, SAMPLE_AWS_ELB_403_HTML.encode()
+        )
+
+        with pytest.raises(httpx.HTTPStatusError, match="403"):
+            await scraper._fetch_with_retry(
+                "https://courses.illinois.edu/cisapp/explorer/schedule/2026/fall.xml"
             )
 
-        mock_response.raise_for_status = raise_403
-        mock_get.return_value = mock_response
+        # 1 initial + 3 backoff retries
+        assert mock_get.call_count == 4
 
-        # Fetch with retry (should fail immediately)
-        with pytest.raises(httpx.HTTPStatusError):
-            await scraper._fetch_with_retry("https://example.com")
+    await scraper.client.aclose()
 
-        # Verify no retries
+
+@pytest.mark.asyncio
+async def test_fetch_with_retry_401_no_retry(scraper):
+    """HTTP 401 is a true auth failure and is not retried."""
+    await scraper._ensure_client()
+
+    with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = _mock_http_response(401, b"unauthorized")
+
+        with pytest.raises(httpx.HTTPStatusError, match="401"):
+            await scraper._fetch_with_retry(
+                "https://courses.illinois.edu/cisapp/explorer/schedule/2026/fall.xml"
+            )
+
         assert mock_get.call_count == 1
 
     await scraper.client.aclose()
@@ -996,7 +1035,7 @@ def test_parse_term_code_empty(scraper):
 
 @pytest.mark.asyncio
 async def test_fetch_course_html_403_fails_immediately(scraper):
-    """Test that 403 errors fail immediately without swallowing into empty list."""
+    """403 from _fetch_with_retry is not swallowed into an empty class list."""
     await scraper._ensure_client()
 
     with patch.object(
@@ -1160,37 +1199,59 @@ async def test_xml_course_id_deduplication(scraper):
 
 @pytest.mark.asyncio
 async def test_http_403_fixture(scraper):
-    """Test 403 error handling with real fixture file."""
+    """HTTP 403 fixture is retried then raised; logs include status and snippet."""
     await scraper._ensure_client()
 
-    # Read fixture file
     fixture_path = Path(__file__).parent / "fixtures" / "uiuc" / "http_403.html"
     with open(fixture_path, "r") as f:
         html_403 = f.read()
 
     with patch.object(scraper.client, "get", new_callable=AsyncMock) as mock_get:
-        # Mock 403 response
-        mock_response = MagicMock()
-        mock_response.status_code = 403
-        mock_response.content = html_403.encode()
-        mock_response.headers = {}
+        with patch("scraper.scrapers.uiuc.logger") as mock_logger:
+            mock_get.return_value = _mock_http_response(403, html_403.encode())
 
-        def raise_for_status():
-            raise httpx.HTTPStatusError(
-                "403 Forbidden", request=MagicMock(), response=mock_response
-            )
+            with pytest.raises(httpx.HTTPStatusError, match="403"):
+                await scraper._fetch_with_retry(
+                    "https://courses.illinois.edu/schedule/2026/fall/CS/124"
+                )
 
-        mock_response.raise_for_status = raise_for_status
-        mock_get.return_value = mock_response
+            # 1 initial + 3 backoff retries
+            assert mock_get.call_count == 4
+            warning_msgs = [
+                call.args[0] for call in mock_logger.warning.call_args_list if call.args
+            ]
+            assert any("UIUC HTTP 403" in msg for msg in warning_msgs)
+            assert any("status=403" in msg for msg in warning_msgs)
+            assert any("Forbidden" in msg for msg in warning_msgs)
 
-        # Should raise immediately without retries
-        with pytest.raises(httpx.HTTPStatusError, match="403"):
-            await scraper._fetch_with_retry(
-                "https://courses.illinois.edu/schedule/2026/fall/CS/124"
-            )
+    await scraper.client.aclose()
 
-        # Verify only one attempt (no retries for 403)
-        assert mock_get.call_count == 1
+
+@pytest.mark.asyncio
+async def test_http_403_awselb_fixture_logs_body_snippet(scraper):
+    """AWS ELB 403 body (live WAF) is logged with status and snippet."""
+    await scraper._ensure_client()
+
+    fixture_path = Path(__file__).parent / "fixtures" / "uiuc" / "http_403_awselb.html"
+    with open(fixture_path, "r") as f:
+        html_403 = f.read()
+
+    with patch("scraper.scrapers.uiuc.logger") as mock_logger:
+        mock_response = _mock_http_response(
+            403, html_403.encode(), headers={"content-type": "text/html"}
+        )
+        scraper._log_forbidden_response(
+            "https://courses.illinois.edu/cisapp/explorer/schedule/2026/fall.xml",
+            mock_response,
+        )
+
+        assert mock_logger.warning.call_count == 1
+        msg = mock_logger.warning.call_args.args[0]
+        assert "UIUC HTTP 403" in msg
+        assert "status=403" in msg
+        assert "content-type=text/html" in msg
+        assert "403 Forbidden" in msg
+        assert "fall.xml" in msg
 
     await scraper.client.aclose()
 
@@ -1509,8 +1570,36 @@ def _mock_http_response(status_code: int, content: bytes, headers=None):
         "content-type": "text/html",
         "Content-Length": str(len(content)),
     }
-    mock_response.raise_for_status = MagicMock()
+
+    def raise_for_status():
+        if status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"{status_code}",
+                request=MagicMock(),
+                response=mock_response,
+            )
+
+    mock_response.raise_for_status = raise_for_status
     return mock_response
+
+
+def test_client_uses_browser_user_agent(scraper):
+    """Course Explorer WAF 403s SeatSteal/1.0; client must send a browser UA."""
+    assert "SeatSteal" not in scraper.BROWSER_USER_AGENT
+    assert scraper.DEFAULT_HEADERS["User-Agent"] == scraper.BROWSER_USER_AGENT
+    assert scraper.DEFAULT_HEADERS["User-Agent"].startswith("Mozilla/5.0")
+    assert "application/xml" in scraper.DEFAULT_HEADERS["Accept"]
+    assert scraper.DEFAULT_HEADERS["Accept-Language"].startswith("en")
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_sends_browser_headers(scraper):
+    """httpx client is created with the browser-like default headers."""
+    await scraper._ensure_client()
+    headers = scraper.client.headers
+    assert headers["user-agent"] == scraper.BROWSER_USER_AGENT
+    assert "SeatSteal" not in headers["user-agent"]
+    await scraper.client.aclose()
 
 
 def test_soft_block_pacing_constants(scraper):
@@ -1520,6 +1609,7 @@ def test_soft_block_pacing_constants(scraper):
     assert scraper.INTER_BATCH_SLEEP_JITTER == 0.5
     assert scraper.RETRY_BACKOFF_DELAYS == [4, 8, 16]
     assert scraper.MAX_CONSECUTIVE_SOFT_BLOCKS == 15
+    assert "SeatSteal" not in scraper.BROWSER_USER_AGENT
 
 
 def test_is_course_html_soft_block_missing_heading(scraper):

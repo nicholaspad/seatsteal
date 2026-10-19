@@ -39,7 +39,23 @@ class UiucScraper(BaseScraper):
         4,
         8,
         16,
-    ]  # Exponential backoff for 429 / 5xx / soft-block (seconds)
+    ]  # Exponential backoff for 403 / 429 / 5xx / soft-block (seconds)
+    # AWS ELB WAF on courses.illinois.edu returns HTTP 403 for User-Agents
+    # containing "SeatSteal" or "scrapy". Browser-like headers succeed from the
+    # same AWS IP (verified 2026-10-18). Do not send SeatSteal/1.0 here.
+    BROWSER_USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/141.0.0.0 Safari/537.36"
+    )
+    DEFAULT_HEADERS = {
+        "User-Agent": BROWSER_USER_AGENT,
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+            "image/avif,image/webp,*/*;q=0.8"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
     MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB response size cap
     INTER_BATCH_SLEEP_SECONDS = 3.0  # Pause between course-page batches
     INTER_BATCH_SLEEP_JITTER = 0.5  # +/- jitter on inter-batch sleep
@@ -77,15 +93,12 @@ class UiucScraper(BaseScraper):
         )
 
     async def _ensure_client(self):
-        """Ensure HTTP client is initialized"""
+        """Ensure HTTP client is initialized with browser-like headers."""
         if self.client is None:
             self.client = httpx.AsyncClient(
                 timeout=30.0,
                 follow_redirects=True,
-                headers={
-                    "User-Agent": "SeatSteal/1.0",
-                    "Accept": "text/html,application/xml",
-                },
+                headers=self.DEFAULT_HEADERS,
             )
 
     async def scrape_courses(
@@ -815,8 +828,8 @@ class UiucScraper(BaseScraper):
         schedule_table = soup.find("table", id="schedule-course-table")
         return heading is None or schedule_table is None
 
-    def _log_soft_block_response(self, url: str, response: httpx.Response) -> None:
-        """Log status, content-type, body size, and a short title/snippet."""
+    def _response_log_details(self, response: httpx.Response) -> Dict[str, Any]:
+        """Extract status, content-type, body size, title, and a short snippet."""
         headers = getattr(response, "headers", None)
         content_type = "unknown"
         if headers is not None:
@@ -831,6 +844,8 @@ class UiucScraper(BaseScraper):
 
         try:
             body = response.content or b""
+            if not isinstance(body, (bytes, bytearray)):
+                body = b""
             body_size = len(body)
         except Exception:
             body = b""
@@ -850,11 +865,32 @@ class UiucScraper(BaseScraper):
             title = ""
             snippet = ""
 
+        return {
+            "status": getattr(response, "status_code", "unknown"),
+            "content_type": content_type,
+            "body_size": body_size,
+            "title": title,
+            "snippet": snippet,
+        }
+
+    def _log_soft_block_response(self, url: str, response: httpx.Response) -> None:
+        """Log status, content-type, body size, and a short title/snippet."""
+        details = self._response_log_details(response)
         logger.warning(
             f"UIUC soft-block (structure-miss) for {url}: "
-            f"status={getattr(response, 'status_code', 'unknown')} "
-            f"content-type={content_type} body_size={body_size} "
-            f"title={title!r} snippet={snippet!r}"
+            f"status={details['status']} "
+            f"content-type={details['content_type']} body_size={details['body_size']} "
+            f"title={details['title']!r} snippet={details['snippet']!r}"
+        )
+
+    def _log_forbidden_response(self, url: str, response: httpx.Response) -> None:
+        """Log HTTP 403 status and a short body snippet before retry/fail."""
+        details = self._response_log_details(response)
+        logger.warning(
+            f"UIUC HTTP 403 for {url}: "
+            f"status={details['status']} "
+            f"content-type={details['content_type']} body_size={details['body_size']} "
+            f"title={details['title']!r} snippet={details['snippet']!r}"
         )
 
     async def _record_soft_block(self, url: str, response: httpx.Response) -> None:
@@ -892,7 +928,7 @@ class UiucScraper(BaseScraper):
         self, url: str, require_course_chrome: bool = False
     ) -> httpx.Response:
         """
-        Fetch URL with retry logic for 429, 5xx, and course-page soft-block.
+        Fetch URL with retry logic for 403, 429, 5xx, and course-page soft-block.
 
         Counts EVERY outbound HTTP attempt against request budget.
         Enforces hard response-size cap.
@@ -907,7 +943,7 @@ class UiucScraper(BaseScraper):
             HTTP response
 
         Raises:
-            httpx.HTTPError: If all retries fail or on auth errors (401/403)
+            httpx.HTTPError: If all retries fail, or on 401 auth errors
             RuntimeError: If request budget exhausted or response too large
             UiucSoftBlockError: If course chrome is missing after retries, or
                 after too many consecutive structure-miss responses
@@ -941,8 +977,28 @@ class UiucScraper(BaseScraper):
                         f"Response size {len(response.content)} bytes exceeds limit {self.MAX_RESPONSE_SIZE}"
                     )
 
-                # Handle auth errors immediately (no retry)
-                if response.status_code in [401, 403]:
+                # 401 is a true auth failure — do not retry
+                if response.status_code == 401:
+                    response.raise_for_status()
+
+                # 403: WAF / bot-filter / rate-shape. Log status + body snippet
+                # and retry with the same backoff as 429.
+                if response.status_code == 403:
+                    self._log_forbidden_response(url, response)
+                    retry_after = None
+                    try:
+                        retry_after = response.headers.get("Retry-After")
+                    except Exception:
+                        retry_after = None
+                    if retry_after:
+                        try:
+                            wait_time = int(retry_after)
+                            logger.warning(f"403 Forbidden, Retry-After: {wait_time}s")
+                            await asyncio.sleep(wait_time)
+                        except (TypeError, ValueError):
+                            pass
+                    if attempt < len(self.RETRY_BACKOFF_DELAYS):
+                        continue
                     response.raise_for_status()
 
                 # Handle rate limiting
@@ -989,8 +1045,9 @@ class UiucScraper(BaseScraper):
 
             except Exception as e:
                 last_exception = e
-                # Check if this is an auth error - fail immediately
-                if hasattr(e, "response") and e.response.status_code in [401, 403]:
+                # 401 is a true auth error - fail immediately. 403 is retried.
+                status = getattr(getattr(e, "response", None), "status_code", None)
+                if status == 401:
                     raise
                 # Check if this is budget, size, or soft-block abort - fail immediately
                 if isinstance(e, RuntimeError):
