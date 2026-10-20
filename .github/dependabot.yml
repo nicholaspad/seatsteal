@@ -4,6 +4,8 @@ updates:
     directory: "/seatsteal"
     schedule:
       interval: "weekly"
+    # Keep version-update PRs off (this file is new); security updates still honor the ignore below.
+    open-pull-requests-limit: 0
     ignore:
       - dependency-name: "tailwindcss"
         update-types: ["version-update:semver-major"]
