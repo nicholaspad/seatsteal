@@ -21,11 +21,11 @@ class Enrollment(Base):
 
     __tablename__ = "enrollments"
 
-    id = Column(Integer, primary_key=True, index=True)
-    college_id = Column(Integer, ForeignKey("colleges.id"), nullable=False, index=True)
-    class_id = Column(
-        Integer, ForeignKey("classes.class_id"), nullable=False, index=True
-    )
+    id = Column(Integer, primary_key=True)
+    # No index=True: that would create ix_enrollments_college_id, which prod
+    # does not have. college_scraped_idx covers college_id-leading lookups.
+    college_id = Column(Integer, ForeignKey("colleges.id"), nullable=False)
+    class_id = Column(Integer, ForeignKey("classes.class_id"), nullable=False)
 
     # Enrollment data: 'open', 'closed', 'unknown'
     enrollment_status = Column(String, nullable=False)
@@ -37,18 +37,13 @@ class Enrollment(Base):
     raw_text = Column(Text)
 
     __table_args__ = (
-        Index("enrollments_class_id_idx", "class_id"),
-        Index("enrollments_scraped_at_idx", "scraped_at"),
-        Index("enrollments_status_idx", "enrollment_status"),
-        Index("enrollments_college_status_idx", "college_id", "enrollment_status"),
-        # Performance optimization: Critical composite indexes for heavy queries
+        # Kept indexes only (see alembic 021). Every scrape UPDATEs scraped_at,
+        # which is never HOT, so each extra index costs one write per class per
+        # scrape. Do not add indexes here without a query that needs them.
+        # (class_id, scraped_at) serves latest-per-class, notifs, analytics and the class_id FK.
         Index("enrollments_class_scraped_idx", "class_id", "scraped_at"),
-        Index(
-            "enrollments_class_status_scraped_idx",
-            "class_id",
-            "enrollment_status",
-            "scraped_at",
-        ),
+        # cron 30-day cleanup + admin recent changes
+        Index("enrollments_scraped_at_idx", "scraped_at"),
+        # purge script / per-college ops + college_id FK
         Index("enrollments_college_scraped_idx", "college_id", "scraped_at"),
-        Index("enrollments_status_scraped_idx", "enrollment_status", "scraped_at"),
     )
