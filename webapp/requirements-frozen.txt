@@ -51,7 +51,7 @@ pyOpenSSL==25.3.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 python-jose==3.3.0
-python-multipart==0.0.18
+python-multipart==0.0.26
 PyYAML==6.0.3
 realtime==2.5.3
 redis==5.0.1
